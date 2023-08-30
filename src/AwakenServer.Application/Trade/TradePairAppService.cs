@@ -363,6 +363,16 @@ namespace AwakenServer.Trade
                 lastDayTvl = snapshot.TVL;
                 lastDayPriceUSD = snapshot.PriceUSD;
             }
+            else
+            {
+                var sortDaySnapshot = daySnapshot.OrderBy(s => s.Timestamp).ToList();
+                if (sortDaySnapshot.Count > 0)
+                {
+                    var snapshot = sortDaySnapshot.First();
+                    lastDayTvl = snapshot.TVL;
+                    lastDayPriceUSD = snapshot.PriceUSD;
+                }
+            }
 
             var priceUSD0 = await _tokenPriceProvider.GetTokenUSDPriceAsync(pair.ChainId, pair.Token0.Symbol);
             var priceUSD1 = await _tokenPriceProvider.GetTokenUSDPriceAsync(pair.ChainId, pair.Token1.Symbol);
