@@ -294,7 +294,7 @@ namespace AwakenServer.Trade
             }
 
             var snapshots = await GetIndexListAsync(snapshotDto.ChainId,
-                snapshotDto.TradePairId, snapshotDto.Timestamp.AddDays(-2), snapshotDto.Timestamp);
+                snapshotDto.TradePairId, snapshotDto.Timestamp.AddDays(-2));
 
             var volume24h = snapshotDto.Volume;
             var tradeValue24h = snapshotDto.TradeValue;
@@ -328,6 +328,16 @@ namespace AwakenServer.Trade
                 lastDayTvl = snapshot.TVL;
                 lastDayPriceUSD = snapshot.PriceUSD;
             }
+            else
+            {
+                var sortDaySnapshot = daySnapshot.OrderBy(s => s.Timestamp).ToList();
+                if (sortDaySnapshot.Count > 0)
+                {
+                    var snapshot = sortDaySnapshot.First();
+                    lastDayTvl = snapshot.TVL;
+                    lastDayPriceUSD = snapshot.PriceUSD;
+                }
+            }
 
             var existIndex = await _tradePairIndexRepository.GetAsync(snapshotDto.TradePairId);
             
@@ -345,6 +355,9 @@ namespace AwakenServer.Trade
             existIndex.PriceLow24h = priceLow24h;
             existIndex.PriceHigh24hUSD = priceHigh24hUSD;
             existIndex.PriceLow24hUSD = priceLow24hUSD;
+            existIndex.PriceChange24h  = lastDayPriceUSD == 0
+                ? 0
+                : existIndex.PriceUSD - lastDayPriceUSD;
             existIndex.PricePercentChange24h = lastDayPriceUSD == 0
                 ? 0
                 : (existIndex.PriceUSD - lastDayPriceUSD) * 100 / lastDayPriceUSD;
