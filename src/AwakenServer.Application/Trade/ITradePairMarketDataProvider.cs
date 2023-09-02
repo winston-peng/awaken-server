@@ -15,7 +15,7 @@ namespace AwakenServer.Trade
 {
     public interface ITradePairMarketDataProvider
     {
-        Task UpdateTotalSupplyAsync(string chainId, Guid tradePairId, DateTime timestamp, BigDecimal lpTokenAmount);
+        Task UpdateTotalSupplyAsync(string chainId, Guid tradePairId, DateTime timestamp, BigDecimal lpTokenAmount, long supply = 0);
 
         Task UpdateTradeRecordAsync(string chainId, Guid tradePairId, DateTime timestamp, double volume, double tradeValue, int tradeAddressCount24h);
 
@@ -60,7 +60,8 @@ namespace AwakenServer.Trade
             _bus = bus;
         }
 
-        public async Task UpdateTotalSupplyAsync(string chainId, Guid tradePairId, DateTime timestamp, BigDecimal lpTokenAmount)
+        public async Task UpdateTotalSupplyAsync(string chainId, Guid tradePairId, DateTime timestamp,
+            BigDecimal lpTokenAmount, long supply = 0) 
         {
             var snapshotTime = GetSnapshotTime(timestamp);
             var marketData = await GetTradePairMarketDataIndexAsync(chainId, tradePairId, snapshotTime);
@@ -79,7 +80,7 @@ namespace AwakenServer.Trade
                     Id = Guid.NewGuid(),
                     ChainId = chainId,
                     TradePairId = tradePairId,
-                    TotalSupply = totalSupply.ToNormalizeString(),
+                    TotalSupply = supply == 0 ? totalSupply.ToNormalizeString() : supply.ToString(),
                     Timestamp = snapshotTime
                 };
                 if (lastMarketData != null)
@@ -99,7 +100,8 @@ namespace AwakenServer.Trade
             else
             {
                 var totalSupply = BigDecimal.Parse(marketData.TotalSupply);
-                marketData.TotalSupply = (totalSupply + lpTokenAmount).ToNormalizeString();
+                marketData.TotalSupply =
+                    supply == 0 ? (totalSupply + lpTokenAmount).ToNormalizeString() : supply.ToString();
                 await _snapshotIndexRepository.UpdateAsync(marketData);
                 await AddOrUpdateTradePairIndexAsync(marketData);
             }
