@@ -109,7 +109,9 @@ namespace AwakenServer.Trade
             var latestMarketData = await GetLatestTradePairMarketDataIndexAsync(chainId, tradePairId);
             if (latestMarketData != null && latestMarketData.Timestamp > snapshotTime)
             {
-                latestMarketData.TotalSupply = (BigDecimal.Parse(latestMarketData.TotalSupply) + lpTokenAmount).ToNormalizeString();
+                latestMarketData.TotalSupply = string.IsNullOrWhiteSpace(supply)
+                    ? (BigDecimal.Parse(latestMarketData.TotalSupply) + lpTokenAmount).ToNormalizeString()
+                    : supply;
                 await _snapshotIndexRepository.UpdateAsync(latestMarketData);
                 await AddOrUpdateTradePairIndexAsync(latestMarketData);
             }
