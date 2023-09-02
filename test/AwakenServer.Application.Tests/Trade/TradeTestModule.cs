@@ -83,7 +83,8 @@ namespace AwakenServer.Trade
                 {
                     {"0.0005", "2F4vThkqXxzoUGQowUzmGNQwyGc6a6Ca7UZK5eWHpwmkwRuUpN"},
                     {"0.001", "2KRHY1oZv5S28YGRJ3adtMxfAh7WQP3wmMyoFq33oTc7Mt5Z1Y"},
-                    {"0.03", "UoHeeCXZ6fV481oD3NXASSexWVtsPLgv2Wthm3BGrPAgqdS5d"}
+                    {"0.03", "UoHeeCXZ6fV481oD3NXASSexWVtsPLgv2Wthm3BGrPAgqdS5d"},
+                    {"0.05", "2tWvBTmX7YhB2HLcWGGG5isVCgab96jdaXnqDs1jzSsyqwmjic"}
                 };
             });
             
@@ -152,7 +153,7 @@ namespace AwakenServer.Trade
                 Address = "0xPool006a6FaC8c710e53c4B2c2F96477119dA362",
                 Token0Id = tokenBTC.Id,
                 Token1Id = tokenETH.Id,
-                FeeRate = 0.3,
+                FeeRate = 0.03,
             }));
             environmentProvider.TradePairBtcEthId = tradePairBtcEth.Id;
         }
