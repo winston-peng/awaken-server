@@ -15,7 +15,7 @@ namespace AwakenServer.Trade
 {
     public interface ITradePairMarketDataProvider
     {
-        Task UpdateTotalSupplyAsync(string chainId, Guid tradePairId, DateTime timestamp, BigDecimal lpTokenAmount, long supply = 0);
+        Task UpdateTotalSupplyAsync(string chainId, Guid tradePairId, DateTime timestamp, BigDecimal lpTokenAmount, string supply = null);
 
         Task UpdateTradeRecordAsync(string chainId, Guid tradePairId, DateTime timestamp, double volume, double tradeValue, int tradeAddressCount24h);
 
@@ -61,7 +61,7 @@ namespace AwakenServer.Trade
         }
 
         public async Task UpdateTotalSupplyAsync(string chainId, Guid tradePairId, DateTime timestamp,
-            BigDecimal lpTokenAmount, long supply = 0) 
+            BigDecimal lpTokenAmount, string supply = null) 
         {
             var snapshotTime = GetSnapshotTime(timestamp);
             var marketData = await GetTradePairMarketDataIndexAsync(chainId, tradePairId, snapshotTime);
@@ -80,7 +80,7 @@ namespace AwakenServer.Trade
                     Id = Guid.NewGuid(),
                     ChainId = chainId,
                     TradePairId = tradePairId,
-                    TotalSupply = supply == 0 ? totalSupply.ToNormalizeString() : supply.ToString(),
+                    TotalSupply = string.IsNullOrWhiteSpace(supply) ? totalSupply.ToNormalizeString() : supply,
                     Timestamp = snapshotTime
                 };
                 if (lastMarketData != null)
@@ -101,7 +101,7 @@ namespace AwakenServer.Trade
             {
                 var totalSupply = BigDecimal.Parse(marketData.TotalSupply);
                 marketData.TotalSupply =
-                    supply == 0 ? (totalSupply + lpTokenAmount).ToNormalizeString() : supply.ToString();
+                    string.IsNullOrWhiteSpace(supply) ? (totalSupply + lpTokenAmount).ToNormalizeString() : supply;
                 await _snapshotIndexRepository.UpdateAsync(marketData);
                 await AddOrUpdateTradePairIndexAsync(marketData);
             }
