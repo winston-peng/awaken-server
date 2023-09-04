@@ -8,12 +8,12 @@ namespace AwakenServer.Trade
         public const string BlockHeightSetPrefix = "TradeRecord:BlockHeightSet";
         public const string TransactionHashSetPrefix = "TradeRecord:TransactionHashSet";
         public const string TransactionHashPrefix = "TradeRecord:TransactionHash";
-        public const int QueryOnceLimit = 1000;
-        public const int BlockHeightLimit = 100;
         public const int DefaultNextNodeIndex = -1;
-        public const int RetryLimit = 2;
-        public const int TransactionHashExpirationTime = 360;
-        public const int RevertTimePeriod = 75000;
+        public int QueryOnceLimit { get; set; }
+        public int BlockHeightLimit { get; set; }
+        public int RetryLimit { get; set; }
+        public int TransactionHashExpirationTime { get; set; }
+        public int RevertTimePeriod { get; set; }
     }
     
     public class BlockHeightSetDto
