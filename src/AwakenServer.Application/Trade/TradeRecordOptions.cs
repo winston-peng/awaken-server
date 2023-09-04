@@ -12,7 +12,7 @@ namespace AwakenServer.Trade
         public const int BlockHeightLimit = 100;
         public const int DefaultNextNodeIndex = -1;
         public const int RetryLimit = 2;
-        public const int TransactionHashExpirationTime = 180;
+        public const int TransactionHashExpirationTime = 360;
         public const int RevertTimePeriod = 75000;
     }
     
