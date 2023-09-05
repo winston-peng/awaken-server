@@ -9,11 +9,11 @@ namespace AwakenServer.Trade
         public const string TransactionHashSetPrefix = "TradeRecord:TransactionHashSet";
         public const string TransactionHashPrefix = "TradeRecord:TransactionHash";
         public const int DefaultNextNodeIndex = -1;
-        public int QueryOnceLimit { get; set; }
-        public int BlockHeightLimit { get; set; }
-        public int RetryLimit { get; set; }
-        public int TransactionHashExpirationTime { get; set; }
-        public int RevertTimePeriod { get; set; }
+        public int QueryOnceLimit { get; set; } = 1000;
+        public int BlockHeightLimit { get; set; } = 100;
+        public int RetryLimit { get; set; } = 2;
+        public int TransactionHashExpirationTime { get; set; } = 360;
+        public int RevertTimePeriod { get; set; } = 75000;
     }
     
     public class BlockHeightSetDto
