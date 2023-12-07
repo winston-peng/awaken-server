@@ -113,6 +113,13 @@ public class AwakenServerEntityHandlerModule : AbpModule
         context.Services
             .AddDataProtection()
             .PersistKeysToStackExchangeRedis(redis, "AwakenServer-Protection-Keys");
+        
+        context.Services.AddSingleton<IDistributedLockService>(sp =>
+        {
+            var connection = ConnectionMultiplexer
+                .Connect(configuration["Redis:Configuration"]);
+            return new DistributedLockService(connection.GetDatabase());
+        });
     }
 
     private static void ConfigureOrleans(ServiceConfigurationContext context, IConfiguration configuration)
