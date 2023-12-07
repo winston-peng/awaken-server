@@ -12,14 +12,16 @@ public class FlushCacheService : ApplicationService, IFlushCacheService
     private readonly ITradeRecordAppService _tradeRecordAppService;
     private readonly ILogger<LiquidityAppService> _logger;
     private readonly ITradePairMarketDataProvider _tradePairMarketDataProvider;
+    private readonly TradeRecordOptions _tradeRecordOptions;
 
     public FlushCacheService(IChainAppService chainAppService, ITradeRecordAppService tradeRecordAppService,
-        ILogger<LiquidityAppService> logger, ITradePairMarketDataProvider tradePairMarketDataProvider)
+        ILogger<LiquidityAppService> logger, ITradePairMarketDataProvider tradePairMarketDataProvider,TradeRecordOptions tradeRecordOptions)
     {
         _chainAppService = chainAppService;
         _tradeRecordAppService = tradeRecordAppService;
         _logger = logger;
         _tradePairMarketDataProvider = tradePairMarketDataProvider;
+        _tradeRecordOptions = tradeRecordOptions;
     }
 
     public async Task FlushCache(List<string> cacheKeys)
