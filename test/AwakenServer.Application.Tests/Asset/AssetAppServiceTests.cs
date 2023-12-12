@@ -45,7 +45,7 @@ public class AssetAppServiceTests : TradeTestBase
             Symbol = "EOS",
             Balance = 500
         };
-        
+
         _graphQlProvider.AddUserToken(userTokenDto);
         var userAssetInfo = await _assetAppService.GetUserAssetInfoAsync(new GetUserAssetInfoDto
         {
@@ -59,7 +59,7 @@ public class AssetAppServiceTests : TradeTestBase
         userAssetInfo.ShowList.First().Balance.ShouldBe(userTokenDto.Balance);
         userAssetInfo.ShowList.First().Amount.ShouldBe("0.0001");
         userAssetInfo.HiddenList.Count.ShouldBe(0);
-        
+
         _graphQlProvider.AddUserToken(userTokenDto1);
         userAssetInfo = await _assetAppService.GetUserAssetInfoAsync(new GetUserAssetInfoDto
         {
@@ -78,7 +78,7 @@ public class AssetAppServiceTests : TradeTestBase
         userAssetInfo.ShowList.Last().Balance.ShouldBe(userTokenDto1.Balance);
         userAssetInfo.ShowList.Last().Amount.ShouldBe("0.000003");
         userAssetInfo.HiddenList.Count.ShouldBe(0);
-        
+
         _graphQlProvider.AddUserToken(userTokenDto2);
         userAssetInfo = await _assetAppService.GetUserAssetInfoAsync(new GetUserAssetInfoDto
         {
@@ -100,7 +100,7 @@ public class AssetAppServiceTests : TradeTestBase
         // userAssetInfo.HiddenList.First().ChainId.ShouldBe(userTokenDto2.ChainId);
         // userAssetInfo.HiddenList.First().Symbol.ShouldBe(userTokenDto2.Symbol);
         // userAssetInfo.HiddenList.First().Balance.ShouldBe(userTokenDto2.Balance);
-        
+
         userAssetInfo = await _assetAppService.GetUserAssetInfoAsync(new GetUserAssetInfoDto
         {
             ChainId = "Ethereum",
@@ -108,5 +108,24 @@ public class AssetAppServiceTests : TradeTestBase
         });
         userAssetInfo.ShowList.Count.ShouldBe(0);
         userAssetInfo.HiddenList.Count.ShouldBe(0);
+    }
+
+    [Fact]
+    public async Task SetDefaultToken_Success_Test()
+    {
+        var dto = new DefaultTokenDto
+        {
+            Address = "TEST_ADDRESS",
+            TokenSymbol = "BTC"
+        };
+        var result = await _assetAppService.SetDefaultTokenAsync(dto);
+        result.ShouldNotBeNull();
+        result.TokenSymbol.ShouldBe(dto.TokenSymbol);
+
+        var defaultToken =
+            await _assetAppService.GetDefaultTokenAsync(new GetDefaultTokenDto { Address = dto.Address });
+        defaultToken.ShouldNotBeNull();
+        defaultToken.TokenSymbol.ShouldBe(dto.TokenSymbol);
+        
     }
 }
