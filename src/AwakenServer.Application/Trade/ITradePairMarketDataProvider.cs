@@ -18,6 +18,7 @@ using Nethereum.Util;
 using StackExchange.Redis;
 using Volo.Abp.Caching;
 using Volo.Abp.DependencyInjection;
+using Volo.Abp.DistributedLocking;
 using Volo.Abp.EventBus.Distributed;
 using Volo.Abp.ObjectMapping;
 
@@ -60,11 +61,11 @@ namespace AwakenServer.Trade
         private readonly IDistributedEventBus _distributedEventBus;
         private readonly IObjectMapper _objectMapper;
         private readonly IBus _bus;
-        private readonly IDistributedLockService _distributedLock;
         private readonly IDistributedCache<UpdateTotalSupplyBatch> _totalSupplyAccumulationCache;
         private readonly IDistributedCache<UpdateTradeRecordBatch> _tradeRecordAccumulationCache;
         private readonly ILogger<TradePairMarketDataProvider> _logger;
         private readonly TradeRecordOptions _tradeRecordOptions;
+        private readonly IAbpDistributedLock _distributedLock;
 
         private static DateTime lastWriteTime;
 
@@ -78,7 +79,7 @@ namespace AwakenServer.Trade
             IDistributedEventBus distributedEventBus,
             IBus bus,
             IObjectMapper objectMapper,
-            IDistributedLockService distributedLock,
+            IAbpDistributedLock distributedLock,
             IDistributedCache<UpdateTotalSupplyBatch> totalSupplyAccumulationCache,
             IDistributedCache<UpdateTradeRecordBatch> tradeRecordAccumulationCache,
             ILogger<TradePairMarketDataProvider> logger,
@@ -101,39 +102,35 @@ namespace AwakenServer.Trade
 
         public async Task FlushTradeRecordCacheToSnapshotAsync(string cacheKey)
         {
-            var redisDistributedLock = new RedisDistributedLock(cacheKey, _distributedLock.GetDatabase());
-            using (var handle = redisDistributedLock.Acquire())
+            await using var handle = await _distributedLock.TryAcquireAsync(cacheKey);
+
+            var value = await _tradeRecordAccumulationCache.GetAsync(cacheKey);
+            if (value != null)
             {
-                var value = await _tradeRecordAccumulationCache.GetAsync(cacheKey);
-                if (value != null)
+                if (DateTime.UtcNow.Subtract(value.CreateTime).TotalSeconds >=
+                    _tradeRecordOptions.BatchFlushTimePeriod ||
+                    value.TradeCount >= _tradeRecordOptions.BatchFlushCount)
                 {
-                    if (DateTime.UtcNow.Subtract(value.CreateTime).TotalSeconds >=
-                        _tradeRecordOptions.BatchFlushTimePeriod ||
-                        value.TradeCount >= _tradeRecordOptions.BatchFlushCount)
-                    {
-                        await _updateTradeRecordAsync(value.ChanId, value.TradePairId, value.Timestamp, value.Volume,
-                            value.TradeValue, value.TradeCount);
-                        _tradeRecordAccumulationCache.Remove(cacheKey);
-                    }
+                    await _updateTradeRecordAsync(value.ChanId, value.TradePairId, value.Timestamp, value.Volume,
+                        value.TradeValue, value.TradeCount);
+                    _tradeRecordAccumulationCache.Remove(cacheKey);
                 }
             }
         }
 
         public async Task FlushTotalSupplyCacheToSnapshotAsync(string cacheKey)
         {
-            var redisDistributedLock = new RedisDistributedLock(cacheKey, _distributedLock.GetDatabase());
-            using (var handle = redisDistributedLock.Acquire())
+            await using var handle = await _distributedLock.TryAcquireAsync(cacheKey);
+
+            var value = await _totalSupplyAccumulationCache.GetAsync(cacheKey);
+            if (value != null)
             {
-                var value = await _totalSupplyAccumulationCache.GetAsync(cacheKey);
-                if (value != null)
+                if (DateTime.UtcNow.Subtract(value.LastTime).TotalSeconds >=
+                    _tradeRecordOptions.BatchFlushTimePeriod)
                 {
-                    if (DateTime.UtcNow.Subtract(value.LastTime).TotalSeconds >=
-                        _tradeRecordOptions.BatchFlushTimePeriod)
-                    {
-                        await _updateTotalSupplyAsync(value.ChanId, value.TradePairId, value.Timestamp,
-                            BigDecimal.Parse(value.TotalSupply));
-                        _totalSupplyAccumulationCache.Remove(cacheKey);
-                    }
+                    await _updateTotalSupplyAsync(value.ChanId, value.TradePairId, value.Timestamp,
+                        BigDecimal.Parse(value.TotalSupply));
+                    _totalSupplyAccumulationCache.Remove(cacheKey);
                 }
             }
         }
@@ -143,39 +140,38 @@ namespace AwakenServer.Trade
         {
             var lockName = string.Format("{0}-{1}-{2}", chainId,
                 tradePairId, GetSnapshotTime(timestamp));
-            var redisDistributedLock = new RedisDistributedLock(lockName, _distributedLock.GetDatabase());
-            using (var handle = redisDistributedLock.Acquire())
+
+            await using var handle = await _distributedLock.TryAcquireAsync(lockName);
+
+            var value = await _totalSupplyAccumulationCache.GetAsync(lockName);
+            if (value == null)
             {
-                var value = await _totalSupplyAccumulationCache.GetAsync(lockName);
-                if (value == null)
+                _totalSupplyAccumulationCache.Set(lockName, new UpdateTotalSupplyBatch
                 {
-                    _totalSupplyAccumulationCache.Set(lockName, new UpdateTotalSupplyBatch
-                    {
-                        LastTime = DateTime.UtcNow,
-                        TotalSupply = lpTokenAmount.ToString(),
-                        ChanId = chainId,
-                        TradePairId = tradePairId,
-                        Timestamp = timestamp
-                    });
-                    return;
-                }
-
-                lpTokenAmount += BigDecimal.Parse(value.TotalSupply);
-                var span = DateTime.UtcNow.Subtract(value.LastTime).TotalSeconds;
-
-                if (span < _tradeRecordOptions.BatchFlushTimePeriod)
-                {
-                    await _totalSupplyAccumulationCache.SetAsync(lockName, new UpdateTotalSupplyBatch
-                    {
-                        LastTime = value.LastTime,
-                        TotalSupply = lpTokenAmount.ToString()
-                    });
-                    return;
-                }
-
-                await _updateTotalSupplyAsync(chainId, tradePairId, timestamp, lpTokenAmount);
-                await _totalSupplyAccumulationCache.RemoveAsync(lockName);
+                    LastTime = DateTime.UtcNow,
+                    TotalSupply = lpTokenAmount.ToString(),
+                    ChanId = chainId,
+                    TradePairId = tradePairId,
+                    Timestamp = timestamp
+                });
+                return;
             }
+
+            lpTokenAmount += BigDecimal.Parse(value.TotalSupply);
+            var span = DateTime.UtcNow.Subtract(value.LastTime).TotalSeconds;
+
+            if (span < _tradeRecordOptions.BatchFlushTimePeriod)
+            {
+                await _totalSupplyAccumulationCache.SetAsync(lockName, new UpdateTotalSupplyBatch
+                {
+                    LastTime = value.LastTime,
+                    TotalSupply = lpTokenAmount.ToString()
+                });
+                return;
+            }
+
+            await _updateTotalSupplyAsync(chainId, tradePairId, timestamp, lpTokenAmount);
+            await _totalSupplyAccumulationCache.RemoveAsync(lockName);
         }
 
         private async Task _updateTotalSupplyAsync(string chainId, Guid tradePairId, DateTime timestamp,
@@ -242,44 +238,42 @@ namespace AwakenServer.Trade
             var lockName = string.Format("{0}-{1}-{2}", chainId,
                 tradePairId, GetSnapshotTime(timestamp));
             var value = await _tradeRecordAccumulationCache.GetAsync(lockName);
-            var redisDistributedLock = new RedisDistributedLock(lockName, _distributedLock.GetDatabase());
-
-            using (var handle = redisDistributedLock.Acquire())
+            await using var handle = await _distributedLock.TryAcquireAsync(lockName);
+            
+            var tradeCount = 1;
+            if (value == null)
             {
-                var tradeCount = 1;
-                if (value == null)
+                await _tradeRecordAccumulationCache.SetAsync(lockName, new UpdateTradeRecordBatch()
                 {
-                    await _tradeRecordAccumulationCache.SetAsync(lockName, new UpdateTradeRecordBatch()
-                    {
-                        CreateTime = DateTime.UtcNow,
-                        ChanId = chainId,
-                        TradePairId = tradePairId,
-                        Timestamp = timestamp,
-                        Volume = volume,
-                        TradeValue = tradeValue,
-                    });
-                }
-                else
-                {
-                    if (DateTime.UtcNow.Subtract(value.CreateTime).TotalSeconds <
-                        _tradeRecordOptions.BatchFlushTimePeriod || value.TradeCount >= _tradeRecordOptions.BatchFlushCount)
-                    {
-                        value.Volume += volume;
-                        value.TradeValue += tradeValue;
-                        value.TradeCount += 1;
-                        await _tradeRecordAccumulationCache.SetAsync(lockName, value);
-                        return;
-                    }
-
-                    tradeCount += value.TradeCount;
-                    volume += value.Volume;
-                    tradeValue += value.TradeValue;
-
-                    await _tradeRecordAccumulationCache.RemoveAsync(lockName);
-                }
-
-                await _updateTradeRecordAsync(chainId, tradePairId, timestamp, volume, tradeValue, tradeCount);
+                    CreateTime = DateTime.UtcNow,
+                    ChanId = chainId,
+                    TradePairId = tradePairId,
+                    Timestamp = timestamp,
+                    Volume = volume,
+                    TradeValue = tradeValue,
+                });
             }
+            else
+            {
+                if (DateTime.UtcNow.Subtract(value.CreateTime).TotalSeconds <
+                    _tradeRecordOptions.BatchFlushTimePeriod ||
+                    value.TradeCount >= _tradeRecordOptions.BatchFlushCount)
+                {
+                    value.Volume += volume;
+                    value.TradeValue += tradeValue;
+                    value.TradeCount += 1;
+                    await _tradeRecordAccumulationCache.SetAsync(lockName, value);
+                    return;
+                }
+
+                tradeCount += value.TradeCount;
+                volume += value.Volume;
+                tradeValue += value.TradeValue;
+
+                await _tradeRecordAccumulationCache.RemoveAsync(lockName);
+            }
+
+            await _updateTradeRecordAsync(chainId, tradePairId, timestamp, volume, tradeValue, tradeCount);
         }
 
         public async Task _updateTradeRecordAsync(string chainId, Guid tradePairId, DateTime timestamp, double volume,

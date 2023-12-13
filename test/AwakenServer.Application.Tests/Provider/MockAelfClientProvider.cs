@@ -13,6 +13,7 @@ public class MockAelfClientProvider : IAElfClientProvider
     }
 
     public string ChainType { get; } = "AElf";
+
     public Task<long> GetBlockNumberAsync(string chainName)
     {
         throw new System.NotImplementedException();
@@ -33,16 +34,16 @@ public class MockAelfClientProvider : IAElfClientProvider
         else if (chainName == "tDVV") return 0;
         else return -1;
     }
-        
+
     public Task<TokenInfo> GetTokenInfoFromChainAsync(string chainName, string address, string symbol)
     {
         throw new System.NotImplementedException();
     }
-    
-    
+
+
     public async Task<GetBalanceOutput> GetBalanceAsync(string chainName, string address, string contractAddress,
         string symbol)
     {
-        throw new System.NotImplementedException();
+        return null;
     }
 }

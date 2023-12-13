@@ -27,6 +27,16 @@ namespace AwakenServer.Trade
                 o.TransactionHashExpirationTime = 360;
                 o.RevertTimePeriod = 75000;
             });
+            
+            context.Services.Configure<AssetWhenNoTransactionOptions>(o =>
+            {
+               o.Symbols = new List<string>
+               {
+                   "USDT",
+                   "BTC",
+                   "ETH"
+               };
+            });
             context.Services.Configure<AssetShowOptions>(o =>
             {
                 o.ShowList = new List<string>()

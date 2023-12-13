@@ -1,5 +1,6 @@
 using System.Linq;
 using System.Threading.Tasks;
+using AwakenServer.Price;
 using AwakenServer.Provider;
 using AwakenServer.Trade;
 using Microsoft.Extensions.Options;
@@ -13,12 +14,15 @@ public class AssetAppServiceTests : TradeTestBase
     private readonly MockGraphQLProvider _graphQlProvider;
     private readonly IAssetAppService _assetAppService;
     private readonly AssetShowOptions _assetShowOptions;
-
+    private readonly IPriceAppService _priceAppService;
+    private readonly AssetWhenNoTransactionOptions _assetWhenNoTransactionOptions;
     public AssetAppServiceTests()
     {
         _graphQlProvider = GetRequiredService<MockGraphQLProvider>();
         _assetAppService = GetRequiredService<IAssetAppService>();
         _assetShowOptions = GetRequiredService<IOptionsSnapshot<AssetShowOptions>>().Value;
+        _priceAppService = GetRequiredService<IPriceAppService>();
+        _assetWhenNoTransactionOptions = GetRequiredService<IOptionsSnapshot<AssetWhenNoTransactionOptions>>().Value;
     }
 
     [Fact]
