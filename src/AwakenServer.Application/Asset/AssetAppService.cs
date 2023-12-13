@@ -4,12 +4,14 @@ using System.Linq;
 using System.Threading.Tasks;
 using AElf.Client.MultiToken;
 using AwakenServer.Chains;
+using AwakenServer.Grains.Grain.Asset;
 using AwakenServer.Price;
 using AwakenServer.Provider;
 using AwakenServer.Tokens;
 using AwakenServer.Trade;
 using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.Extensions.Options;
+using Orleans;
 using Volo.Abp;
 using Volo.Abp.Application.Services;
 using Volo.Abp.Caching;
@@ -27,6 +29,7 @@ public class AssetAppService : ApplicationService, IAssetAppService
     private readonly AssetWhenNoTransactionOptions _assetWhenNoTransactionOptions;
     private readonly IDistributedCache<UserAssetInfoDto> _userAssetInfoDtoCache;
     private const string userAssetInfoDtoPrefix = "AwakenServer:Asset:";
+    private readonly IClusterClient _clusterClient;
 
     public AssetAppService(IGraphQLProvider graphQlProvider,
         ITokenAppService tokenAppService,
@@ -34,13 +37,14 @@ public class AssetAppService : ApplicationService, IAssetAppService
         IOptionsSnapshot<AssetShowOptions> optionsSnapshot,
         IAElfClientProvider aelfClientProvider,
         IOptionsSnapshot<AssetWhenNoTransactionOptions> showSymbolsWhenNoTransactionOptions,
-        IDistributedCache<UserAssetInfoDto> userAssetInfoDtoCache)
+        IDistributedCache<UserAssetInfoDto> userAssetInfoDtoCache,IClusterClient clusterClient)
     {
         _graphQlProvider = graphQlProvider;
         _tokenAppService = tokenAppService;
         _priceAppService = priceAppService;
         _assetShowOptions = optionsSnapshot.Value;
         _aelfClientProvider = aelfClientProvider;
+        _clusterClient = clusterClient;
         _assetWhenNoTransactionOptions = showSymbolsWhenNoTransactionOptions.Value;
         _userAssetInfoDtoCache = userAssetInfoDtoCache;
     }
@@ -248,5 +252,27 @@ public class AssetAppService : ApplicationService, IAssetAppService
         {
             TransactionFee = _assetShowOptions.TransactionFee
         };
+    }
+
+    public async Task<DefaultTokenDto> SetDefaultTokenAsync(DefaultTokenDto input)
+    {
+        var defaultTokenGrain = _clusterClient.GetGrain<IDefaultTokenGrain>(input.Address);
+
+        await defaultTokenGrain.SetTokenAsync(input.TokenSymbol);
+
+        return input;
+    }
+
+
+    public async Task<DefaultTokenDto> GetDefaultTokenAsync(GetDefaultTokenDto input)
+    {
+        var defaultTokenGrain = _clusterClient.GetGrain<IDefaultTokenGrain>(input.Address);
+
+        var result = defaultTokenGrain.GetAsync();
+
+        var defaultTokenDto = new DefaultTokenDto();
+        defaultTokenDto.TokenSymbol = result.Result.Data.TokenSymbol;
+        defaultTokenDto.Address = input.Address;
+        return defaultTokenDto;
     }
 }
