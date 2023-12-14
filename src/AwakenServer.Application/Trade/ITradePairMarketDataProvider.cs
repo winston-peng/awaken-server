@@ -493,7 +493,7 @@ namespace AwakenServer.Trade
             var priceLow24h = snapshotDto.PriceLow;
             var priceHigh24hUSD = snapshotDto.PriceHighUSD;
             var priceLow24hUSD = snapshotDto.PriceLowUSD;
-
+            
             var daySnapshot = snapshots.Where(s => s.Timestamp >= snapshotDto.Timestamp.AddDays(-1)).ToList();
             foreach (var snapshot in daySnapshot)
             {

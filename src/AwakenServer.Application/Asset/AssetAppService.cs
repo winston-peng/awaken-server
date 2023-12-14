@@ -176,7 +176,7 @@ public class AssetAppService : ApplicationService, IAssetAppService
         foreach (var symbol in _assetWhenNoTransactionOptions.Symbols)
         {
             var balanceOutput = await _aelfClientProvider.GetBalanceAsync(chanId, address,
-                _assetWhenNoTransactionOptions.ContractAddressOfGetBalance, symbol);
+                _assetWhenNoTransactionOptions.ContractAddressOfGetBalance[chanId], symbol);
             if (balanceOutput != null)
             {
                 var userTokenInfo = new UserTokenInfo()

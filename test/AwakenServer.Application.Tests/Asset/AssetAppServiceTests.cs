@@ -107,7 +107,7 @@ public class AssetAppServiceTests : TradeTestBase
 
         userAssetInfo = await _assetAppService.GetUserAssetInfoAsync(new GetUserAssetInfoDto
         {
-            ChainId = "Ethereum",
+            ChainId = "AElf",
             Address = "0x1234567890"
         });
         userAssetInfo.ShowList.Count.ShouldBe(0);

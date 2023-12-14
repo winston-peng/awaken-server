@@ -8,5 +8,5 @@ public class AssetWhenNoTransactionOptions
 
     public int ExpireDurationMinutes { get; set; }
 
-    public string ContractAddressOfGetBalance { get; set; }
+    public Dictionary<string, string> ContractAddressOfGetBalance { get; set; }
 }

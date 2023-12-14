@@ -27,15 +27,17 @@ namespace AwakenServer.Trade
                 o.TransactionHashExpirationTime = 360;
                 o.RevertTimePeriod = 75000;
             });
-            
+
             context.Services.Configure<AssetWhenNoTransactionOptions>(o =>
             {
-               o.Symbols = new List<string>
-               {
-                   "USDT",
-                   "BTC",
-                   "ETH"
-               };
+                o.Symbols = new List<string>
+                {
+                    "USDT",
+                    "BTC",
+                    "ETH"
+                };
+                o.ContractAddressOfGetBalance = new Dictionary<string, string>
+                    { { "AElf", "test" }, { "tDVV", "TEST" } };
             });
             context.Services.Configure<AssetShowOptions>(o =>
             {
@@ -51,15 +53,17 @@ namespace AwakenServer.Trade
                 o.Coins = new Dictionary<string, List<Coin>>();
                 o.Coins["Ethereum"] = new List<Coin>
                 {
-                    new Coin{Address = "0xToken06a6FaC8c710e53c4B2c2F96477119dA361",Symbol = "USDT"},
-                    new Coin{Address = "0x06a6FaC8c710e53c4B2c2F96477119dA365",Symbol = "USDC"},
-                    new Coin{Address = "0x06a6FaC8c710e53c4B2c2F96477119dA365",Symbol = "DAI"}
+                    new Coin { Address = "0xToken06a6FaC8c710e53c4B2c2F96477119dA361", Symbol = "USDT" },
+                    new Coin { Address = "0x06a6FaC8c710e53c4B2c2F96477119dA365", Symbol = "USDC" },
+                    new Coin { Address = "0x06a6FaC8c710e53c4B2c2F96477119dA365", Symbol = "DAI" }
                 };
-                o.Coins["BSC"] = new List<Coin> {
-                    new Coin{Address = "0xToken06a6FaC8c710e53c4B2c2F96477119dA362",Symbol = "BUSD"},
+                o.Coins["BSC"] = new List<Coin>
+                {
+                    new Coin { Address = "0xToken06a6FaC8c710e53c4B2c2F96477119dA362", Symbol = "BUSD" },
                 };
-                o.Coins["AELF"] = new List<Coin> {
-                    new Coin{Address = "0xToken06a6FaC8c710e53c4B2c2F96477119dA366",Symbol = "USDT"},
+                o.Coins["AELF"] = new List<Coin>
+                {
+                    new Coin { Address = "0xToken06a6FaC8c710e53c4B2c2F96477119dA366", Symbol = "USDT" },
                 };
             });
 
@@ -76,36 +80,35 @@ namespace AwakenServer.Trade
                     604800
                 };
             });
-            
+
             context.Services.Configure<MainCoinOptions>(o =>
             {
                 o.Coins = new Dictionary<string, Dictionary<string, Coin>>();
                 o.Coins["BTC"] = new Dictionary<string, Coin>
                 {
-                    {"Ethereum",new Coin
                     {
-                        Symbol = "BTC",
-                        Address = "0xToken06a6FaC8c710e53c4B2c2F96477119dA362"
-                    }}
+                        "Ethereum", new Coin
+                        {
+                            Symbol = "BTC",
+                            Address = "0xToken06a6FaC8c710e53c4B2c2F96477119dA362"
+                        }
+                    }
                 };
             });
 
-            context.Services.Configure<CmsOptions>(o =>
-            {
-                o.CmsAddress = "https://test-cms.awaken.finance/";
-            });
-            
+            context.Services.Configure<CmsOptions>(o => { o.CmsAddress = "https://test-cms.awaken.finance/"; });
+
             context.Services.Configure<ContractsTokenOptions>(o =>
             {
                 o.Contracts = new Dictionary<string, string>
                 {
-                    {"0.0005", "2F4vThkqXxzoUGQowUzmGNQwyGc6a6Ca7UZK5eWHpwmkwRuUpN"},
-                    {"0.001", "2KRHY1oZv5S28YGRJ3adtMxfAh7WQP3wmMyoFq33oTc7Mt5Z1Y"},
-                    {"0.03", "UoHeeCXZ6fV481oD3NXASSexWVtsPLgv2Wthm3BGrPAgqdS5d"},
-                    {"0.05", "2tWvBTmX7YhB2HLcWGGG5isVCgab96jdaXnqDs1jzSsyqwmjic"}
+                    { "0.0005", "2F4vThkqXxzoUGQowUzmGNQwyGc6a6Ca7UZK5eWHpwmkwRuUpN" },
+                    { "0.001", "2KRHY1oZv5S28YGRJ3adtMxfAh7WQP3wmMyoFq33oTc7Mt5Z1Y" },
+                    { "0.03", "UoHeeCXZ6fV481oD3NXASSexWVtsPLgv2Wthm3BGrPAgqdS5d" },
+                    { "0.05", "2tWvBTmX7YhB2HLcWGGG5isVCgab96jdaXnqDs1jzSsyqwmjic" }
                 };
             });
-            
+
             context.Services.AddSingleton<TestEnvironmentProvider>();
             context.Services.AddSingleton<IWeb3Provider, MockWeb3Provider>();
             context.Services.AddSingleton<IBlockchainClientProvider, MockWeb3Provider>();
@@ -118,14 +121,14 @@ namespace AwakenServer.Trade
             var tradePairService = context.ServiceProvider.GetRequiredService<ITradePairAppService>();
             var environmentProvider = context.ServiceProvider.GetRequiredService<TestEnvironmentProvider>();
 
-            var chainEth = AsyncHelper.RunSync(async ()=> await chainService.CreateAsync(new ChainCreateDto
+            var chainEth = AsyncHelper.RunSync(async () => await chainService.CreateAsync(new ChainCreateDto
             {
                 Name = "Ethereum"
             }));
             environmentProvider.EthChainId = chainEth.Id;
             environmentProvider.EthChainName = chainEth.Name;
 
-            var tokenETH = AsyncHelper.RunSync(async ()=> await tokenService.CreateAsync(new TokenCreateDto
+            var tokenETH = AsyncHelper.RunSync(async () => await tokenService.CreateAsync(new TokenCreateDto
             {
                 Address = "0xToken06a6FaC8c710e53c4B2c2F96477119dA360",
                 Decimals = 8,
@@ -134,8 +137,8 @@ namespace AwakenServer.Trade
             }));
             environmentProvider.TokenEthId = tokenETH.Id;
             environmentProvider.TokenEthSymbol = "ETH";
-            
-            var tokenUSDT = AsyncHelper.RunSync(async ()=> await tokenService.CreateAsync(new TokenCreateDto
+
+            var tokenUSDT = AsyncHelper.RunSync(async () => await tokenService.CreateAsync(new TokenCreateDto
             {
                 Address = "0xToken06a6FaC8c710e53c4B2c2F96477119dA361",
                 Decimals = 6,
@@ -144,8 +147,8 @@ namespace AwakenServer.Trade
             }));
             environmentProvider.TokenUsdtId = tokenUSDT.Id;
             environmentProvider.TokenUsdtSymbol = "USDT";
-            
-            var tokenBTC = AsyncHelper.RunSync(async ()=> await tokenService.CreateAsync(new TokenCreateDto
+
+            var tokenBTC = AsyncHelper.RunSync(async () => await tokenService.CreateAsync(new TokenCreateDto
             {
                 Address = "0xToken06a6FaC8c710e53c4B2c2F96477119dA362",
                 Decimals = 8,
@@ -155,24 +158,26 @@ namespace AwakenServer.Trade
             environmentProvider.TokenBtcId = tokenBTC.Id;
             environmentProvider.TokenBtcSymbol = "BTC";
 
-            var tradePairEthUsdt = AsyncHelper.RunSync(async ()=> await tradePairService.CreateAsync(new TradePairCreateDto
-            {
-                ChainId = chainEth.Name,
-                Address = "0xPool006a6FaC8c710e53c4B2c2F96477119dA361",
-                Token0Id = tokenETH.Id,
-                Token1Id = tokenUSDT.Id,
-                FeeRate = 0.5
-            }));
+            var tradePairEthUsdt = AsyncHelper.RunSync(async () => await tradePairService.CreateAsync(
+                new TradePairCreateDto
+                {
+                    ChainId = chainEth.Name,
+                    Address = "0xPool006a6FaC8c710e53c4B2c2F96477119dA361",
+                    Token0Id = tokenETH.Id,
+                    Token1Id = tokenUSDT.Id,
+                    FeeRate = 0.5
+                }));
             environmentProvider.TradePairEthUsdtId = tradePairEthUsdt.Id;
-            
-            var tradePairBtcEth = AsyncHelper.RunSync(async ()=> await tradePairService.CreateAsync(new TradePairCreateDto
-            {
-                ChainId = chainEth.Name,
-                Address = "0xPool006a6FaC8c710e53c4B2c2F96477119dA362",
-                Token0Id = tokenBTC.Id,
-                Token1Id = tokenETH.Id,
-                FeeRate = 0.03,
-            }));
+
+            var tradePairBtcEth = AsyncHelper.RunSync(async () => await tradePairService.CreateAsync(
+                new TradePairCreateDto
+                {
+                    ChainId = chainEth.Name,
+                    Address = "0xPool006a6FaC8c710e53c4B2c2F96477119dA362",
+                    Token0Id = tokenBTC.Id,
+                    Token1Id = tokenETH.Id,
+                    FeeRate = 0.03,
+                }));
             environmentProvider.TradePairBtcEthId = tradePairBtcEth.Id;
         }
     }
