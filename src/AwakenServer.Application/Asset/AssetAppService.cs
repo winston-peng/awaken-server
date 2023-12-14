@@ -37,7 +37,7 @@ public class AssetAppService : ApplicationService, IAssetAppService
         IOptionsSnapshot<AssetShowOptions> optionsSnapshot,
         IAElfClientProvider aelfClientProvider,
         IOptionsSnapshot<AssetWhenNoTransactionOptions> showSymbolsWhenNoTransactionOptions,
-        IDistributedCache<UserAssetInfoDto> userAssetInfoDtoCache,IClusterClient clusterClient)
+        IDistributedCache<UserAssetInfoDto> userAssetInfoDtoCache, IClusterClient clusterClient)
     {
         _graphQlProvider = graphQlProvider;
         _tokenAppService = tokenAppService;
@@ -158,6 +158,7 @@ public class AssetAppService : ApplicationService, IAssetAppService
                     ((long)(userTokenInfo.Balance * symbolPriceMap.GetValueOrDefault(userTokenInfo.Symbol)))
                     .ToDecimalsString(decimals);
             }
+
             await _userAssetInfoDtoCache.SetAsync($"{userAssetInfoDtoPrefix}:{chanId}:{address}", userAsset,
                 new DistributedCacheEntryOptions
                 {
@@ -271,7 +272,7 @@ public class AssetAppService : ApplicationService, IAssetAppService
         var result = defaultTokenGrain.GetAsync();
 
         var defaultTokenDto = new DefaultTokenDto();
-        defaultTokenDto.TokenSymbol = result.Result.Data.TokenSymbol;
+        defaultTokenDto.TokenSymbol = result.Result.Data.TokenSymbol ?? _assetShowOptions.DefaultSymbol;
         defaultTokenDto.Address = input.Address;
         return defaultTokenDto;
     }

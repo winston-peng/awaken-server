@@ -57,9 +57,9 @@ public class AwakenServerEntityHandlerModule : AbpModule
         Configure<ChainsInitOptions>(configuration.GetSection("ChainsInit"));
 
         Configure<ApiOptions>(configuration.GetSection("Api"));
-        
+
         Configure<TradeRecordOptions>(configuration.GetSection("TradeRecord"));
-        
+
         context.Services.AddMassTransit(x =>
         {
             x.UsingRabbitMq((ctx, cfg) =>
@@ -113,13 +113,6 @@ public class AwakenServerEntityHandlerModule : AbpModule
         context.Services
             .AddDataProtection()
             .PersistKeysToStackExchangeRedis(redis, "AwakenServer-Protection-Keys");
-        
-        context.Services.AddSingleton<IDistributedLockService>(sp =>
-        {
-            var connection = ConnectionMultiplexer
-                .Connect(configuration["Redis:Configuration"]);
-            return new DistributedLockService(connection.GetDatabase());
-        });
     }
 
     private static void ConfigureOrleans(ServiceConfigurationContext context, IConfiguration configuration)

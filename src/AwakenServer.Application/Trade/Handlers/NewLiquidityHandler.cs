@@ -37,6 +37,7 @@ namespace AwakenServer.Trade.Handlers
             var token = await GetTokenInfoAsync(eventData);
             var supply = "";
             if (token != null)
+                
             {
                 supply = token.Supply.ToDecimalsString(token.Decimals);;
             }

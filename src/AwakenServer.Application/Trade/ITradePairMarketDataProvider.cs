@@ -1,21 +1,14 @@
 using System;
-using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
-using System.Reflection;
 using System.Threading.Tasks;
 using AElf.Indexing.Elasticsearch;
 using AwakenServer.Trade.Dtos;
-using Elasticsearch.Net;
-using JetBrains.Annotations;
 using MassTransit;
-using Medallion.Threading.Redis;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-using MongoDB.Driver.Linq;
 using Nest;
 using Nethereum.Util;
-using StackExchange.Redis;
 using Volo.Abp.Caching;
 using Volo.Abp.DependencyInjection;
 using Volo.Abp.DistributedLocking;
@@ -111,6 +104,9 @@ namespace AwakenServer.Trade
                     _tradeRecordOptions.BatchFlushTimePeriod ||
                     value.TradeCount >= _tradeRecordOptions.BatchFlushCount)
                 {
+                    _logger.LogInformation(
+                        $"FlushTradeRecordCacheToSnapshot start.cacheKey:{cacheKey},chanId:{value.ChanId}," +
+                        $"tradePairId:{value.TradePairId},timestamp:{value.Timestamp},volume:{value.Volume},tradeValue:{value.TradeValue},tradeCount:{value.TradeCount}");
                     await _updateTradeRecordAsync(value.ChanId, value.TradePairId, value.Timestamp, value.Volume,
                         value.TradeValue, value.TradeCount);
                     _tradeRecordAccumulationCache.Remove(cacheKey);
@@ -128,6 +124,8 @@ namespace AwakenServer.Trade
                 if (DateTime.UtcNow.Subtract(value.LastTime).TotalSeconds >=
                     _tradeRecordOptions.BatchFlushTimePeriod)
                 {
+                    _logger.LogInformation(
+                        $"FlushTotalSupplyCacheToSnapshot start.cacheKey:{cacheKey},chanId:{value.ChanId},tradePairId:{value.TradePairId},timestamp:{value.Timestamp},totalSupply:{value.TotalSupply}");
                     await _updateTotalSupplyAsync(value.ChanId, value.TradePairId, value.Timestamp,
                         BigDecimal.Parse(value.TotalSupply));
                     _totalSupplyAccumulationCache.Remove(cacheKey);
@@ -170,7 +168,7 @@ namespace AwakenServer.Trade
                 return;
             }
 
-            await _updateTotalSupplyAsync(chainId, tradePairId, timestamp, lpTokenAmount);
+            await _updateTotalSupplyAsync(chainId, tradePairId, timestamp, lpTokenAmount,supply);
             await _totalSupplyAccumulationCache.RemoveAsync(lockName);
         }
 
@@ -239,7 +237,7 @@ namespace AwakenServer.Trade
                 tradePairId, GetSnapshotTime(timestamp));
             var value = await _tradeRecordAccumulationCache.GetAsync(lockName);
             await using var handle = await _distributedLock.TryAcquireAsync(lockName);
-            
+
             var tradeCount = 1;
             if (value == null)
             {
