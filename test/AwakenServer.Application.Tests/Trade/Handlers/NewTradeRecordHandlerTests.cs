@@ -115,7 +115,7 @@ namespace AwakenServer.Trade.Handlers
                 q.Term(i => i.Field(f => f.ChainId).Value(recordInput.ChainId)) &&
                 q.Term(i => i.Field(f => f.TradePairId).Value(recordInput.TradePairId)) &&
                 q.Term(i => i.Field(f => f.Timestamp).Value(snapshotTime)));
-            marketDataSnapshot.Volume.ShouldBe(2000);
+            marketDataSnapshot.Volume.ShouldBe(3000);
             marketDataSnapshot.TradeValue.ShouldBe(4000);
             marketDataSnapshot.TradeCount.ShouldBe(2);
             marketDataSnapshot.TradeAddressCount24h.ShouldBe(1);

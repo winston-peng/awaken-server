@@ -119,7 +119,7 @@ public class AssetAppServiceTests : TradeTestBase
     {
         var dto = new DefaultTokenDto
         {
-            Address = "TEST_ADDRESS",
+            Address = "SPcgFjH76yLNV5M1cThyEsi2xzRH2LAJgGSzfs6redtFQTsot",
             TokenSymbol = "BTC"
         };
         var result = await _assetAppService.SetDefaultTokenAsync(dto);
