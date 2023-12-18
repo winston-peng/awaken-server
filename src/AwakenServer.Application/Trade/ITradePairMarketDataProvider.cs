@@ -7,6 +7,7 @@ using AwakenServer.Trade.Dtos;
 using MassTransit;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using MongoDB.Bson.IO;
 using Nest;
 using Nethereum.Util;
 using Volo.Abp.Caching;
@@ -14,6 +15,7 @@ using Volo.Abp.DependencyInjection;
 using Volo.Abp.DistributedLocking;
 using Volo.Abp.EventBus.Distributed;
 using Volo.Abp.ObjectMapping;
+using JsonConvert = Newtonsoft.Json.JsonConvert;
 
 namespace AwakenServer.Trade
 {
@@ -139,6 +141,8 @@ namespace AwakenServer.Trade
             var lockName = string.Format("{0}-{1}-{2}", chainId,
                 tradePairId, GetSnapshotTime(timestamp));
 
+            _logger.LogInformation(
+                $"UpdateTotalSupply,chainId:{chainId},tradePairId:{tradePairId},timestamp:{timestamp},lpTokenAmount:{lpTokenAmount},supply:{supply}");
             await using var handle = await _distributedLock.TryAcquireAsync(lockName);
 
             var value = await _totalSupplyAccumulationCache.GetAsync(lockName);
@@ -204,6 +208,7 @@ namespace AwakenServer.Trade
                     marketData.ValueLocked1 = lastMarketData.ValueLocked1;
                 }
 
+
                 marketData.TradeAddressCount24h =
                     await _tradeRecordAppService.GetUserTradeAddressCountAsync(chainId, tradePairId,
                         timestamp.AddDays(-1), timestamp);
@@ -215,10 +220,12 @@ namespace AwakenServer.Trade
                 var totalSupply = BigDecimal.Parse(marketData.TotalSupply);
                 marketData.TotalSupply =
                     string.IsNullOrWhiteSpace(supply) ? (totalSupply + lpTokenAmount).ToNormalizeString() : supply;
+
                 await _snapshotIndexRepository.UpdateAsync(marketData);
                 await AddOrUpdateTradePairIndexAsync(marketData);
             }
 
+            //nie:The current snapshot is not up-to-date. The latest snapshot needs to update TotalSupply 
             var latestMarketData = await GetLatestTradePairMarketDataIndexAsync(chainId, tradePairId);
             if (latestMarketData != null && latestMarketData.Timestamp > snapshotTime)
             {
@@ -235,10 +242,9 @@ namespace AwakenServer.Trade
         {
             var lockName = string.Format("{0}-{1}-{2}", chainId,
                 tradePairId, GetSnapshotTime(timestamp));
-            var value = await _tradeRecordAccumulationCache.GetAsync(lockName);
             await using var handle = await _distributedLock.TryAcquireAsync(lockName);
+            var value = await _tradeRecordAccumulationCache.GetAsync(lockName);
 
-            var tradeCount = 1;
             if (value == null)
             {
                 await _tradeRecordAccumulationCache.SetAsync(lockName, new UpdateTradeRecordBatch()
@@ -249,35 +255,34 @@ namespace AwakenServer.Trade
                     Timestamp = timestamp,
                     Volume = volume,
                     TradeValue = tradeValue,
+                    TradeCount = 1,
                 });
             }
             else
             {
+                value.Volume += volume;
+                value.TradeValue += tradeValue;
+                value.TradeCount += 1;
                 if (DateTime.UtcNow.Subtract(value.CreateTime).TotalSeconds <
                     _tradeRecordOptions.BatchFlushTimePeriod ||
                     value.TradeCount >= _tradeRecordOptions.BatchFlushCount)
                 {
-                    value.Volume += volume;
-                    value.TradeValue += tradeValue;
-                    value.TradeCount += 1;
-                    await _tradeRecordAccumulationCache.SetAsync(lockName, value);
-                    return;
+                    await _updateTradeRecordAsync(chainId, tradePairId, timestamp, value.Volume, value.TradeValue,
+                        value.TradeCount);
+                    await _tradeRecordAccumulationCache.RemoveAsync(lockName);
                 }
-
-                tradeCount += value.TradeCount;
-                volume += value.Volume;
-                tradeValue += value.TradeValue;
-
-                await _tradeRecordAccumulationCache.RemoveAsync(lockName);
+                else
+                {
+                    await _tradeRecordAccumulationCache.SetAsync(lockName, value);
+                }
             }
-
-            await _updateTradeRecordAsync(chainId, tradePairId, timestamp, volume, tradeValue, tradeCount);
         }
 
         public async Task _updateTradeRecordAsync(string chainId, Guid tradePairId, DateTime timestamp, double volume,
             double tradeValue, int tradeCount)
         {
-            var dateTime = DateTime.UtcNow;
+            _logger.LogInformation(
+                $"_updateTradeRecordAsync start.chainId:{chainId},tradePairId:{tradePairId},timestamp:{timestamp},volume:{volume},tradeValue:{tradeValue},tradeCount:{tradeCount}");
             var snapshotTime = GetSnapshotTime(timestamp);
             var marketData = await GetTradePairMarketDataIndexAsync(chainId, tradePairId, snapshotTime);
 
@@ -328,14 +333,15 @@ namespace AwakenServer.Trade
                 await _snapshotIndexRepository.UpdateAsync(marketData);
                 await AddOrUpdateTradePairIndexAsync(marketData);
             }
-
-            _logger.LogDebug("Record cost time:" + DateTime.UtcNow.Subtract(dateTime).TotalSeconds);
         }
 
         public async Task UpdateLiquidityAsync(string chainId, Guid tradePairId, DateTime timestamp, double price,
             double priceUSD, double tvl,
             double valueLocked0, double valueLocked1)
         {
+            var lockName = string.Format("{0}-{1}-{2}", chainId,
+                tradePairId, GetSnapshotTime(timestamp));
+            await using var handle = await _distributedLock.TryAcquireAsync(lockName);
             var snapshotTime = GetSnapshotTime(timestamp);
             var marketData = await GetTradePairMarketDataIndexAsync(chainId, tradePairId, snapshotTime);
 
@@ -377,13 +383,16 @@ namespace AwakenServer.Trade
                 marketData.Price = price;
                 marketData.PriceHigh = Math.Max(marketData.PriceHigh, price);
                 marketData.PriceHighUSD = Math.Max(marketData.PriceHighUSD, priceUSD);
-                marketData.PriceLow = Math.Min(marketData.PriceLow, price);
-                marketData.PriceLowUSD = Math.Min(marketData.PriceLowUSD, priceUSD);
+                marketData.PriceLow = marketData.PriceLow == 0 ? price : Math.Min(marketData.PriceLow, price);
+                marketData.PriceLowUSD =
+                    marketData.PriceLowUSD == 0 ? price : Math.Min(marketData.PriceLowUSD, priceUSD);
                 marketData.PriceUSD = priceUSD;
                 marketData.TVL = tvl;
                 marketData.ValueLocked0 = valueLocked0;
                 marketData.ValueLocked1 = valueLocked1;
 
+                _logger.LogInformation(
+                    $"whx UpdateLiquidityAsync AddOrUpdateTradePairIndex:{JsonConvert.SerializeObject(marketData)}");
                 await _snapshotIndexRepository.UpdateAsync(marketData);
                 await AddOrUpdateTradePairIndexAsync(marketData);
             }
@@ -485,7 +494,6 @@ namespace AwakenServer.Trade
 
             var snapshots = await GetIndexListAsync(snapshotDto.ChainId,
                 snapshotDto.TradePairId, snapshotDto.Timestamp.AddDays(-2));
-
             var volume24h = 0d;
             var tradeValue24h = 0d;
             var tradeCount24h = 0;
@@ -500,10 +508,29 @@ namespace AwakenServer.Trade
                 volume24h += snapshot.Volume;
                 tradeValue24h += snapshot.TradeValue;
                 tradeCount24h += snapshot.TradeCount;
-                priceHigh24h = Math.Max(priceHigh24h, snapshot.PriceHigh);
-                priceLow24h = Math.Min(priceLow24h, snapshot.PriceLow);
+
+                if (priceLow24h == 0)
+                {
+                    priceLow24h = snapshot.PriceLow;
+                }
+
+                if (snapshot.PriceLow != 0)
+                {
+                    priceLow24h = Math.Min(priceLow24h, snapshot.PriceLow);
+                }
+
+                if (priceLow24hUSD == 0)
+                {
+                    priceLow24hUSD = snapshot.PriceLowUSD;
+                }
+
+                if (snapshot.PriceLowUSD != 0)
+                {
+                    priceLow24hUSD = Math.Min(priceLow24hUSD, snapshot.PriceLowUSD);
+                }
+
                 priceHigh24hUSD = Math.Max(priceHigh24hUSD, snapshot.PriceHighUSD);
-                priceLow24hUSD = Math.Min(priceLow24hUSD, snapshot.PriceLowUSD);
+                priceHigh24h = Math.Max(priceHigh24h, snapshot.PriceHigh);
             }
 
             var lastDaySnapshot = snapshots.Where(s => s.Timestamp < snapshotDto.Timestamp.AddDays(-1))
@@ -520,14 +547,15 @@ namespace AwakenServer.Trade
             }
             else
             {
-                var sortDaySnapshot = daySnapshot.OrderBy(s => s.Timestamp).ToList();
-                if (sortDaySnapshot.Count > 0)
+                var snapshot = GetLatestTVLTradePairMarketDataIndexAsync(snapshotDto.ChainId, snapshotDto.TradePairId,
+                    snapshotDto.Timestamp);
+                if (snapshot != null && snapshot.Result != null)
                 {
-                    var snapshot = sortDaySnapshot.First();
-                    lastDayTvl = snapshot.TVL;
-                    lastDayPriceUSD = snapshot.PriceUSD;
+                    lastDayTvl = snapshot.Result.TVL;
+                    lastDayPriceUSD = snapshot.Result.PriceUSD;
                 }
             }
+
 
             var existIndex = await _tradePairIndexRepository.GetAsync(snapshotDto.TradePairId);
 
@@ -568,25 +596,15 @@ namespace AwakenServer.Trade
                                           (snapshotDto.TVL * 7);
             }
 
-            if (existIndex.TVL == 0)
-            {
-                var snapshot = GetLatestTVLTradePairMarketDataIndexAsync(snapshotDto.ChainId, snapshotDto.TradePairId,
-                    snapshotDto.Timestamp);
-                if (snapshot != null && snapshot.Result != null)
-                {
-                    existIndex.TVL = snapshot.Result.TVL;
-                }
-            }
+
+            _logger.LogInformation("whx AddOrUpdateTradePairIndex: " + JsonConvert.SerializeObject(existIndex));
+
 
             await _tradePairIndexRepository.AddOrUpdateAsync(existIndex);
-            await _bus.Publish<NewIndexEvent<TradePairIndexDto>>(new NewIndexEvent<TradePairIndexDto>
+            await _bus.Publish(new NewIndexEvent<TradePairIndexDto>
             {
                 Data = _objectMapper.Map<Index.TradePair, TradePairIndexDto>(existIndex)
             });
-            /*await _distributedEventBus.PublishAsync(new NewIndexEvent<TradePairIndexDto>
-            {
-                Data = _objectMapper.Map<Index.TradePair, TradePairIndexDto>(existIndex)
-            });*/
         }
 
 

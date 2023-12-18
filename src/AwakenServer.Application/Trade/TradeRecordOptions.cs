@@ -15,7 +15,7 @@ namespace AwakenServer.Trade
         public int TransactionHashExpirationTime { get; set; } = 360;
         public int RevertTimePeriod { get; set; } = 75000;
 
-        public int BatchFlushTimePeriod { get; set; } = 5;
+        public int BatchFlushTimePeriod { get; set; } = 3;
         public int BatchFlushCount { get; set; } = 20;
     }
 
