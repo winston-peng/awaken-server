@@ -268,9 +268,7 @@ namespace AwakenServer.Trade
                 value.Volume += volume;
                 value.TradeValue += tradeValue;
                 value.TradeCount += 1;
-                if (DateTime.UtcNow.Subtract(value.CreateTime).TotalSeconds <
-                    _tradeRecordOptions.BatchFlushTimePeriod ||
-                    value.TradeCount >= _tradeRecordOptions.BatchFlushCount)
+                if (value.TradeCount >= _tradeRecordOptions.BatchFlushCount)
                 {
                     await _updateTradeRecordAsync(chainId, tradePairId, timestamp, value.Volume, value.TradeValue,
                         value.TradeCount);
@@ -313,7 +311,7 @@ namespace AwakenServer.Trade
                     TradePairId = tradePairId,
                     Volume = volume,
                     TradeValue = tradeValue,
-                    TradeCount = 1,
+                    TradeCount = tradeCount,
                     TradeAddressCount24h = tradeAddressCount24H,
                     Timestamp = snapshotTime,
                     TotalSupply = totalSupply.ToNormalizeString()

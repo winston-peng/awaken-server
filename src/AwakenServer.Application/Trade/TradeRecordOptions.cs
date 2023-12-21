@@ -16,7 +16,7 @@ namespace AwakenServer.Trade
         public int RevertTimePeriod { get; set; } = 75000;
 
         public int BatchFlushTimePeriod { get; set; } = 3;
-        public int BatchFlushCount { get; set; } = 20;
+        public int BatchFlushCount { get; set; } = 10;
     }
 
     public class BlockHeightSetDto
