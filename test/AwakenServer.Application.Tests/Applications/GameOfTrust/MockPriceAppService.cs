@@ -14,16 +14,37 @@ namespace AwakenServer.Applications.GameOfTrust
             switch (input.Symbol)
             {
                 case "SASHIMI": return Task.FromResult("1");
-                case "ISTAR" : return Task.FromResult("1");
+                case "ISTAR": return Task.FromResult("1");
                 case "BTC": return Task.FromResult("69000");
                 case "USDT": return Task.FromResult("6");
             }
+
             return Task.FromResult("1");
         }
 
         public async Task<ListResultDto<TokenPriceDataDto>> GetTokenPriceListAsync(List<string> symbols)
         {
-            return new ListResultDto<TokenPriceDataDto>();
+            return new ListResultDto<TokenPriceDataDto>()
+            {
+                Items = new List<TokenPriceDataDto>()
+                {
+                    new TokenPriceDataDto()
+                    {
+                        Symbol = "USDT",
+                        PriceInUsd = 1
+                    },
+                    new TokenPriceDataDto()
+                    {
+                        Symbol = "BTC",
+                        PriceInUsd = 1
+                    },
+                    new TokenPriceDataDto()
+                    {
+                        Symbol = "EOS",
+                        PriceInUsd = 1
+                    }, 
+                }
+            };
         }
 
         public async Task<ListResultDto<TokenPriceDataDto>> GetTokenHistoryPriceDataAsync(

@@ -18,6 +18,7 @@ public class AssetAppServiceTests : TradeTestBase
     private readonly AssetWhenNoTransactionOptions _assetWhenNoTransactionOptions;
     public AssetAppServiceTests()
     {
+        
         _graphQlProvider = GetRequiredService<MockGraphQLProvider>();
         _assetAppService = GetRequiredService<IAssetAppService>();
         _assetShowOptions = GetRequiredService<IOptionsSnapshot<AssetShowOptions>>().Value;
@@ -98,9 +99,9 @@ public class AssetAppServiceTests : TradeTestBase
         userAssetInfo.ShowList.First().Amount.ShouldBe("0.0001");
         userAssetInfo.ShowList.Last().ChainId.ShouldBe(userTokenDto2.ChainId);
         userAssetInfo.ShowList.Last().Address.ShouldBe(userTokenDto2.Address);
-        userAssetInfo.ShowList.Last().Symbol.ShouldBe(userTokenDto2.Symbol);
-        userAssetInfo.ShowList.Last().Balance.ShouldBe(userTokenDto2.Balance);
-        userAssetInfo.ShowList.Last().Amount.ShouldBe("0.000005");
+        userAssetInfo.ShowList.Last().Symbol.ShouldBe(userTokenDto1.Symbol);
+        userAssetInfo.ShowList.Last().Balance.ShouldBe(userTokenDto1.Balance);
+        userAssetInfo.ShowList.Last().Amount.ShouldBe("0.000003");
         // userAssetInfo.HiddenList.First().ChainId.ShouldBe(userTokenDto2.ChainId);
         // userAssetInfo.HiddenList.First().Symbol.ShouldBe(userTokenDto2.Symbol);
         // userAssetInfo.HiddenList.First().Balance.ShouldBe(userTokenDto2.Balance);

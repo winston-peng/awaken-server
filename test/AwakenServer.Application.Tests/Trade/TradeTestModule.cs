@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using AwakenServer.Applications.GameOfTrust;
 using AwakenServer.Chains;
 using AwakenServer.CMS;
 using AwakenServer.Price;
@@ -9,6 +10,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Volo.Abp;
 using Volo.Abp.Modularity;
 using Volo.Abp.Threading;
+using MockWeb3Provider = AwakenServer.Price.MockWeb3Provider;
 
 namespace AwakenServer.Trade
 {
@@ -19,6 +21,7 @@ namespace AwakenServer.Trade
     {
         public override void ConfigureServices(ServiceConfigurationContext context)
         {
+            context.Services.AddSingleton<IPriceAppService, MockPriceAppService>();
             context.Services.Configure<TradeRecordOptions>(o =>
             {
                 o.QueryOnceLimit = 1000;
