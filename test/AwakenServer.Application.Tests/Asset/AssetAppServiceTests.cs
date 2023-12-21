@@ -117,14 +117,13 @@ public class AssetAppServiceTests : TradeTestBase
     [Fact]
     public async Task SetDefaultToken_Success_Test()
     {
-        var dto = new DefaultTokenDto
+        var dto = new SetDefaultTokenDto
         {
             Address = "SPcgFjH76yLNV5M1cThyEsi2xzRH2LAJgGSzfs6redtFQTsot",
             TokenSymbol = "BTC"
         };
         var result = await _assetAppService.SetDefaultTokenAsync(dto);
         result.ShouldNotBeNull();
-        result.TokenSymbol.ShouldBe(dto.TokenSymbol);
 
         var defaultToken =
             await _assetAppService.GetDefaultTokenAsync(new GetDefaultTokenDto { Address = dto.Address });

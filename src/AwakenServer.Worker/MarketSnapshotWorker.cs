@@ -59,7 +59,7 @@ public class MarketSnapshotWorker : AsyncPeriodicBackgroundWorkerBase
                 }
             }
 
-            await _flushCacheService.FlushCache(cacheKeys);
+            await _flushCacheService.FlushCacheAsync(cacheKeys);
         }
         catch (Exception e)
         {

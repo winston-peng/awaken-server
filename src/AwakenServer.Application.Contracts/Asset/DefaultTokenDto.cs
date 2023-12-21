@@ -31,6 +31,10 @@ public class DefaultTokenDto : IValidatableObject
     }
 }
 
+public class SetDefaultTokenDto : DefaultTokenDto
+{
+}
+
 public class GetDefaultTokenDto : IValidatableObject
 {
     [Required] public string Address { get; set; }

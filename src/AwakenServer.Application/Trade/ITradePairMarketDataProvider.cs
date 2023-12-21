@@ -107,8 +107,9 @@ namespace AwakenServer.Trade
                     value.TradeCount >= _tradeRecordOptions.BatchFlushCount)
                 {
                     _logger.LogInformation(
-                        $"FlushTradeRecordCacheToSnapshot start.cacheKey:{cacheKey},chanId:{value.ChanId}," +
-                        $"tradePairId:{value.TradePairId},timestamp:{value.Timestamp},volume:{value.Volume},tradeValue:{value.TradeValue},tradeCount:{value.TradeCount}");
+                        "FlushTradeRecordCacheToSnapshot start.cacheKey:{cacheKey},chanId:{chanId},tradePairId:{tradePairId},timestamp:{timestamp},volume:{volume},tradeValue:{tradeValue},tradeCount:{tradeCount}",
+                        cacheKey, value.ChanId, value.TradePairId, value.Timestamp, value.Volume, value.TradeValue,
+                        value.TradeCount);
                     await _updateTradeRecordAsync(value.ChanId, value.TradePairId, value.Timestamp, value.Volume,
                         value.TradeValue, value.TradeCount);
                     _tradeRecordAccumulationCache.Remove(cacheKey);
@@ -121,17 +122,20 @@ namespace AwakenServer.Trade
             await using var handle = await _distributedLock.TryAcquireAsync(cacheKey);
 
             var value = await _totalSupplyAccumulationCache.GetAsync(cacheKey);
-            if (value != null)
+            if (value == null)
             {
-                if (DateTime.UtcNow.Subtract(value.LastTime).TotalSeconds >=
-                    _tradeRecordOptions.BatchFlushTimePeriod)
-                {
-                    _logger.LogInformation(
-                        $"FlushTotalSupplyCacheToSnapshot start.cacheKey:{cacheKey},chanId:{value.ChanId},tradePairId:{value.TradePairId},timestamp:{value.Timestamp},totalSupply:{value.TotalSupply}");
-                    await _updateTotalSupplyAsync(value.ChanId, value.TradePairId, value.Timestamp,
-                        BigDecimal.Parse(value.TotalSupply));
-                    _totalSupplyAccumulationCache.Remove(cacheKey);
-                }
+                return;
+            }
+
+            if (DateTime.UtcNow.Subtract(value.LastTime).TotalSeconds >=
+                _tradeRecordOptions.BatchFlushTimePeriod)
+            {
+                _logger.LogInformation(
+                    "FlushTotalSupplyCacheToSnapshot start.cacheKey:{cacheKey},chanId:{chanId},tradePairId:{tradePairId},timestamp:{timestamp},totalSupply:{totalSupply}",
+                    cacheKey, value.ChanId, value.TradePairId, value.Timestamp, value.TotalSupply);
+                await _updateTotalSupplyAsync(value.ChanId, value.TradePairId, value.Timestamp,
+                    BigDecimal.Parse(value.TotalSupply));
+                _totalSupplyAccumulationCache.Remove(cacheKey);
             }
         }
 
@@ -142,7 +146,8 @@ namespace AwakenServer.Trade
                 tradePairId, GetSnapshotTime(timestamp));
 
             _logger.LogInformation(
-                $"UpdateTotalSupply,chainId:{chainId},tradePairId:{tradePairId},timestamp:{timestamp},lpTokenAmount:{lpTokenAmount},supply:{supply}");
+                "UpdateTotalSupply,chainId:{chainId},tradePairId:{tradePairId},timestamp:{timestamp},lpTokenAmount:{lpTokenAmount},supply:{supply}",
+                chainId, tradePairId, timestamp, lpTokenAmount, supply);
             await using var handle = await _distributedLock.TryAcquireAsync(lockName);
 
             var value = await _totalSupplyAccumulationCache.GetAsync(lockName);
@@ -282,7 +287,8 @@ namespace AwakenServer.Trade
             double tradeValue, int tradeCount)
         {
             _logger.LogInformation(
-                $"_updateTradeRecordAsync start.chainId:{chainId},tradePairId:{tradePairId},timestamp:{timestamp},volume:{volume},tradeValue:{tradeValue},tradeCount:{tradeCount}");
+                "_updateTradeRecordAsync start.chainId:{chainId},tradePairId:{tradePairId},timestamp:{timestamp},volume:{volume},tradeValue:{tradeValue},tradeCount:{tradeCount}",
+                chainId, tradePairId, timestamp, volume, tradeValue, tradeCount);
             var snapshotTime = GetSnapshotTime(timestamp);
             var marketData = await GetTradePairMarketDataIndexAsync(chainId, tradePairId, snapshotTime);
 
@@ -391,8 +397,6 @@ namespace AwakenServer.Trade
                 marketData.ValueLocked0 = valueLocked0;
                 marketData.ValueLocked1 = valueLocked1;
 
-                _logger.LogInformation(
-                    $"whx UpdateLiquidityAsync AddOrUpdateTradePairIndex:{JsonConvert.SerializeObject(marketData)}");
                 await _snapshotIndexRepository.UpdateAsync(marketData);
                 await AddOrUpdateTradePairIndexAsync(marketData);
             }

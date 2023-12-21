@@ -4,12 +4,15 @@ using System.Linq;
 using System.Threading.Tasks;
 using AElf.Client.MultiToken;
 using AwakenServer.Chains;
+using AwakenServer.Commons;
 using AwakenServer.Grains.Grain.Asset;
 using AwakenServer.Price;
 using AwakenServer.Provider;
 using AwakenServer.Tokens;
 using AwakenServer.Trade;
+using Google.Protobuf.WellKnownTypes;
 using Microsoft.Extensions.Caching.Distributed;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Orleans;
 using Volo.Abp;
@@ -30,6 +33,7 @@ public class AssetAppService : ApplicationService, IAssetAppService
     private readonly IDistributedCache<UserAssetInfoDto> _userAssetInfoDtoCache;
     private const string userAssetInfoDtoPrefix = "AwakenServer:Asset:";
     private readonly IClusterClient _clusterClient;
+    private readonly ILogger<AssetAppService> _logger;
 
     public AssetAppService(IGraphQLProvider graphQlProvider,
         ITokenAppService tokenAppService,
@@ -37,7 +41,8 @@ public class AssetAppService : ApplicationService, IAssetAppService
         IOptionsSnapshot<AssetShowOptions> optionsSnapshot,
         IAElfClientProvider aelfClientProvider,
         IOptionsSnapshot<AssetWhenNoTransactionOptions> showSymbolsWhenNoTransactionOptions,
-        IDistributedCache<UserAssetInfoDto> userAssetInfoDtoCache, IClusterClient clusterClient)
+        IDistributedCache<UserAssetInfoDto> userAssetInfoDtoCache, IClusterClient clusterClient,
+        ILogger<AssetAppService> logger)
     {
         _graphQlProvider = graphQlProvider;
         _tokenAppService = tokenAppService;
@@ -47,6 +52,7 @@ public class AssetAppService : ApplicationService, IAssetAppService
         _clusterClient = clusterClient;
         _assetWhenNoTransactionOptions = showSymbolsWhenNoTransactionOptions.Value;
         _userAssetInfoDtoCache = userAssetInfoDtoCache;
+        _logger = logger;
     }
 
     public async Task<UserAssetInfoDto> GetUserAssetInfoAsync(GetUserAssetInfoDto input)
@@ -54,7 +60,7 @@ public class AssetAppService : ApplicationService, IAssetAppService
         var tokenList = await _graphQlProvider.GetUserTokensAsync(input.ChainId, input.Address);
         if (tokenList == null || tokenList.Count == 0)
         {
-            return await GetAssetFromCacheOrAElf(input.ChainId, input.Address);
+            return await GetAssetFromCacheOrAElfAsync(input.ChainId, input.Address);
         }
 
         var showList = new List<UserTokenInfo>();
@@ -124,7 +130,7 @@ public class AssetAppService : ApplicationService, IAssetAppService
         };
     }
 
-    private async Task<UserAssetInfoDto> GetAssetFromCacheOrAElf(string chainId, string address)
+    private async Task<UserAssetInfoDto> GetAssetFromCacheOrAElfAsync(string chainId, string address)
     {
         var symbolPriceMap =
             (await _priceAppService.GetTokenPriceListAsync(_assetWhenNoTransactionOptions.Symbols)).Items
@@ -137,7 +143,7 @@ public class AssetAppService : ApplicationService, IAssetAppService
         {
             foreach (var userTokenInfo in userAsset.ShowList)
             {
-                var decimals = await GetTokenDecimal(userTokenInfo);
+                var decimals = await GetTokenDecimalAsync(userTokenInfo);
                 userTokenInfo.PriceInUsd =
                     ((long)(userTokenInfo.Balance * symbolPriceMap.GetValueOrDefault(userTokenInfo.Symbol)))
                     .ToDecimalsString(decimals);
@@ -145,7 +151,7 @@ public class AssetAppService : ApplicationService, IAssetAppService
 
             foreach (var userTokenInfo in userAsset.HiddenList)
             {
-                var decimals = await GetTokenDecimal(userTokenInfo);
+                var decimals = await GetTokenDecimalAsync(userTokenInfo);
                 userTokenInfo.PriceInUsd =
                     ((long)(userTokenInfo.Balance * symbolPriceMap.GetValueOrDefault(userTokenInfo.Symbol)))
                     .ToDecimalsString(decimals);
@@ -187,7 +193,7 @@ public class AssetAppService : ApplicationService, IAssetAppService
                     hiddenList.Add(userTokenInfo);
                 }
 
-                var decimals = await GetTokenDecimal(userTokenInfo);
+                var decimals = await GetTokenDecimalAsync(userTokenInfo);
                 userTokenInfo.Amount = userTokenInfo.Balance.ToDecimalsString(decimals);
                 userTokenInfo.PriceInUsd =
                     ((long)(userTokenInfo.Balance * symbolPriceMap.GetValueOrDefault(userTokenInfo.Symbol)))
@@ -219,7 +225,7 @@ public class AssetAppService : ApplicationService, IAssetAppService
     }
 
 
-    public async Task<int> GetTokenDecimal(UserTokenInfo userTokenInfo)
+    public async Task<int> GetTokenDecimalAsync(UserTokenInfo userTokenInfo)
     {
         var tokenDto = await _tokenAppService.GetAsync(new GetTokenInput
         {
@@ -259,18 +265,24 @@ public class AssetAppService : ApplicationService, IAssetAppService
         };
     }
 
-    public async Task<DefaultTokenDto> SetDefaultTokenAsync(DefaultTokenDto input)
+    public async Task<CommonResponseDto<Empty>> SetDefaultTokenAsync(SetDefaultTokenDto input)
     {
-        if (!_assetShowOptions.ShowList.Exists(o => o == input.TokenSymbol))
+        try
         {
-            throw new ArgumentException("no support symbol", input.TokenSymbol);
+            if (!_assetShowOptions.ShowList.Exists(o => o == input.TokenSymbol))
+            {
+                throw new ArgumentException("no support symbol", input.TokenSymbol);
+            }
+
+            var defaultTokenGrain = _clusterClient.GetGrain<IDefaultTokenGrain>(input.Address);
+
+            await defaultTokenGrain.SetTokenAsync(input.TokenSymbol);
+            return new CommonResponseDto<Empty>();
         }
-
-        var defaultTokenGrain = _clusterClient.GetGrain<IDefaultTokenGrain>(input.Address);
-
-        await defaultTokenGrain.SetTokenAsync(input.TokenSymbol);
-
-        return input;
+        catch (Exception e)
+        {
+            return new CommonResponseDto<Empty>().Error(e);
+        }
     }
 
 

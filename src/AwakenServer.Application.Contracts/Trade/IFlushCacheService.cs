@@ -6,5 +6,5 @@ namespace AwakenServer.Trade;
 
 public interface IFlushCacheService : IApplicationService
 {
-    Task FlushCache(List<string> cacheKeys);
+    Task FlushCacheAsync(List<string> cacheKeys);
 }

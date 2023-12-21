@@ -18,7 +18,7 @@ public class FlushCacheService : ApplicationService, IFlushCacheService
         _tradePairMarketDataProvider = tradePairMarketDataProvider;
     }
 
-    public async Task FlushCache(List<string> cacheKeys)
+    public async Task FlushCacheAsync(List<string> cacheKeys)
     {
         foreach (var key in cacheKeys)
         {
