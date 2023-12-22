@@ -57,9 +57,9 @@ public class AwakenServerEntityHandlerModule : AbpModule
         Configure<ChainsInitOptions>(configuration.GetSection("ChainsInit"));
 
         Configure<ApiOptions>(configuration.GetSection("Api"));
-        
+
         Configure<TradeRecordOptions>(configuration.GetSection("TradeRecord"));
-        
+
         context.Services.AddMassTransit(x =>
         {
             x.UsingRabbitMq((ctx, cfg) =>
