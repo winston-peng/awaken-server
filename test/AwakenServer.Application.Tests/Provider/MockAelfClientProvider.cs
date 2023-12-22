@@ -44,6 +44,19 @@ public class MockAelfClientProvider : IAElfClientProvider
     public async Task<GetBalanceOutput> GetBalanceAsync(string chainName, string address, string contractAddress,
         string symbol)
     {
-        return null;
+        if (symbol == "no")
+        {
+            return new GetBalanceOutput()
+            {
+                Balance = 1,
+                Symbol = "no",
+            };
+        }
+
+        return new GetBalanceOutput()
+        {
+            Balance = 1,
+            Symbol = symbol,
+        };
     }
 }

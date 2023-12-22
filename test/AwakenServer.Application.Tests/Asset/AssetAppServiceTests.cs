@@ -1,8 +1,10 @@
+using System;
 using System.Linq;
 using System.Threading.Tasks;
 using AwakenServer.Price;
 using AwakenServer.Provider;
 using AwakenServer.Trade;
+using Google.Protobuf.WellKnownTypes;
 using Microsoft.Extensions.Options;
 using Shouldly;
 using Xunit;
@@ -16,15 +18,38 @@ public class AssetAppServiceTests : TradeTestBase
     private readonly AssetShowOptions _assetShowOptions;
     private readonly IPriceAppService _priceAppService;
     private readonly AssetWhenNoTransactionOptions _assetWhenNoTransactionOptions;
+
     public AssetAppServiceTests()
     {
-        
         _graphQlProvider = GetRequiredService<MockGraphQLProvider>();
         _assetAppService = GetRequiredService<IAssetAppService>();
         _assetShowOptions = GetRequiredService<IOptionsSnapshot<AssetShowOptions>>().Value;
         _priceAppService = GetRequiredService<IPriceAppService>();
         _assetWhenNoTransactionOptions = GetRequiredService<IOptionsSnapshot<AssetWhenNoTransactionOptions>>().Value;
     }
+
+    
+    [Fact]
+    public async Task GetCacheUserAssetTest()
+    {
+        var userAssetInfo = await _assetAppService.GetUserAssetInfoAsync(new GetUserAssetInfoDto
+        {
+            ChainId = "CAElf",
+            Address = "0x123456789"
+        });
+        
+        userAssetInfo.ShowList.Count.ShouldBe(2);
+        
+        var userAssetInfo1 = await _assetAppService.GetUserAssetInfoAsync(new GetUserAssetInfoDto
+        {
+            ChainId = "CAElf",
+            Address = "0x123456789"
+        });
+        
+        userAssetInfo1.ShowList.Count.ShouldBe(2);
+
+    }
+
 
     [Fact]
     public async Task GetUserAssetTest()
@@ -102,16 +127,14 @@ public class AssetAppServiceTests : TradeTestBase
         userAssetInfo.ShowList.Last().Symbol.ShouldBe(userTokenDto1.Symbol);
         userAssetInfo.ShowList.Last().Balance.ShouldBe(userTokenDto1.Balance);
         userAssetInfo.ShowList.Last().Amount.ShouldBe("0.000003");
-        // userAssetInfo.HiddenList.First().ChainId.ShouldBe(userTokenDto2.ChainId);
-        // userAssetInfo.HiddenList.First().Symbol.ShouldBe(userTokenDto2.Symbol);
-        // userAssetInfo.HiddenList.First().Balance.ShouldBe(userTokenDto2.Balance);
+   
 
         userAssetInfo = await _assetAppService.GetUserAssetInfoAsync(new GetUserAssetInfoDto
         {
-            ChainId = "AElf",
+            ChainId = "eos",
             Address = "0x1234567890"
         });
-        userAssetInfo.ShowList.Count.ShouldBe(0);
+        userAssetInfo.ShowList.Count.ShouldBe(2);
         userAssetInfo.HiddenList.Count.ShouldBe(0);
     }
 
@@ -130,6 +153,10 @@ public class AssetAppServiceTests : TradeTestBase
             await _assetAppService.GetDefaultTokenAsync(new GetDefaultTokenDto { Address = dto.Address });
         defaultToken.ShouldNotBeNull();
         defaultToken.TokenSymbol.ShouldBe(dto.TokenSymbol);
-        
+
+
+        dto.TokenSymbol = "BTC1";
+        var result2 = await _assetAppService.SetDefaultTokenAsync(dto);
+        result2.Success.ShouldBe(false);
     }
 }

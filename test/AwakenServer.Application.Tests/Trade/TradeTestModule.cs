@@ -37,10 +37,12 @@ namespace AwakenServer.Trade
                 {
                     "USDT",
                     "BTC",
-                    "ETH"
+                    "ETH",
+                    "no"
                 };
+                o.ExpireDurationMinutes = 1;
                 o.ContractAddressOfGetBalance = new Dictionary<string, string>
-                    { { "AElf", "test" }, { "tDVV", "TEST" } };
+                    { { "eos", "test" }, { "tDVV", "TEST" }, { "CAElf", "test" } };
             });
             context.Services.Configure<AssetShowOptions>(o =>
             {

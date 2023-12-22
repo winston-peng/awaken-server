@@ -213,17 +213,15 @@ public class AssetAppService : ApplicationService, IAssetAppService
             ShowList = showList,
             HiddenList = hiddenList
         };
+
         await _userAssetInfoDtoCache.SetAsync($"{userAssetInfoDtoPrefix}:{chainId}:{address}", result,
             new DistributedCacheEntryOptions
             {
                 AbsoluteExpiration =
                     DateTimeOffset.UtcNow.AddMinutes(_assetWhenNoTransactionOptions.ExpireDurationMinutes)
             });
-
-
         return result;
     }
-
 
     public async Task<int> GetTokenDecimalAsync(UserTokenInfo userTokenInfo)
     {

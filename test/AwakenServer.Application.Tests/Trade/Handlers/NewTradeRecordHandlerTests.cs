@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using AElf.Indexing.Elasticsearch;
@@ -15,6 +16,7 @@ namespace AwakenServer.Trade.Handlers
         private readonly INESTRepository<Index.TradePair, Guid> _tradePairIndexRepository;
         private readonly ITradeRecordAppService _tradeRecordAppService;
         private readonly ITradePairMarketDataProvider _tradePairMarketDataProvider;
+        private readonly IFlushCacheService _flushCacheService;
 
         public NewTradeRecordHandlerTests()
         {
@@ -24,6 +26,46 @@ namespace AwakenServer.Trade.Handlers
                 GetRequiredService<INESTRepository<Index.TradePair, Guid>>();
             _tradeRecordAppService = GetRequiredService<ITradeRecordAppService>();
             _tradePairMarketDataProvider = GetRequiredService<ITradePairMarketDataProvider>();
+            _flushCacheService = GetRequiredService<IFlushCacheService>();
+        }
+
+
+        [Fact]
+        public async Task FlushCacheServiceTest()
+        {
+            var dateTime = DateTime.UtcNow.AddDays(-2);
+            var recordInput = new TradeRecordCreateDto()
+            {
+                ChainId = "cahce",
+                Address = "0x",
+                Side = TradeSide.Buy,
+                Token0Amount = "1000",
+                Token1Amount = "2000",
+                Timestamp = DateTimeHelper.ToUnixTimeMilliseconds(dateTime),
+                TransactionHash = "tx",
+                TradePairId = TradePairEthUsdtId
+            };
+
+            var lockName = string.Format("{0}-{1}-{2}", "cahce",
+                recordInput.TradePairId, dateTime.Date.AddHours(dateTime.Hour));
+
+
+            await _tradeRecordAppService.CreateAsync(recordInput);
+            recordInput.TransactionHash = "tx2";
+            await _tradeRecordAppService.CreateAsync(recordInput);
+            Thread.Sleep(3000);
+            await _flushCacheService.FlushCacheAsync(new List<string> { lockName });
+            Thread.Sleep(1000);
+
+            var snapshotTime =
+                _tradePairMarketDataProvider.GetSnapshotTime(
+                    DateTimeHelper.FromUnixTimeMilliseconds(recordInput.Timestamp));
+
+            var marketDataSnapshot = await _snapshotIndexRepository.GetAsync(q =>
+                q.Term(i => i.Field(f => f.ChainId).Value(recordInput.ChainId)) &&
+                q.Term(i => i.Field(f => f.TradePairId).Value(recordInput.TradePairId)) &&
+                q.Term(i => i.Field(f => f.Timestamp).Value(snapshotTime)));
+            marketDataSnapshot.ShouldNotBeNull();
         }
 
         [Fact]
