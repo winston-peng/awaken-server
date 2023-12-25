@@ -39,6 +39,9 @@ namespace AwakenServer.Trade
         Task<Index.TradePairMarketDataSnapshot> GetTradePairMarketDataIndexAsync(string chainId, Guid tradePairId,
             DateTime snapshotTime);
 
+        Task<Index.TradePairMarketDataSnapshot> GetLatestPriceTradePairMarketDataIndexAsync(string chainId,
+            Guid tradePairId, DateTime snapshotTime);
+
         DateTime GetSnapshotTime(DateTime time);
 
         Task<Index.TradePairMarketDataSnapshot>
@@ -410,6 +413,24 @@ namespace AwakenServer.Trade
                 sortExp: s => s.Timestamp, sortType: SortOrder.Descending);
         }
 
+        public async Task<Index.TradePairMarketDataSnapshot> GetLatestPriceTradePairMarketDataIndexAsync(string chainId,
+            Guid tradePairId, DateTime snapshotTime)
+        {
+            return await _snapshotIndexRepository.GetAsync(q =>
+                    q.Bool(i =>
+                        i.Filter(f =>
+                            f.Range(i =>
+                                i.Field(f => f.PriceUSD).GreaterThan(0)) &&
+                            f.DateRange(i =>
+                                i.Field(f => f.Timestamp).LessThan(GetSnapshotTime(snapshotTime))) &&
+                            q.Term(i => i.Field(f => f.ChainId).Value(chainId)) &&
+                            q.Term(i => i.Field(f => f.TradePairId).Value(tradePairId))
+                        )
+                    ),
+                sortExp: s => s.Timestamp, sortType: SortOrder.Descending);
+        }
+
+
         public async Task<TradePairMarketDataSnapshot> GetLatestTradePairMarketDataAsync(string chainId,
             Guid tradePairId)
         {
@@ -429,18 +450,6 @@ namespace AwakenServer.Trade
                 q => q.Term(i => i.Field(f => f.ChainId).Value(chainId))
                      && q.Term(i => i.Field(f => f.TradePairId).Value(tradePairId))
                      && q.Term(i => i.Field(f => f.Timestamp).Value(snapshotTime)));
-        }
-
-
-        public async Task<Index.TradePairMarketDataSnapshot> GetLatestTVLTradePairMarketDataIndexAsync(string chainId,
-            Guid tradePairId, DateTime snapshotTime)
-        {
-            return await _snapshotIndexRepository.GetAsync(q =>
-                    q.Bool(i =>
-                        i.Must(f =>
-                            f.Range(i =>
-                                i.Field(f => f.TVL).GreaterThan(0)))),
-                sortExp: s => s.Timestamp, sortType: SortOrder.Descending);
         }
 
 
@@ -549,7 +558,7 @@ namespace AwakenServer.Trade
             }
             else
             {
-                var snapshot = GetLatestTVLTradePairMarketDataIndexAsync(snapshotDto.ChainId, snapshotDto.TradePairId,
+                var snapshot = GetLatestPriceTradePairMarketDataIndexAsync(snapshotDto.ChainId, snapshotDto.TradePairId,
                     snapshotDto.Timestamp);
                 if (snapshot != null && snapshot.Result != null)
                 {
@@ -600,7 +609,6 @@ namespace AwakenServer.Trade
 
 
             _logger.LogInformation("whx AddOrUpdateTradePairIndex: " + JsonConvert.SerializeObject(existIndex));
-
 
             await _tradePairIndexRepository.AddOrUpdateAsync(existIndex);
             await _bus.Publish(new NewIndexEvent<TradePairIndexDto>

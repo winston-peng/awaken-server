@@ -52,6 +52,8 @@ namespace AwakenServer.Trade
                     "USDT",
                     "BTC"
                 };
+                o.TransactionFee = 1;
+                o.DefaultSymbol = "BTC";
             });
             context.Services.Configure<StableCoinOptions>(o =>
             {
