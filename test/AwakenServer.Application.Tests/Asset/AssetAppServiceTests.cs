@@ -28,7 +28,15 @@ public class AssetAppServiceTests : TradeTestBase
         _assetWhenNoTransactionOptions = GetRequiredService<IOptionsSnapshot<AssetWhenNoTransactionOptions>>().Value;
     }
 
-    
+
+    [Fact]
+    public async Task TrasactionFeeTest()
+    {
+        var transactionFeeAsync = await _assetAppService.GetTransactionFeeAsync();
+
+        transactionFeeAsync.TransactionFee.ShouldBe(1);
+    }
+
     [Fact]
     public async Task GetCacheUserAssetTest()
     {
@@ -37,17 +45,16 @@ public class AssetAppServiceTests : TradeTestBase
             ChainId = "CAElf",
             Address = "0x123456789"
         });
-        
+
         userAssetInfo.ShowList.Count.ShouldBe(2);
-        
+
         var userAssetInfo1 = await _assetAppService.GetUserAssetInfoAsync(new GetUserAssetInfoDto
         {
             ChainId = "CAElf",
             Address = "0x123456789"
         });
-        
-        userAssetInfo1.ShowList.Count.ShouldBe(2);
 
+        userAssetInfo1.ShowList.Count.ShouldBe(2);
     }
 
 
@@ -127,7 +134,7 @@ public class AssetAppServiceTests : TradeTestBase
         userAssetInfo.ShowList.Last().Symbol.ShouldBe(userTokenDto1.Symbol);
         userAssetInfo.ShowList.Last().Balance.ShouldBe(userTokenDto1.Balance);
         userAssetInfo.ShowList.Last().Amount.ShouldBe("0.000003");
-   
+
 
         userAssetInfo = await _assetAppService.GetUserAssetInfoAsync(new GetUserAssetInfoDto
         {

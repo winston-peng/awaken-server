@@ -31,14 +31,14 @@ namespace AwakenServer.Trade
         private readonly INESTRepository<Index.TradePair, Guid> _tradePairIndexRepository;
         private readonly ITradePairMarketDataProvider _tradePairMarketDataProvider;
         private readonly ITradeRecordAppService _tradeRecordAppService;
-        private readonly IFavoriteAppService  _favoriteAppService;
+        private readonly IFavoriteAppService _favoriteAppService;
         private readonly ICmsAppService _cmsAppService;
         private readonly IChainAppService _chainAppService;
         private readonly IGraphQLProvider _graphQlProvider;
         private readonly ILogger<TradePairAppService> _logger;
         private readonly IDistributedEventBus _distributedEventBus;
         private readonly IBus _bus;
-        
+
         private const string ASC = "asc";
         private const string ASCEND = "ascend";
         private const string PRICE = "price";
@@ -90,7 +90,8 @@ namespace AwakenServer.Trade
             var tradePairInfoDtoPageResultDto = await _graphQlProvider.GetTradePairInfoListAsync(input);
             return tradePairInfoDtoPageResultDto.GetTradePairInfoList.Data.Count == 0
                 ? new List<TradePairDto>()
-                : ObjectMapper.Map<List<TradePairInfoDto>, List<TradePairDto>>(tradePairInfoDtoPageResultDto.GetTradePairInfoList.Data);
+                : ObjectMapper.Map<List<TradePairInfoDto>, List<TradePairDto>>(tradePairInfoDtoPageResultDto
+                    .GetTradePairInfoList.Data);
         }
 
         public async Task<PagedResultDto<TradePairIndexDto>> GetListAsync(GetTradePairsInput input)
@@ -124,10 +125,11 @@ namespace AwakenServer.Trade
             {
                 return new TradePairIndexDto();
             }
+
             var tradePairDto = ObjectMapper.Map<Index.TradePair, TradePairIndexDto>(tradePair);
 
             if (string.IsNullOrEmpty(address)) return tradePairDto;
-            
+
             var favoriteList = await _favoriteAppService.GetListAsync(address);
             if (favoriteList != null && favoriteList.Any(favorite => favorite.TradePairId == tradePair.Id))
             {
@@ -146,14 +148,14 @@ namespace AwakenServer.Trade
             {
                 mustQuery.Add(q => q.Term(i => i.Field(f => f.ChainId).Value(chainId)));
             }
-            
+
             if (!string.IsNullOrEmpty(address))
             {
                 mustQuery.Add(q => q.Term(i => i.Field(f => f.Address).Value(address)));
             }
-            
+
             QueryContainer Filter(QueryContainerDescriptor<Index.TradePair> f) => f.Bool(b => b.Must(mustQuery));
-            
+
             var list = await _tradePairIndexRepository.GetListAsync(Filter, limit: 1);
             return ObjectMapper.Map<Index.TradePair, TradePairIndexDto>(list.Item2.FirstOrDefault());
         }
@@ -164,8 +166,8 @@ namespace AwakenServer.Trade
             {
                 return new ListResultDto<TradePairIndexDto>();
             }
-            
-            var inputDto =  ObjectMapper.Map<GetTradePairByIdsInput, GetTradePairsInput>(input);
+
+            var inputDto = ObjectMapper.Map<GetTradePairByIdsInput, GetTradePairsInput>(input);
 
             return await GetPairListAsync(inputDto, input.Ids);
         }
@@ -243,7 +245,7 @@ namespace AwakenServer.Trade
             index.Token1 = ObjectMapper.Map<TokenDto, Token>(token1);
 
             await _tradePairIndexRepository.AddOrUpdateAsync(index);
-            
+
             return ObjectMapper.Map<TradePairInfoIndex, TradePairDto>(tradePair);
         }
 
@@ -259,10 +261,10 @@ namespace AwakenServer.Trade
 
             var tradePair = ObjectMapper.Map<Index.TradePair, TradePairDto>(result);
 
-          
+
             var timestamp = DateTimeHelper.FromUnixTimeMilliseconds(input.Timestamp);
             var price = double.Parse(input.Token1Amount) / double.Parse(input.Token0Amount);
-            
+
             var priceUSD0 = await _tokenPriceProvider.GetTokenUSDPriceAsync(tradePair.ChainId, tradePair.Token0Symbol);
             var priceUSD1 = await _tokenPriceProvider.GetTokenUSDPriceAsync(tradePair.ChainId, tradePair.Token1Symbol);
             var tvl = priceUSD0 * double.Parse(input.Token0Amount) + priceUSD1 * double.Parse(input.Token1Amount);
@@ -287,8 +289,10 @@ namespace AwakenServer.Trade
                 ? dto.ReserveA.ToDecimalsString(pair.Token1.Decimals)
                 : dto.ReserveB.ToDecimalsString(pair.Token1.Decimals);
 
-            _logger.LogInformation("SyncEvent, input chainId: {chainId}, isReversed: {isReversed}, token0Amount: {token0Amount}, " +
-                "token1Amount: {token1Amount}, tradePairId: {tradePairId}, timestamp: {timestamp}, blockHeight: {blockHeight}", dto.ChainId, 
+            _logger.LogInformation(
+                "SyncEvent, input chainId: {chainId}, isReversed: {isReversed}, token0Amount: {token0Amount}, " +
+                "token1Amount: {token1Amount}, tradePairId: {tradePairId}, timestamp: {timestamp}, blockHeight: {blockHeight}",
+                dto.ChainId,
                 isReversed, token0Amount, token1Amount, pair.Id, dto.Timestamp, dto.BlockHeight);
             await UpdateLiquidityAsync(new LiquidityUpdateDto
             {
@@ -300,7 +304,8 @@ namespace AwakenServer.Trade
             });
         }
 
-        public async Task CreateTradePairIndexAsync(TradePairInfoDto input, TokenDto token0, TokenDto token1,ChainDto chain)
+        public async Task CreateTradePairIndexAsync(TradePairInfoDto input, TokenDto token0, TokenDto token1,
+            ChainDto chain)
         {
             var tradePair = ObjectMapper.Map<TradePairInfoDto, Index.TradePair>(input);
             tradePair.Token0 = ObjectMapper.Map<TokenDto, Token>(token0);
@@ -320,6 +325,7 @@ namespace AwakenServer.Trade
                 {
                     _logger.LogInformation("can not find trade pair id:{id}", id);
                 }
+
                 return;
             }
 
@@ -373,7 +379,7 @@ namespace AwakenServer.Trade
             pair.PricePercentChange24h = lastDayPriceUSD == 0
                 ? 0
                 : (pair.PriceUSD - lastDayPriceUSD) * 100 / lastDayPriceUSD;
-            pair.PriceChange24h  = lastDayPriceUSD == 0
+            pair.PriceChange24h = lastDayPriceUSD == 0
                 ? 0
                 : pair.PriceUSD - lastDayPriceUSD;
             pair.TVL = priceUSD0 * pair.ValueLocked0 + priceUSD1 * pair.ValueLocked1;
@@ -391,12 +397,14 @@ namespace AwakenServer.Trade
             pair.TradeValue24h = tradeValue24h;
             pair.TradeCount24h = tradeCount24h;
             pair.FeePercent7d = await GetFeePercent7dAsync(pair, timestamp);
-            pair.TradeAddressCount24h = await _tradeRecordAppService.GetUserTradeAddressCountAsync(pair.ChainId, pair.Id, timestamp);
+            pair.TradeAddressCount24h =
+                await _tradeRecordAppService.GetUserTradeAddressCountAsync(pair.ChainId, pair.Id, timestamp);
 
             _logger.LogInformation(
                 "updatePairTimer token:{token0Symbol}-{token1Symbol},fee:{fee}-price:{price}-priceUSD:{priceUSD},token1:{token1}-priceUSD1:{priceUSD1}",
-                pair.Token0.Symbol, pair.Token1.Symbol, pair.FeeRate, pair.Price, pair.PriceUSD, pair.Token1.Symbol, priceUSD1);
-            
+                pair.Token0.Symbol, pair.Token1.Symbol, pair.FeeRate, pair.Price, pair.PriceUSD, pair.Token1.Symbol,
+                priceUSD1);
+
             await _tradePairIndexRepository.AddOrUpdateAsync(pair);
 
             await _bus.Publish<NewIndexEvent<TradePairIndexDto>>(new NewIndexEvent<TradePairIndexDto>
@@ -416,7 +424,7 @@ namespace AwakenServer.Trade
                 ChainId = pair.ChainId,
                 Symbol = pair.Token0Symbol,
             });
-            
+
             if (tokenDto == null)
             {
                 var tokenInfo =
@@ -429,7 +437,8 @@ namespace AwakenServer.Trade
                     Symbol = tokenInfo.Symbol,
                     ChainId = chain.Id
                 });
-                _logger.LogInformation("token created: Id:{id},ChainId:{chainId},Symbol:{symbol},Decimal:{decimal}", token.Id,
+                _logger.LogInformation("token created: Id:{id},ChainId:{chainId},Symbol:{symbol},Decimal:{decimal}",
+                    token.Id,
                     token.ChainId, token.Symbol, token.Decimals);
             }
 
@@ -452,7 +461,8 @@ namespace AwakenServer.Trade
                     Symbol = tokenInfo.Symbol,
                     ChainId = chain.Id
                 });
-                _logger.LogInformation("token created: Id:{id},ChainId:{chainId},Symbol:{symbol},Decimal:{decimal}", token.Id,
+                _logger.LogInformation("token created: Id:{id},ChainId:{chainId},Symbol:{symbol},Decimal:{decimal}",
+                    token.Id,
                     token.ChainId, token.Symbol, token.Decimals);
             }
         }
@@ -461,7 +471,8 @@ namespace AwakenServer.Trade
         {
             if (!Guid.TryParse(pair.Id, out var pairId))
             {
-                _logger.LogError("pairId is not valid:{pairId},chainName:{chainName},token0:{token0Symbol},token1:{token1Symbol}", 
+                _logger.LogError(
+                    "pairId is not valid:{pairId},chainName:{chainName},token0:{token0Symbol},token1:{token1Symbol}",
                     pair.Id, chain.Name, pair.Token0Symbol, pair.Token1Symbol);
                 return;
             }
@@ -482,24 +493,24 @@ namespace AwakenServer.Trade
                 ChainId = chain.Id,
                 Symbol = pair.Token1Symbol,
             });
-            
+
             if (token0 == null)
             {
-                _logger.LogInformation("can not find token {token0Symbol},chainId:{chainId},pairId:{pairId}", 
+                _logger.LogInformation("can not find token {token0Symbol},chainId:{chainId},pairId:{pairId}",
                     pair.Token0Symbol, chain.Id, pair.Id);
             }
 
             if (token1 == null)
             {
-                _logger.LogInformation("can not find token {token1Symbol},chainId:{chainId},pairId:{pairId}", 
+                _logger.LogInformation("can not find token {token1Symbol},chainId:{chainId},pairId:{pairId}",
                     pair.Token1Symbol, chain.Id, pair.Id);
             }
 
             if (token0 == null || token1 == null) return;
 
             _logger.LogInformation("create pair success Id:{pairId},chainId:{chainId},token0:{token0}," +
-                                   "token1:{token1}",pair.Id, chain.Id, pair.Token0Symbol, pair.Token1Symbol);
-            await CreateTradePairIndexAsync(pair, token0, token1,chain);
+                                   "token1:{token1}", pair.Id, chain.Id, pair.Token0Symbol, pair.Token1Symbol);
+            await CreateTradePairIndexAsync(pair, token0, token1, chain);
         }
 
         public async Task DeleteManyAsync(List<Guid> ids)
@@ -509,7 +520,7 @@ namespace AwakenServer.Trade
                 await _tradePairInfoIndex.DeleteAsync(id);
             }
         }
-        
+
         private async Task<PagedResultDto<TradePairIndexDto>> GetPairListAsync(GetTradePairsInput input,
             List<Guid> idList)
         {
@@ -537,17 +548,18 @@ namespace AwakenServer.Trade
                 skip: input.SkipCount);
 
             var totalCount = await _tradePairIndexRepository.CountAsync(Filter);
-            
+
             var items = ObjectMapper.Map<List<Index.TradePair>, List<TradePairIndexDto>>(list.Item2);
 
             try
             {
                 items = await AddFavoriteInfoAsync(items, input);
-            }catch(Exception e)
+            }
+            catch (Exception e)
             {
                 _logger.LogError(e, "add favorite info error");
             }
-       
+
             return new PagedResultDto<TradePairIndexDto>
             {
                 Items = items,
@@ -562,7 +574,7 @@ namespace AwakenServer.Trade
             {
                 return inTradePairIndexDtos;
             }
-            
+
             var favoriteList = await _favoriteAppService.GetListAsync(input.Address);
 
             if (favoriteList.Count == 0)
@@ -618,12 +630,15 @@ namespace AwakenServer.Trade
             switch (page)
             {
                 case TradePairPage.MarketPage:
-                    return descriptor => descriptor.Descending(f => f.Volume24h).Descending(f => f.TVL).Descending(f => f.Price)
-                        .Descending(f => f.FeeRate);;
+                    return descriptor => descriptor.Descending(f => f.Volume24h).Descending(f => f.TVL)
+                        .Descending(f => f.Price)
+                        .Descending(f => f.FeeRate);
+                    ;
                 case TradePairPage.TradePage:
                     return descriptor => descriptor.Ascending(f => f.FeeRate);
                 default:
-                    return descriptor => descriptor.Ascending(f => f.Token0.Symbol);;
+                    return descriptor => descriptor.Ascending(f => f.Token0.Symbol);
+                    ;
             }
         }
 
