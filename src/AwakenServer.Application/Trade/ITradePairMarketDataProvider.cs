@@ -232,6 +232,8 @@ namespace AwakenServer.Trade
                 await _snapshotIndexRepository.UpdateAsync(marketData);
                 await AddOrUpdateTradePairIndexAsync(marketData);
             }
+            
+            _logger.LogInformation("UpdateTotalSupplyAsync: totalSupply:{supply}",marketData.TotalSupply);
 
             //nie:The current snapshot is not up-to-date. The latest snapshot needs to update TotalSupply 
             var latestMarketData = await GetLatestTradePairMarketDataIndexAsync(chainId, tradePairId);
@@ -240,6 +242,8 @@ namespace AwakenServer.Trade
                 latestMarketData.TotalSupply = string.IsNullOrWhiteSpace(supply)
                     ? (BigDecimal.Parse(latestMarketData.TotalSupply) + lpTokenAmount).ToNormalizeString()
                     : supply;
+                _logger.LogInformation("UpdateTotalSupplyAsync: latest totalSupply:{supply}",latestMarketData.TotalSupply);
+
                 await _snapshotIndexRepository.UpdateAsync(latestMarketData);
                 await AddOrUpdateTradePairIndexAsync(latestMarketData);
             }
@@ -494,6 +498,7 @@ namespace AwakenServer.Trade
 
         private async Task AddOrUpdateTradePairIndexAsync(Index.TradePairMarketDataSnapshot snapshotDto)
         {
+            _logger.LogInformation("AddOrUpdateTradePairIndex, lp token {id}, totalSupply: {supply}",snapshotDto.TradePairId,snapshotDto.TotalSupply);
             var latestSnapshot =
                 await GetLatestTradePairMarketDataIndexAsync(snapshotDto.ChainId,
                     snapshotDto.TradePairId);
@@ -608,7 +613,7 @@ namespace AwakenServer.Trade
             }
 
 
-            _logger.LogInformation("whx AddOrUpdateTradePairIndex: " + JsonConvert.SerializeObject(existIndex));
+            _logger.LogInformation("AddOrUpdateTradePairIndex: " + JsonConvert.SerializeObject(existIndex));
 
             await _tradePairIndexRepository.AddOrUpdateAsync(existIndex);
             await _bus.Publish(new NewIndexEvent<TradePairIndexDto>
