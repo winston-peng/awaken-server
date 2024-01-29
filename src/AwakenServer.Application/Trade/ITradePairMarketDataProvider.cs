@@ -135,9 +135,9 @@ namespace AwakenServer.Trade
             {
                 _logger.LogInformation(
                     "FlushTotalSupplyCacheToSnapshot start.cacheKey:{cacheKey},chanId:{chanId},tradePairId:{tradePairId},timestamp:{timestamp},totalSupply:{totalSupply}",
-                    cacheKey, value.ChanId, value.TradePairId, value.Timestamp, value.TotalSupply);
+                    cacheKey, value.ChanId, value.TradePairId, value.Timestamp, value.LpTokenAmount);
                 await _updateTotalSupplyAsync(value.ChanId, value.TradePairId, value.Timestamp,
-                    BigDecimal.Parse(value.TotalSupply));
+                    BigDecimal.Parse(value.LpTokenAmount),value.Supply);
                 _totalSupplyAccumulationCache.Remove(cacheKey);
             }
         }
@@ -159,15 +159,16 @@ namespace AwakenServer.Trade
                 _totalSupplyAccumulationCache.Set(lockName, new UpdateTotalSupplyBatch
                 {
                     LastTime = DateTime.UtcNow,
-                    TotalSupply = lpTokenAmount.ToString(),
+                    LpTokenAmount = lpTokenAmount.ToString(),
                     ChanId = chainId,
                     TradePairId = tradePairId,
-                    Timestamp = timestamp
+                    Timestamp = timestamp,
+                    Supply = supply
                 });
                 return;
             }
 
-            lpTokenAmount += BigDecimal.Parse(value.TotalSupply);
+            lpTokenAmount += BigDecimal.Parse(value.LpTokenAmount);
             var span = DateTime.UtcNow.Subtract(value.LastTime).TotalSeconds;
 
             if (span < _tradeRecordOptions.BatchFlushTimePeriod)
@@ -175,7 +176,8 @@ namespace AwakenServer.Trade
                 await _totalSupplyAccumulationCache.SetAsync(lockName, new UpdateTotalSupplyBatch
                 {
                     LastTime = value.LastTime,
-                    TotalSupply = lpTokenAmount.ToString()
+                    LpTokenAmount = lpTokenAmount.ToString(),
+                    Supply = supply
                 });
                 return;
             }
@@ -631,7 +633,8 @@ namespace AwakenServer.Trade
             public string ChanId { get; set; }
             public Guid TradePairId { get; set; }
             public DateTime Timestamp { get; set; }
-            public string TotalSupply { get; set; }
+            public string LpTokenAmount { get; set; }
+            public string Supply { get; set; }
         }
 
         public class CacheKeys
