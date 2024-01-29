@@ -187,6 +187,7 @@ namespace AwakenServer.Trade
         private async Task _updateTotalSupplyAsync(string chainId, Guid tradePairId, DateTime timestamp,
             BigDecimal lpTokenAmount, string supply = null)
         {
+            _logger.LogInformation("UpdateTotalSupplyAsync: input supply:{supply}",supply);
             var snapshotTime = GetSnapshotTime(timestamp);
             var marketData = await GetTradePairMarketDataIndexAsync(chainId, tradePairId, snapshotTime);
             if (marketData == null)
@@ -386,6 +387,7 @@ namespace AwakenServer.Trade
                 marketData.TradeAddressCount24h =
                     await _tradeRecordAppService.GetUserTradeAddressCountAsync(chainId, tradePairId,
                         timestamp.AddDays(-1), timestamp);
+                _logger.LogInformation("UpdateLiquidityAsync, supply:{supply}",marketData.TotalSupply);
                 await _snapshotIndexRepository.AddAsync(marketData);
                 await AddOrUpdateTradePairIndexAsync(marketData);
             }
@@ -401,7 +403,7 @@ namespace AwakenServer.Trade
                 marketData.TVL = tvl;
                 marketData.ValueLocked0 = valueLocked0;
                 marketData.ValueLocked1 = valueLocked1;
-
+                _logger.LogInformation("UpdateLiquidityAsync, supply:{supply}",marketData.TotalSupply);
                 await _snapshotIndexRepository.UpdateAsync(marketData);
                 await AddOrUpdateTradePairIndexAsync(marketData);
             }

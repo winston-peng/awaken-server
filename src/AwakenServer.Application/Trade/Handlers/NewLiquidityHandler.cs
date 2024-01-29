@@ -42,6 +42,7 @@ namespace AwakenServer.Trade.Handlers
                 supply = token.Supply.ToDecimalsString(token.Decimals);;
             }
 
+            _logger.LogInformation("NewLiquidityRecordEvent,supply:{supply}",supply);
             await _tradePairMarketDataProvider.UpdateTotalSupplyAsync(eventData.ChainId, eventData.TradePairId,
                 eventData.Timestamp, lpAmount, supply);
         }
