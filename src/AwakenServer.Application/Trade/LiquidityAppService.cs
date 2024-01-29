@@ -178,10 +178,9 @@ namespace AwakenServer.Trade
                     : dto.LpTokenAmount / double.Parse(tradePairIndex.TotalSupply);
                 _logger.LogInformation("User liquidity token0 decimal:{token0Decimal},token1 decimal:{token1Decimal}",
                     tradePairIndex.Token0.Decimals, tradePairIndex.Token1.Decimals);
-                indexDto.Token0Amount =
-                    ((long)(prop * tradePairIndex.ValueLocked0)).ToDecimalsString(tradePairIndex.Token0.Decimals);
-                indexDto.Token1Amount =
-                    ((long)(prop * tradePairIndex.ValueLocked1)).ToDecimalsString(tradePairIndex.Token1.Decimals);
+                indexDto.Token0Amount = tradePairIndex.Token0.Decimals == 0 ? Math.Floor(prop / Math.Pow(10, 8) * tradePairIndex.ValueLocked0).ToString() : ((long)(prop * tradePairIndex.ValueLocked0)).ToDecimalsString(8);
+                indexDto.Token1Amount = tradePairIndex.Token1.Decimals == 0 ? Math.Floor(prop / Math.Pow(10, 8) * tradePairIndex.ValueLocked1).ToString() : ((long)(prop * tradePairIndex.ValueLocked1)).ToDecimalsString(8);
+                
                 indexDto.AssetUSD = tradePairIndex.TVL * prop / Math.Pow(10, 8);
                 dataList.Add(indexDto);
             }
