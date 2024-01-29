@@ -31,11 +31,13 @@ namespace AwakenServer.Trade.Handlers
 
         public async Task HandleEventAsync(NewLiquidityRecordEvent eventData)
         {
+            
             var lpAmount = BigDecimal.Parse(eventData.LpTokenAmount);
             lpAmount = eventData.Type == LiquidityType.Mint ? lpAmount : -lpAmount;
             var token = await GetTokenInfoAsync(eventData);
             var supply = "";
             if (token != null)
+                
             {
                 supply = token.Supply.ToDecimalsString(token.Decimals);;
             }
@@ -43,6 +45,7 @@ namespace AwakenServer.Trade.Handlers
             await _tradePairMarketDataProvider.UpdateTotalSupplyAsync(eventData.ChainId, eventData.TradePairId,
                 eventData.Timestamp, lpAmount, supply);
         }
+        
         
         private async Task<TokenInfo> GetTokenInfoAsync(NewLiquidityRecordEvent eventData)
         {

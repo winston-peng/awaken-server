@@ -99,6 +99,32 @@ namespace AwakenServer.Chains
             }
         }
 
+        public async Task<GetBalanceOutput> GetBalanceAsync(string chainName, string address,
+            string contractAddress, string symbol)
+        {
+            var client = _blockchainClientFactory.GetClient(chainName);
+            var paramGetBalance = new GetBalanceInput()
+            {
+                Symbol = symbol,
+                Owner = new AElf.Client.Proto.Address()
+                {
+                    Value = AElf.Types.Address.FromBase58(address).Value
+                }
+            };
+            var transactionGetBalance =
+                await client.GenerateTransactionAsync(client.GetAddressFromPrivateKey(ChainsInitOptions.PrivateKey),
+                    contractAddress,
+                    "GetBalance",
+                    paramGetBalance);
+            var txWithSignGetBalance = client.SignTransaction(ChainsInitOptions.PrivateKey, transactionGetBalance);
+            var transactionGetTokenResult = await client.ExecuteTransactionAsync(new ExecuteTransactionDto
+            {
+                RawTransaction = txWithSignGetBalance.ToByteArray().ToHex()
+            });
+
+            return GetBalanceOutput.Parser.ParseFrom(ByteArrayHelper.HexStringToByteArray(transactionGetTokenResult));
+        }
+
         public async Task<int> ExistTransactionAsync(string chainName, string transactionHash)
         {
             try
