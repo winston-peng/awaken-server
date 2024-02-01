@@ -34,12 +34,7 @@ namespace AwakenServer.Trade.Handlers
             var lpAmount = BigDecimal.Parse(eventData.LpTokenAmount);
             lpAmount = eventData.Type == LiquidityType.Mint ? lpAmount : -lpAmount;
             var token = await GetTokenInfoAsync(eventData);
-            var supply = "";
-            if (token != null)
-
-            {
-                supply = token.Supply.ToDecimalsString(token.Decimals);
-            }
+            var supply = token != null ? token.Supply.ToDecimalsString(token.Decimals) : "";
 
             _logger.LogInformation("NewLiquidityRecordEvent,supply:{supply}", supply);
             await _tradePairMarketDataProvider.UpdateTotalSupplyAsync(eventData.ChainId, eventData.TradePairId,
@@ -52,12 +47,9 @@ namespace AwakenServer.Trade.Handlers
             try
             {
                 var tradePairIndexDto = await _tradePairAppService.GetAsync(eventData.TradePairId);
-                if (tradePairIndexDto == null)
-                {
-                    return null;
-                }
+             
 
-                if (_contractsTokenOptions.Contracts.TryGetValue(tradePairIndexDto.FeeRate.ToString(),
+                if (tradePairIndexDto == null ||_contractsTokenOptions.Contracts.TryGetValue(tradePairIndexDto.FeeRate.ToString(),
                         out var address) ==
                     false)
                 {
