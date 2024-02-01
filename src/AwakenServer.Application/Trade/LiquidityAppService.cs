@@ -31,6 +31,7 @@ namespace AwakenServer.Trade
         private const string ASC = "asc";
         private const string ASCEND = "ascend";
         private const string ASSETUSD = "assetusd";
+        private const string BTCSymbol = "BTC";
 
         public LiquidityAppService(
             ITokenPriceProvider tokenPriceProvider,
@@ -89,7 +90,7 @@ namespace AwakenServer.Trade
                     continue;
                 }
 
-                bool isReversed = indexDto.TradePair.Token0.Symbol == recordDto.Token1;
+                var isReversed = indexDto.TradePair.Token0.Symbol == recordDto.Token1;
                 if (isReversed)
                 {
                     indexDto.Token0Amount = recordDto.Token1Amount.ToDecimalsString(indexDto.TradePair.Token1.Decimals);
@@ -233,7 +234,7 @@ namespace AwakenServer.Trade
                 asset += pair.TVL * double.Parse(liquidity.LpTokenAmount.ToDecimalsString(8)) / totalSupply;
             }
 
-            var btcPrice = await _tokenPriceProvider.GetTokenUSDPriceAsync(input.ChainId, "BTC");
+            var btcPrice = await _tokenPriceProvider.GetTokenUSDPriceAsync(input.ChainId, BTCSymbol);
             return new UserAssetDto
             {
                 AssetUSD = asset,

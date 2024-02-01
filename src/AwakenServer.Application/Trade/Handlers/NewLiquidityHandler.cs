@@ -47,11 +47,11 @@ namespace AwakenServer.Trade.Handlers
             try
             {
                 var tradePairIndexDto = await _tradePairAppService.GetAsync(eventData.TradePairId);
-             
 
-                if (tradePairIndexDto == null ||_contractsTokenOptions.Contracts.TryGetValue(tradePairIndexDto.FeeRate.ToString(),
-                        out var address) ==
-                    false)
+
+                if (tradePairIndexDto == null || !_contractsTokenOptions.Contracts.TryGetValue(
+                        tradePairIndexDto.FeeRate.ToString(),
+                        out var address))
                 {
                     return null;
                 }
