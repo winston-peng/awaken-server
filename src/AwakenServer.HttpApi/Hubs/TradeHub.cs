@@ -46,8 +46,8 @@ namespace AwakenServer.Hubs
             {
                 ChainId = chain,
                 TradePairId = pairId,
-                TimestampMin = timestamp == 0
-                    ? DateTimeHelper.ToUnixTimeMilliseconds(DateTime.UtcNow.Date.AddHours(-8))
+                TimestampMin = timestamp < 0
+                    ? 0
                     : timestamp,
                 SkipCount = 0,
                 MaxResultCount = maxResultCount
@@ -167,8 +167,8 @@ namespace AwakenServer.Hubs
                 ChainId = chainId,
                 TradePairId = pairId,
                 Address = address,
-                TimestampMin = timestamp == 0
-                    ? DateTimeHelper.ToUnixTimeMilliseconds(DateTime.UtcNow.Date.AddHours(-8))
+                TimestampMin = timestamp < 0
+                    ? 0
                     : timestamp,
                 SkipCount = 0,
                 MaxResultCount = maxResultCount
