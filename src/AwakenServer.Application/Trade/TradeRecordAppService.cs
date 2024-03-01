@@ -256,7 +256,7 @@ namespace AwakenServer.Trade
                 Token1Amount = isSell
                     ? dto.AmountOut.ToDecimalsString(pair.Token1.Decimals)
                     : dto.AmountIn.ToDecimalsString(pair.Token1.Decimals),
-                TotalFee = dto.TotalFee / Math.Pow(10, isSell ? pair.Token1.Decimals : pair.Token0.Decimals),
+                TotalFee = dto.TotalFee / Math.Pow(10, isSell ? pair.Token0.Decimals : pair.Token1.Decimals),
                 Channel = dto.Channel,
                 Sender = dto.Sender,
                 BlockHeight = dto.BlockHeight
