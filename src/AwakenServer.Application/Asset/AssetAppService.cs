@@ -111,7 +111,7 @@ public class AssetAppService : ApplicationService, IAssetAppService
 
         return new UserAssetInfoDto()
         {
-            Iterms = showList,
+            Items = showList,
         };
     }
 
@@ -134,7 +134,7 @@ public class AssetAppService : ApplicationService, IAssetAppService
         var userAsset = await _userAssetInfoDtoCache.GetAsync($"{userAssetInfoDtoPrefix}:{chainId}:{address}");
         if (userAsset != null)
         {
-            foreach (var userTokenInfo in userAsset.Iterms)
+            foreach (var userTokenInfo in userAsset.Items)
             {
                 var decimals = await GetTokenDecimalAsync(userTokenInfo);
                 userTokenInfo.PriceInUsd =
@@ -189,7 +189,7 @@ public class AssetAppService : ApplicationService, IAssetAppService
 
         var result = new UserAssetInfoDto()
         {
-            Iterms = showList,
+            Items = showList,
         };
 
         await _userAssetInfoDtoCache.SetAsync($"{userAssetInfoDtoPrefix}:{chainId}:{address}", result,

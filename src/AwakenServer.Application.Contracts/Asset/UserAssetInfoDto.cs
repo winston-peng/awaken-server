@@ -5,7 +5,7 @@ namespace AwakenServer.Asset;
 
 public class UserAssetInfoDto:PagedResultRequestDto
 {
-    public List<UserTokenInfo> Iterms { get; set; }
+    public List<UserTokenInfo> Items { get; set; }
     public int TotalCount { get; set; }
 }
 
