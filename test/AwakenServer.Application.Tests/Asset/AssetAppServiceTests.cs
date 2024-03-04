@@ -46,7 +46,7 @@ public class AssetAppServiceTests : TradeTestBase
             Address = "0x123456789"
         });
 
-        userAssetInfo.ShowList.Count.ShouldBe(2);
+        userAssetInfo.Iterms.Count.ShouldBe(2);
 
         var userAssetInfo1 = await _assetAppService.GetUserAssetInfoAsync(new GetUserAssetInfoDto
         {
@@ -54,7 +54,7 @@ public class AssetAppServiceTests : TradeTestBase
             Address = "0x123456789"
         });
 
-        userAssetInfo1.ShowList.Count.ShouldBe(2);
+        userAssetInfo1.Iterms.Count.ShouldBe(2);
     }
 
 
@@ -89,13 +89,13 @@ public class AssetAppServiceTests : TradeTestBase
             ChainId = "Ethereum",
             Address = "0x123456789"
         });
-        userAssetInfo.ShowList.Count.ShouldBe(1);
-        userAssetInfo.ShowList.First().ChainId.ShouldBe(userTokenDto.ChainId);
-        userAssetInfo.ShowList.First().Address.ShouldBe(userTokenDto.Address);
-        userAssetInfo.ShowList.First().Symbol.ShouldBe(userTokenDto.Symbol);
-        userAssetInfo.ShowList.First().Balance.ShouldBe(userTokenDto.Balance);
-        userAssetInfo.ShowList.First().Amount.ShouldBe("0.0001");
-        userAssetInfo.HiddenList.Count.ShouldBe(0);
+        userAssetInfo.Iterms.Count.ShouldBe(1);
+        userAssetInfo.Iterms.First().ChainId.ShouldBe(userTokenDto.ChainId);
+        userAssetInfo.Iterms.First().Address.ShouldBe(userTokenDto.Address);
+        userAssetInfo.Iterms.First().Symbol.ShouldBe(userTokenDto.Symbol);
+        userAssetInfo.Iterms.First().Balance.ShouldBe(userTokenDto.Balance);
+        userAssetInfo.Iterms.First().Amount.ShouldBe("0.0001");
+        // userAssetInfo.HiddenList.Count.ShouldBe(0);
 
         _graphQlProvider.AddUserToken(userTokenDto1);
         userAssetInfo = await _assetAppService.GetUserAssetInfoAsync(new GetUserAssetInfoDto
@@ -103,18 +103,18 @@ public class AssetAppServiceTests : TradeTestBase
             ChainId = "Ethereum",
             Address = "0x123456789"
         });
-        userAssetInfo.ShowList.Count.ShouldBe(2);
-        userAssetInfo.ShowList.First().ChainId.ShouldBe(userTokenDto.ChainId);
-        userAssetInfo.ShowList.First().Address.ShouldBe(userTokenDto.Address);
-        userAssetInfo.ShowList.First().Symbol.ShouldBe(userTokenDto.Symbol);
-        userAssetInfo.ShowList.First().Balance.ShouldBe(userTokenDto.Balance);
-        userAssetInfo.ShowList.First().Amount.ShouldBe("0.0001");
-        userAssetInfo.ShowList.Last().ChainId.ShouldBe(userTokenDto1.ChainId);
-        userAssetInfo.ShowList.Last().Address.ShouldBe(userTokenDto1.Address);
-        userAssetInfo.ShowList.Last().Symbol.ShouldBe(userTokenDto1.Symbol);
-        userAssetInfo.ShowList.Last().Balance.ShouldBe(userTokenDto1.Balance);
-        userAssetInfo.ShowList.Last().Amount.ShouldBe("0.000003");
-        userAssetInfo.HiddenList.Count.ShouldBe(0);
+        userAssetInfo.Iterms.Count.ShouldBe(2);
+        userAssetInfo.Iterms.First().ChainId.ShouldBe(userTokenDto.ChainId);
+        userAssetInfo.Iterms.First().Address.ShouldBe(userTokenDto.Address);
+        userAssetInfo.Iterms.First().Symbol.ShouldBe(userTokenDto.Symbol);
+        userAssetInfo.Iterms.First().Balance.ShouldBe(userTokenDto.Balance);
+        userAssetInfo.Iterms.First().Amount.ShouldBe("0.0001");
+        userAssetInfo.Iterms.Last().ChainId.ShouldBe(userTokenDto1.ChainId);
+        userAssetInfo.Iterms.Last().Address.ShouldBe(userTokenDto1.Address);
+        userAssetInfo.Iterms.Last().Symbol.ShouldBe(userTokenDto1.Symbol);
+        userAssetInfo.Iterms.Last().Balance.ShouldBe(userTokenDto1.Balance);
+        userAssetInfo.Iterms.Last().Amount.ShouldBe("0.000003");
+        // userAssetInfo.HiddenList.Count.ShouldBe(0);
 
         _graphQlProvider.AddUserToken(userTokenDto2);
         userAssetInfo = await _assetAppService.GetUserAssetInfoAsync(new GetUserAssetInfoDto
@@ -122,18 +122,18 @@ public class AssetAppServiceTests : TradeTestBase
             ChainId = "Ethereum",
             Address = "0x123456789"
         });
-        userAssetInfo.ShowList.Count.ShouldBe(3);
+        userAssetInfo.Iterms.Count.ShouldBe(3);
         //userAssetInfo.HiddenList.Count().ShouldBe(1);
-        userAssetInfo.ShowList.First().ChainId.ShouldBe(userTokenDto.ChainId);
-        userAssetInfo.ShowList.First().Address.ShouldBe(userTokenDto.Address);
-        userAssetInfo.ShowList.First().Symbol.ShouldBe(userTokenDto.Symbol);
-        userAssetInfo.ShowList.First().Balance.ShouldBe(userTokenDto.Balance);
-        userAssetInfo.ShowList.First().Amount.ShouldBe("0.0001");
-        userAssetInfo.ShowList.Last().ChainId.ShouldBe(userTokenDto2.ChainId);
-        userAssetInfo.ShowList.Last().Address.ShouldBe(userTokenDto2.Address);
-        userAssetInfo.ShowList.Last().Symbol.ShouldBe(userTokenDto1.Symbol);
-        userAssetInfo.ShowList.Last().Balance.ShouldBe(userTokenDto1.Balance);
-        userAssetInfo.ShowList.Last().Amount.ShouldBe("0.000003");
+        userAssetInfo.Iterms.First().ChainId.ShouldBe(userTokenDto.ChainId);
+        userAssetInfo.Iterms.First().Address.ShouldBe(userTokenDto.Address);
+        userAssetInfo.Iterms.First().Symbol.ShouldBe(userTokenDto.Symbol);
+        userAssetInfo.Iterms.First().Balance.ShouldBe(userTokenDto.Balance);
+        userAssetInfo.Iterms.First().Amount.ShouldBe("0.0001");
+        userAssetInfo.Iterms.Last().ChainId.ShouldBe(userTokenDto2.ChainId);
+        userAssetInfo.Iterms.Last().Address.ShouldBe(userTokenDto2.Address);
+        userAssetInfo.Iterms.Last().Symbol.ShouldBe(userTokenDto1.Symbol);
+        userAssetInfo.Iterms.Last().Balance.ShouldBe(userTokenDto1.Balance);
+        userAssetInfo.Iterms.Last().Amount.ShouldBe("0.000003");
 
 
         userAssetInfo = await _assetAppService.GetUserAssetInfoAsync(new GetUserAssetInfoDto
@@ -141,8 +141,8 @@ public class AssetAppServiceTests : TradeTestBase
             ChainId = "eos",
             Address = "0x1234567890"
         });
-        userAssetInfo.ShowList.Count.ShouldBe(2);
-        userAssetInfo.HiddenList.Count.ShouldBe(0);
+        userAssetInfo.Iterms.Count.ShouldBe(2);
+        // userAssetInfo.HiddenList.Count.ShouldBe(0);
     }
 
     [Fact]

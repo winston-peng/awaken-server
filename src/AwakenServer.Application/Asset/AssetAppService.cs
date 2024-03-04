@@ -64,7 +64,6 @@ public class AssetAppService : ApplicationService, IAssetAppService
         }
 
         var showList = new List<UserTokenInfo>();
-        var hiddenList = new List<UserTokenInfo>();
         var symbolList = tokenList.Select(i => i.Symbol).ToList();
         var symbolPriceMap =
             (await _priceAppService.GetTokenPriceListAsync(symbolList)).Items.ToDictionary(i => i.Symbol,
@@ -72,14 +71,7 @@ public class AssetAppService : ApplicationService, IAssetAppService
         foreach (var userTokenDto in tokenList)
         {
             var userTokenInfo = ObjectMapper.Map<UserTokenDto, UserTokenInfo>(userTokenDto);
-            if (_assetShowOptions.ShowList.Contains(userTokenInfo.Symbol))
-            {
-                showList.Add(userTokenInfo);
-            }
-            else
-            {
-                hiddenList.Add(userTokenInfo);
-            }
+            showList.Add(userTokenInfo);
 
             var tokenDto = await _tokenAppService.GetAsync(new GetTokenInput
             {
@@ -112,23 +104,24 @@ public class AssetAppService : ApplicationService, IAssetAppService
                 .ToDecimalsString(tokenDto.Decimals);
         }
 
-        if (showList.Count + hiddenList.Count <= 6)
-        {
-            showList = showList.Concat(hiddenList).ToList();
-            hiddenList.Clear();
-        }
 
         showList = showList.Where(o => o.PriceInUsd != null).Where(o => Double.Parse(o.PriceInUsd) > 0)
             .OrderByDescending(o => Double.Parse(o.PriceInUsd)).ToList();
-        hiddenList = hiddenList.Where(o => o.PriceInUsd != null).Where(o => Double.Parse(o.PriceInUsd) > 0)
-            .OrderByDescending(o => Double.Parse(o.PriceInUsd)).ToList();
+
 
         return new UserAssetInfoDto()
         {
-            ShowList = showList,
-            HiddenList = hiddenList
+            Iterms = showList,
         };
     }
+
+
+    // private async Task<string> GetTokenPriceInDexAsync(string symbol)
+    // {
+    //     var token = await _aelfClientProvider.GetTokenInfoFromChainAsync(eventData.ChainId, address,
+    //         TradePairHelper.GetLpToken(symbol, "USDT"));
+    // }
+
 
     private async Task<UserAssetInfoDto> GetAssetFromCacheOrAElfAsync(string chainId, string address)
     {
@@ -141,7 +134,7 @@ public class AssetAppService : ApplicationService, IAssetAppService
         var userAsset = await _userAssetInfoDtoCache.GetAsync($"{userAssetInfoDtoPrefix}:{chainId}:{address}");
         if (userAsset != null)
         {
-            foreach (var userTokenInfo in userAsset.ShowList)
+            foreach (var userTokenInfo in userAsset.Iterms)
             {
                 var decimals = await GetTokenDecimalAsync(userTokenInfo);
                 userTokenInfo.PriceInUsd =
@@ -149,13 +142,6 @@ public class AssetAppService : ApplicationService, IAssetAppService
                     .ToDecimalsString(decimals);
             }
 
-            foreach (var userTokenInfo in userAsset.HiddenList)
-            {
-                var decimals = await GetTokenDecimalAsync(userTokenInfo);
-                userTokenInfo.PriceInUsd =
-                    ((long)(userTokenInfo.Balance * symbolPriceMap.GetValueOrDefault(userTokenInfo.Symbol)))
-                    .ToDecimalsString(decimals);
-            }
 
             await _userAssetInfoDtoCache.SetAsync($"{userAssetInfoDtoPrefix}:{chainId}:{address}", userAsset,
                 new DistributedCacheEntryOptions
@@ -169,7 +155,6 @@ public class AssetAppService : ApplicationService, IAssetAppService
 
 
         var showList = new List<UserTokenInfo>();
-        var hiddenList = new List<UserTokenInfo>();
 
         foreach (var symbol in _assetWhenNoTransactionOptions.Symbols)
         {
@@ -188,10 +173,7 @@ public class AssetAppService : ApplicationService, IAssetAppService
                 {
                     showList.Add(userTokenInfo);
                 }
-                else
-                {
-                    hiddenList.Add(userTokenInfo);
-                }
+
 
                 var decimals = await GetTokenDecimalAsync(userTokenInfo);
                 userTokenInfo.Amount = userTokenInfo.Balance.ToDecimalsString(decimals);
@@ -204,14 +186,10 @@ public class AssetAppService : ApplicationService, IAssetAppService
         showList = showList.Where(o => o.PriceInUsd != null).Where(o => Double.Parse(o.PriceInUsd) > 0)
             .OrderByDescending(o => Double.Parse(o.PriceInUsd))
             .ToList();
-        hiddenList = hiddenList.Where(o => o.PriceInUsd != null).Where(o => Double.Parse(o.PriceInUsd) > 0)
-            .OrderByDescending(o => Double.Parse(o.PriceInUsd))
-            .ToList();
 
         var result = new UserAssetInfoDto()
         {
-            ShowList = showList,
-            HiddenList = hiddenList
+            Iterms = showList,
         };
 
         await _userAssetInfoDtoCache.SetAsync($"{userAssetInfoDtoPrefix}:{chainId}:{address}", result,

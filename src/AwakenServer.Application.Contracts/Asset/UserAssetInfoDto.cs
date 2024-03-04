@@ -1,11 +1,12 @@
 using System.Collections.Generic;
+using Volo.Abp.Application.Dtos;
 
 namespace AwakenServer.Asset;
 
-public class UserAssetInfoDto
+public class UserAssetInfoDto:PagedResultRequestDto
 {
-    public List<UserTokenInfo> ShowList { get; set; }
-    public List<UserTokenInfo> HiddenList { get; set; }
+    public List<UserTokenInfo> Iterms { get; set; }
+    public int TotalCount { get; set; }
 }
 
 public class UserTokenInfo : UserTokenDto

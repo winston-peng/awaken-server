@@ -34,6 +34,7 @@ namespace AwakenServer.Trade.Handlers
             var lpAmount = BigDecimal.Parse(eventData.LpTokenAmount);
             lpAmount = eventData.Type == LiquidityType.Mint ? lpAmount : -lpAmount;
             var token = await GetTokenInfoAsync(eventData);
+            
             var supply = token != null ? token.Supply.ToDecimalsString(token.Decimals) : "";
 
             _logger.LogInformation("NewLiquidityRecordEvent,supply:{supply}", supply);
