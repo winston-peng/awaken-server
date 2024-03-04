@@ -58,6 +58,8 @@ public class AssetAppService : ApplicationService, IAssetAppService
     public async Task<UserAssetInfoDto> GetUserAssetInfoAsync(GetUserAssetInfoDto input)
     {
         var tokenList = await _graphQlProvider.GetUserTokensAsync(input.ChainId, input.Address);
+        _logger.LogInformation("get user token list from indexer,symbol:{symbol}",
+            tokenList.Select(s => s.Symbol).ToList());
         if (tokenList == null || tokenList.Count == 0)
         {
             return await GetAssetFromCacheOrAElfAsync(input.ChainId, input.Address);
@@ -80,7 +82,7 @@ public class AssetAppService : ApplicationService, IAssetAppService
             if (tokenDto == null)
             {
                 var tokenInfo = await _aelfClientProvider.GetTokenInfoAsync(input.ChainId, null, userTokenInfo.Symbol);
-                if (tokenInfo == null || tokenInfo.Decimals == 0)
+                if (tokenInfo == null)
                 {
                     continue;
                 }
@@ -98,30 +100,43 @@ public class AssetAppService : ApplicationService, IAssetAppService
                 };
             }
 
+
             userTokenInfo.Amount = userTokenInfo.Balance.ToDecimalsString(tokenDto.Decimals);
-            userTokenInfo.PriceInUsd =
-                ((long)(userTokenInfo.Balance * symbolPriceMap.GetValueOrDefault(userTokenDto.Symbol)))
-                .ToDecimalsString(tokenDto.Decimals);
+            userTokenInfo.PriceInUsd = "0";
+            if (!userTokenInfo.Symbol.Contains("-"))
+            {
+                userTokenInfo.PriceInUsd =
+                    ((long)(userTokenInfo.Balance * symbolPriceMap.GetValueOrDefault(userTokenDto.Symbol)))
+                    .ToDecimalsString(tokenDto.Decimals);
+            }
         }
 
 
-        showList = showList.Where(o => o.PriceInUsd != null).Where(o => Double.Parse(o.PriceInUsd) > 0)
+        showList = showList.Where(o => o.PriceInUsd != null).Where(o => o.Balance > 0)
             .OrderByDescending(o => Double.Parse(o.PriceInUsd)).ToList();
+        foreach (var nftSymbol in _assetShowOptions.NftList.Where(w => !showList.Any(o => o.Symbol == w)).ToList())
+        {
+            var balanceOutput = await _aelfClientProvider.GetBalanceAsync(input.ChainId, input.Address,
+                _assetWhenNoTransactionOptions.ContractAddressOfGetBalance[input.ChainId], nftSymbol);
 
+            if (balanceOutput != null)
+            {
+                var userTokenInfo = new UserTokenInfo()
+                {
+                    Balance = balanceOutput.Balance,
+                    Symbol = balanceOutput.Symbol,
+                    ChainId = input.ChainId,
+                    Address = input.Address
+                };
+                showList.Add(userTokenInfo);
+            }
+        }
 
         return new UserAssetInfoDto()
         {
             Items = showList,
         };
     }
-
-
-    // private async Task<string> GetTokenPriceInDexAsync(string symbol)
-    // {
-    //     var token = await _aelfClientProvider.GetTokenInfoFromChainAsync(eventData.ChainId, address,
-    //         TradePairHelper.GetLpToken(symbol, "USDT"));
-    // }
-
 
     private async Task<UserAssetInfoDto> GetAssetFromCacheOrAElfAsync(string chainId, string address)
     {
@@ -177,15 +192,38 @@ public class AssetAppService : ApplicationService, IAssetAppService
 
                 var decimals = await GetTokenDecimalAsync(userTokenInfo);
                 userTokenInfo.Amount = userTokenInfo.Balance.ToDecimalsString(decimals);
-                userTokenInfo.PriceInUsd =
-                    ((long)(userTokenInfo.Balance * symbolPriceMap.GetValueOrDefault(userTokenInfo.Symbol)))
-                    .ToDecimalsString(decimals);
+
+                userTokenInfo.PriceInUsd = "0";
+                if (!userTokenInfo.Symbol.Contains("-"))
+                {
+                    userTokenInfo.PriceInUsd =
+                        ((long)(userTokenInfo.Balance * symbolPriceMap.GetValueOrDefault(userTokenInfo.Symbol)))
+                        .ToDecimalsString(decimals);
+                }
             }
         }
 
-        showList = showList.Where(o => o.PriceInUsd != null).Where(o => Double.Parse(o.PriceInUsd) > 0)
+        showList = showList.Where(o => o.PriceInUsd != null).Where(o => o.Balance > 0)
             .OrderByDescending(o => Double.Parse(o.PriceInUsd))
             .ToList();
+
+        foreach (var nftSymbol in _assetShowOptions.NftList.Where(w => !showList.Any(o => o.Symbol == w)).ToList())
+        {
+            var balanceOutput = await _aelfClientProvider.GetBalanceAsync(chainId, address,
+                _assetWhenNoTransactionOptions.ContractAddressOfGetBalance[chainId], nftSymbol);
+
+            if (balanceOutput != null)
+            {
+                var userTokenInfo = new UserTokenInfo()
+                {
+                    Balance = balanceOutput.Balance,
+                    Symbol = balanceOutput.Symbol,
+                    ChainId = chainId,
+                    Address = address
+                };
+                showList.Add(userTokenInfo);
+            }
+        }
 
         var result = new UserAssetInfoDto()
         {
