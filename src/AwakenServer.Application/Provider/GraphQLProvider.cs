@@ -78,7 +78,7 @@ public class GraphQLProvider : IGraphQLProvider, ISingletonDependency
             };
         }
         
-         _logger.LogInformation("graphQlResponse:"+graphQlResponse.Data.GetTradePairInfoList.TotalCount);
+        _logger.LogInformation("graphQlResponse:"+graphQlResponse.Data.GetTradePairInfoList.TotalCount);
         
         if (graphQlResponse.Data.GetTradePairInfoList.TotalCount == 0)
         {

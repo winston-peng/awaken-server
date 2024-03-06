@@ -2,21 +2,7 @@ using System;
 using AutoMapper;
 using AwakenServer.Asset;
 using AwakenServer.Chains;
-using AwakenServer.Debits;
-using AwakenServer.Debits.DebitAppDto;
-using AwakenServer.Debits.Entities;
-using AwakenServer.Debits.Entities.Es;
-using AwakenServer.Dividend.DividendAppDto;
-using AwakenServer.Dividend.Entities;
-using AwakenServer.Dividend.Entities.Es;
-using AwakenServer.Entities.GameOfTrust;
-using AwakenServer.Entities.GameOfTrust.Es;
-using AwakenServer.Farms;
-using AwakenServer.Farms.Entities;
-using AwakenServer.Farms.Entities.Es;
 using AwakenServer.Favorite;
-using AwakenServer.GameOfTrust.DTos;
-using AwakenServer.GameOfTrust.DTos.Dto;
 using AwakenServer.Grains.Grain.Chain;
 using AwakenServer.Grains.Grain.Tokens;
 using AwakenServer.Grains.Grain.Favorite;
@@ -25,12 +11,6 @@ using AwakenServer.Grains.Grain.Price.TradeRecord;
 using AwakenServer.Grains.Grain.Price.UserTradeSummary;
 using AwakenServer.Grains.Grain.Trade;
 using AwakenServer.Grains.State.Tokens;
-using AwakenServer.IDO.Dtos;
-using AwakenServer.IDO.Entities;
-using AwakenServer.IDO.Entities.Es;
-using AwakenServer.Price.Dtos;
-using AwakenServer.Price.Etos;
-using AwakenServer.Price.Index;
 using AwakenServer.Tokens;
 using AwakenServer.Trade;
 using AwakenServer.Trade.Dtos;
@@ -139,118 +119,15 @@ namespace AwakenServer
             CreateMap<KLineEto, KLine>();
             CreateMap<Trade.Index.KLine, KLineDto>();
             CreateMap<KLineGrainDto, KLineEto>();
-
-            //Price
-            CreateMap<LendingTokenPriceCreateOrUpdateDto, Price.LendingTokenPrice>().ForMember(
-                destination => destination.Timestamp,
-                opt => opt.MapFrom(source => DateTimeHelper.FromUnixTimeMilliseconds(source.Timestamp)));
-            CreateMap<Price.LendingTokenPrice, LendingTokenPriceDto>().ForMember(
-                destination => destination.Timestamp,
-                opt => opt.MapFrom(source => DateTimeHelper.ToUnixTimeMilliseconds(source.Timestamp)));
-            CreateMap<Price.OtherLpToken, OtherLpTokenDto>();
-            CreateMap<OtherLpTokenCreateDto, Price.OtherLpToken>();
-            CreateMap<OtherLpTokenDto, Price.OtherLpToken>();
-            CreateMap<LendingTokenPriceEto, Price.Index.LendingTokenPrice>();
-            CreateMap<LendingTokenPriceEto, LendingTokenPriceHistory>()
-                .Ignore(d => d.Id)
-                .Ignore(d => d.Timestamp);
-            CreateMap<Price.Index.LendingTokenPrice, LendingTokenPriceIndexDto>().ForMember(
-                destination => destination.Timestamp,
-                opt => opt.MapFrom(source => DateTimeHelper.ToUnixTimeMilliseconds(source.Timestamp)));
-            CreateMap<LendingTokenPriceHistory, LendingTokenPriceHistoryIndexDto>().ForMember(
-                destination => destination.Timestamp,
-                opt => opt.MapFrom(source => DateTimeHelper.ToUnixTimeMilliseconds(source.Timestamp)));
-            CreateMap<OtherLpTokenEto, Price.Index.OtherLpToken>();
-            CreateMap<Price.Index.OtherLpToken, OtherLpTokenIndexDto>();
+            
             CreateMap<TradePairMarketDataSnapshot, AwakenServer.Trade.TradePairMarketDataSnapshot>();
             CreateMap<AwakenServer.Trade.TradePairMarketDataSnapshot, TradePairMarketDataSnapshotGrainDto>();
             CreateMap<TradePairMarketDataSnapshotGrainDto, TradePairMarketDataSnapshotEto>();
 
-            //Farm
-            CreateMapForFarm();
-
-            //Debit
-            CreateMapForDebit();
-
-            //GameOfTrust
-            CreateMapForGameOfTrust();
-
-            //IDO
-            CreateMapForIDO();
-
-            //Dividend
-            CreateMapForDividend();
-            
             //Favorite
             CreateMapForFavorite();
         }
 
-        private void CreateMapForGameOfTrust()
-        {
-            // game of trust
-            CreateMap<Entities.GameOfTrust.Es.GameOfTrust, GameOfTrustDto>();
-            CreateMap<GameOfTrustRecord, GetUserGameOfTrustRecordDto>().ForMember(
-                destination => destination.Timestamp,
-                opt => opt.MapFrom(source => DateTimeHelper.ToUnixTimeMilliseconds(source.Timestamp)));
-            CreateMap<Token, GameOfTrust.DTos.Dto.TokenDto>();
-            CreateMap<GameOfTrustMarketData, MarketDataDto>().ForMember(
-                destination => destination.Timestamp,
-                opt => opt.MapFrom(source => DateTimeHelper.ToUnixTimeMilliseconds(source.Timestamp)));
-            CreateMap<Entities.GameOfTrust.Es.GameOfTrust, MarketCapsDto>();
-            CreateMap<UserGameOfTrust, UserGameofTrustDto>();
-            CreateMap<GameOfTrustWithToken, GameOfTrustDto>();
-        }
-
-        private void CreateMapForFarm()
-        {
-            CreateMap<Farm, FarmDto>();
-            CreateMap<FarmPool, FarmPoolDto>();
-            CreateMap<FarmUserInfo, FarmUserInfoDto>();
-            CreateMap<FarmRecord, FarmRecordDto>().ForMember(dest => dest.Timestamp,
-                opts => opts.MapFrom(src => DateTimeHelper.ToUnixTimeMilliseconds(src.Date)));
-            CreateMap<FarmBase, FarmBaseDto>();
-            CreateMap<FarmPoolBase, FarmPoolBaseDto>();
-            CreateMap<Token, FarmTokenDto>();
-        }
-
-        private void CreateMapForDebit()
-        {
-            CreateMap<CompController, CompControllerDto>();
-            CreateMap<CToken, CTokenDto>();
-            CreateMap<CTokenRecord, CTokenRecordDto>().ForMember(dest => dest.Timestamp,
-                opts => opts.MapFrom(src => DateTimeHelper.ToUnixTimeMilliseconds(src.Date)));
-            CreateMap<CTokenUserInfo, CTokenUserInfoDto>();
-            CreateMap<CompControllerBase, CompControllerBaseDto>();
-            CreateMap<CTokenBase, CTokenBaseDto>();
-            CreateMap<Token, DebitTokenDto>();
-        }
-
-        private void CreateMapForIDO()
-        {
-            CreateMap<PublicOffering, PublicOfferingDto>().ForMember(dest => dest.StartTimestamp,
-                    opts => opts.MapFrom(src => DateTimeHelper.ToUnixTimeMilliseconds(src.StartTime)))
-                .ForMember(dest => dest.EndTimestamp,
-                    opts => opts.MapFrom(src => DateTimeHelper.ToUnixTimeMilliseconds(src.EndTime)));
-            CreateMap<PublicOfferingWithToken, PublicOfferingWithTokenDto>();
-            CreateMap<PublicOfferingRecord, PublicOfferingRecordDto>().ForMember(dest => dest.DateTime,
-                opts => opts.MapFrom(src => DateTimeHelper.ToUnixTimeMilliseconds(src.DateTime)));
-            CreateMap<UserPublicOffering, UserPublicOfferingDto>();
-        }
-
-        private void CreateMapForDividend()
-        {
-            CreateMap<Dividend.Entities.Dividend, DividendDto>();
-            CreateMap<DividendToken, DividendTokenDto>();
-            CreateMap<DividendPool, DividendPoolDto>();
-            CreateMap<DividendPoolToken, DividendPoolTokenDto>();
-            CreateMap<DividendUserPool, DividendUserPoolDto>();
-            CreateMap<DividendUserToken, DividendUserTokenDto>();
-            CreateMap<DividendUserRecord, DividendUserRecordDto>().ForMember(dest => dest.Date,
-                opts => opts.MapFrom(src => DateTimeHelper.ToUnixTimeMilliseconds(src.DateTime)));
-            CreateMap<DividendPoolBaseInfo, DividendPoolBaseInfoDto>();
-            CreateMap<DividendBase, DividendBaseDto>();
-        }
-        
         private void CreateMapForFavorite()
         {
             CreateMap<FavoriteCreateDto, FavoriteGrainDto>();

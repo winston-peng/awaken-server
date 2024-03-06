@@ -3,7 +3,7 @@ using Volo.Abp.Application.Dtos;
 
 namespace AwakenServer.Asset;
 
-public class UserAssetInfoDto
+public class UserAssetInfoDto:PagedResultRequestDto
 {
     public List<UserTokenInfo> Items { get; set; }
 }

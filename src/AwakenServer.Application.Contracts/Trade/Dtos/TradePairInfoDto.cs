@@ -1,9 +1,10 @@
 using System;
 using System.Collections.Generic;
+using Volo.Abp.Application.Dtos;
 
 namespace AwakenServer.Trade.Dtos;
 
-public class TradePairInfoDtoPageResultDto
+public class TradePairInfoDtoPageResultDto 
 {
     public TradePairInfoGplResultDto GetTradePairInfoList { get; set; }
 }

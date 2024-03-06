@@ -2,9 +2,7 @@ using System;
 using AElf.Indexing.Elasticsearch.Options;
 using AwakenServer.Chains;
 using AwakenServer.CoinGeckoApi;
-using AwakenServer.Debits.Options;
 using AwakenServer.EntityFrameworkCore;
-using AwakenServer.Farms.Options;
 using AwakenServer.Grains;
 using AwakenServer.RabbitMq;
 using AwakenServer.Trade;
@@ -50,8 +48,6 @@ public class AwakenServerEntityHandlerModule : AbpModule
         ConfigureAuditing();
         ConfigureEsIndexCreation();
         context.Services.AddHostedService<AwakenHostedService>();
-        Configure<FarmOption>(p => { configuration.GetSection("Farm").Bind(p); });
-        Configure<DebitOption>(p => { configuration.GetSection("Debit").Bind(p); });
         ConfigureOrleans(context, configuration);
 
         Configure<ChainsInitOptions>(configuration.GetSection("ChainsInit"));

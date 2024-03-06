@@ -5,12 +5,10 @@ using AwakenServer.CMS;
 using AwakenServer.Price;
 using AwakenServer.Tokens;
 using AwakenServer.Trade.Dtos;
-using AwakenServer.Web3;
 using Microsoft.Extensions.DependencyInjection;
 using Volo.Abp;
 using Volo.Abp.Modularity;
 using Volo.Abp.Threading;
-using MockWeb3Provider = AwakenServer.Price.MockWeb3Provider;
 
 namespace AwakenServer.Trade
 {
@@ -117,8 +115,6 @@ namespace AwakenServer.Trade
             });
 
             context.Services.AddSingleton<TestEnvironmentProvider>();
-            context.Services.AddSingleton<IWeb3Provider, MockWeb3Provider>();
-            context.Services.AddSingleton<IBlockchainClientProvider, MockWeb3Provider>();
         }
 
         public override void OnApplicationInitialization(ApplicationInitializationContext context)
