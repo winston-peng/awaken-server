@@ -63,6 +63,7 @@ namespace AwakenServer.Trade
                     "BNB",
                     "DAI"
                 };
+                o.ShowListLength = 6;
                 o.TransactionFee = 1;
                 o.DefaultSymbol = "BTC";
             });

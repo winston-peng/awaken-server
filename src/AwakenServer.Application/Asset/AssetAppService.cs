@@ -35,7 +35,6 @@ public class AssetAppService : ApplicationService, IAssetAppService
     private const string userAssetInfoDtoPrefix = "AwakenServer:Asset:";
     private readonly IClusterClient _clusterClient;
     private readonly ILogger<AssetAppService> _logger;
-    private const int ShowListLength = 6;
 
     public AssetAppService(IGraphQLProvider graphQlProvider,
         ITokenAppService tokenAppService,
@@ -110,9 +109,9 @@ public class AssetAppService : ApplicationService, IAssetAppService
         hiddenList = hiddenList.Where(o => o.PriceInUsd != null).Where(o => o.Balance > 0)
             .OrderByDescending(o => Double.Parse(o.PriceInUsd)).ThenBy(o => o.Symbol).ToList();
 
-        if (showList.Count < ShowListLength)
+        if (showList.Count < _assetShowOptions.ShowListLength)
         {
-            var fillLen = ShowListLength - showList.Count;
+            var fillLen = _assetShowOptions.ShowListLength - showList.Count;
 
             if (hiddenList.Count >= fillLen)
             {
@@ -129,9 +128,10 @@ public class AssetAppService : ApplicationService, IAssetAppService
                 .OrderByDescending(o => Double.Parse(o.PriceInUsd)).ThenBy(o => o.Symbol).ToList();
         }
 
-        if (showList.Count > ShowListLength)
+        if (showList.Count > _assetShowOptions.ShowListLength)
         {
-            var newHiddenList = showList.GetRange(ShowListLength, showList.Count - ShowListLength);
+            var newHiddenList = showList.GetRange(_assetShowOptions.ShowListLength,
+                showList.Count - _assetShowOptions.ShowListLength);
             newHiddenList.AddRange(hiddenList);
             hiddenList = newHiddenList;
         }
