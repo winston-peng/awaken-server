@@ -52,13 +52,25 @@ namespace AwakenServer.Trade
                     "USDT",
                     "BTC"
                 };
+                o.NftList = new List<string>()
+                {
+                    "ELF",
+                    "USDT",
+                    "SGR-1",
+                    "ELEPHANT-1",
+                    "USDC",
+                    "ETH",
+                    "BNB",
+                    "DAI"
+                };
+                o.ShowListLength = 6;
                 o.TransactionFee = 1;
                 o.DefaultSymbol = "BTC";
             });
             context.Services.Configure<StableCoinOptions>(o =>
             {
                 o.Coins = new Dictionary<string, List<Coin>>();
-                o.Coins["Ethereum"] = new List<Coin>
+                o.Coins["tDVV"] = new List<Coin>
                 {
                     new Coin { Address = "0xToken06a6FaC8c710e53c4B2c2F96477119dA361", Symbol = "USDT" },
                     new Coin { Address = "0x06a6FaC8c710e53c4B2c2F96477119dA365", Symbol = "USDC" },
@@ -94,7 +106,7 @@ namespace AwakenServer.Trade
                 o.Coins["BTC"] = new Dictionary<string, Coin>
                 {
                     {
-                        "Ethereum", new Coin
+                        "tDVV", new Coin
                         {
                             Symbol = "BTC",
                             Address = "0xToken06a6FaC8c710e53c4B2c2F96477119dA362"
@@ -130,7 +142,7 @@ namespace AwakenServer.Trade
 
             var chainEth = AsyncHelper.RunSync(async () => await chainService.CreateAsync(new ChainCreateDto
             {
-                Name = "Ethereum"
+                Name = "tDVV"
             }));
             environmentProvider.EthChainId = chainEth.Id;
             environmentProvider.EthChainName = chainEth.Name;

@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using AElf.Indexing.Elasticsearch;
 using AwakenServer.Trade.Dtos;
@@ -346,6 +347,7 @@ namespace AwakenServer.Trade
                 marketData.TradeCount += tradeCount;
                 marketData.TradeAddressCount24h = tradeAddressCount24H;
                 await _snapshotIndexRepository.UpdateAsync(marketData);
+                Thread.Sleep(500);
                 await AddOrUpdateTradePairIndexAsync(marketData);
             }
         }
@@ -525,6 +527,8 @@ namespace AwakenServer.Trade
             var priceLow24hUSD = snapshotDto.PriceLowUSD;
 
             var daySnapshot = snapshots.Where(s => s.Timestamp >= snapshotDto.Timestamp.AddDays(-1)).ToList();
+            
+            _logger.LogInformation("AddOrUpdateTradePairIndex daySnapshot: " + JsonConvert.SerializeObject(daySnapshot));
             foreach (var snapshot in daySnapshot)
             {
                 volume24h += snapshot.Volume;

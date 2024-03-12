@@ -93,8 +93,8 @@ namespace AwakenServer.Trade
                 var isReversed = indexDto.TradePair.Token0.Symbol == recordDto.Token1;
                 if (isReversed)
                 {
-                    indexDto.Token0Amount = recordDto.Token1Amount.ToDecimalsString(indexDto.TradePair.Token1.Decimals);
-                    indexDto.Token1Amount = recordDto.Token0Amount.ToDecimalsString(indexDto.TradePair.Token0.Decimals);
+                    indexDto.Token0Amount = recordDto.Token1Amount.ToDecimalsString(indexDto.TradePair.Token0.Decimals);
+                    indexDto.Token1Amount = recordDto.Token0Amount.ToDecimalsString(indexDto.TradePair.Token1.Decimals);
                 }
                 else
                 {
@@ -184,8 +184,13 @@ namespace AwakenServer.Trade
                 var prop = tradePairIndex.TotalSupply == null || tradePairIndex.TotalSupply == "0"
                     ? 0
                     : dto.LpTokenAmount / double.Parse(tradePairIndex.TotalSupply);
-                _logger.LogInformation("User liquidity token0 decimal:{token0Decimal},token1 decimal:{token1Decimal}",
-                    tradePairIndex.Token0.Decimals, tradePairIndex.Token1.Decimals);
+                _logger.LogInformation(
+                    "User liquidity token0:{token0} decimal:{token0Decimal},token1:{token1} decimal:{token1Decimal},token0 amount:{amount0},token1 amount:{amoun1}",
+                    tradePairIndex.Token0.Symbol, tradePairIndex.Token0.Decimals,
+                    tradePairIndex.Token1.Symbol, tradePairIndex.Token1.Decimals, tradePairIndex.ValueLocked0,
+                    tradePairIndex.ValueLocked1);
+
+
                 indexDto.Token0Amount = tradePairIndex.Token0.Decimals == 0
                     ? Math.Floor(prop / Math.Pow(10, 8) * tradePairIndex.ValueLocked0).ToString()
                     : ((long)(prop * tradePairIndex.ValueLocked0)).ToDecimalsString(8);
