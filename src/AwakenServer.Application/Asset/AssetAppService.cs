@@ -130,10 +130,11 @@ public class AssetAppService : ApplicationService, IAssetAppService
 
         if (showList.Count > _assetShowOptions.ShowListLength)
         {
-            var newHiddenList = showList.GetRange(_assetShowOptions.ShowListLength,
-                showList.Count - _assetShowOptions.ShowListLength);
-            newHiddenList.AddRange(hiddenList);
-            hiddenList = newHiddenList;
+            hiddenList.InsertRange(0, showList.GetRange(_assetShowOptions.ShowListLength,
+                showList.Count - _assetShowOptions.ShowListLength));
+
+
+            showList.RemoveRange(_assetShowOptions.ShowListLength, showList.Count - _assetShowOptions.ShowListLength);
         }
 
         return new UserAssetInfoDto()
