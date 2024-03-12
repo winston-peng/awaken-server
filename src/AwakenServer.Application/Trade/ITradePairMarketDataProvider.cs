@@ -3,6 +3,8 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using AElf.Indexing.Elasticsearch;
+using AwakenServer.Grains;
+using AwakenServer.Grains.Grain.Trade;
 using AwakenServer.Trade.Dtos;
 using MassTransit;
 using Microsoft.Extensions.Logging;
@@ -10,6 +12,7 @@ using Microsoft.Extensions.Options;
 using MongoDB.Bson.IO;
 using Nest;
 using Nethereum.Util;
+using Orleans;
 using Volo.Abp.Caching;
 using Volo.Abp.DependencyInjection;
 using Volo.Abp.DistributedLocking;
@@ -64,7 +67,8 @@ namespace AwakenServer.Trade
         private readonly ILogger<TradePairMarketDataProvider> _logger;
         private readonly TradeRecordOptions _tradeRecordOptions;
         private readonly IAbpDistributedLock _distributedLock;
-
+        private readonly IClusterClient _clusterClient;
+        
         private static DateTime lastWriteTime;
 
         private static BigDecimal lastTotal;
@@ -191,7 +195,12 @@ namespace AwakenServer.Trade
         {
             _logger.LogInformation("UpdateTotalSupplyAsync: input supply:{supply}", supply);
             var snapshotTime = GetSnapshotTime(timestamp);
-            var marketData = await GetTradePairMarketDataIndexAsync(chainId, tradePairId, snapshotTime);
+            
+            var grain = _clusterClient.GetGrain<ISnapshotIndexGrain>(GrainIdHelper.GenerateGrainId(chainId, tradePairId, snapshotTime));
+            var marketData = await grain.getAsync();
+
+            // var marketData = await GetTradePairMarketDataIndexAsync(chainId, tradePairId, snapshotTime);
+            
             if (marketData == null)
             {
                 var lastMarketData =
@@ -223,6 +232,9 @@ namespace AwakenServer.Trade
                 marketData.TradeAddressCount24h =
                     await _tradeRecordAppService.GetUserTradeAddressCountAsync(chainId, tradePairId,
                         timestamp.AddDays(-1), timestamp);
+                
+                await grain.AddAsync(marketData);
+                
                 await _snapshotIndexRepository.AddAsync(marketData);
                 await AddOrUpdateTradePairIndexAsync(marketData);
             }
@@ -232,6 +244,8 @@ namespace AwakenServer.Trade
                 marketData.TotalSupply =
                     string.IsNullOrWhiteSpace(supply) ? (totalSupply + lpTokenAmount).ToNormalizeString() : supply;
 
+                await grain.UpdateAsync(marketData);
+                
                 await _snapshotIndexRepository.UpdateAsync(marketData);
                 await AddOrUpdateTradePairIndexAsync(marketData);
             }
@@ -248,6 +262,8 @@ namespace AwakenServer.Trade
                 _logger.LogInformation("UpdateTotalSupplyAsync: latest totalSupply:{supply}",
                     latestMarketData.TotalSupply);
 
+                await grain.UpdateAsync(marketData);
+                
                 await _snapshotIndexRepository.UpdateAsync(latestMarketData);
                 await AddOrUpdateTradePairIndexAsync(latestMarketData);
             }
@@ -299,7 +315,11 @@ namespace AwakenServer.Trade
                 "_updateTradeRecordAsync start.chainId:{chainId},tradePairId:{tradePairId},timestamp:{timestamp},volume:{volume},tradeValue:{tradeValue},tradeCount:{tradeCount}",
                 chainId, tradePairId, timestamp, volume, tradeValue, tradeCount);
             var snapshotTime = GetSnapshotTime(timestamp);
-            var marketData = await GetTradePairMarketDataIndexAsync(chainId, tradePairId, snapshotTime);
+            
+            var grain = _clusterClient.GetGrain<ISnapshotIndexGrain>(GrainIdHelper.GenerateGrainId(chainId, tradePairId, snapshotTime));
+            var marketData = await grain.getAsync();
+            
+            // var marketData = await GetTradePairMarketDataIndexAsync(chainId, tradePairId, snapshotTime);
 
             var tradeAddressCount24H = await _tradeRecordAppService.GetUserTradeAddressCountAsync(chainId,
                 tradePairId,
@@ -336,6 +356,8 @@ namespace AwakenServer.Trade
                     marketData.ValueLocked1 = lastMarketData.ValueLocked1;
                 }
 
+                await grain.AddAsync(marketData);
+                
                 await _snapshotIndexRepository.AddAsync(marketData);
                 await AddOrUpdateTradePairIndexAsync(marketData);
             }
@@ -345,6 +367,9 @@ namespace AwakenServer.Trade
                 marketData.TradeValue += tradeValue;
                 marketData.TradeCount += tradeCount;
                 marketData.TradeAddressCount24h = tradeAddressCount24H;
+                
+                await grain.UpdateAsync(marketData);
+                
                 await _snapshotIndexRepository.UpdateAsync(marketData);
                 await AddOrUpdateTradePairIndexAsync(marketData);
             }
@@ -358,7 +383,11 @@ namespace AwakenServer.Trade
                 tradePairId, GetSnapshotTime(timestamp));
             await using var handle = await _distributedLock.TryAcquireAsync(lockName);
             var snapshotTime = GetSnapshotTime(timestamp);
-            var marketData = await GetTradePairMarketDataIndexAsync(chainId, tradePairId, snapshotTime);
+            
+            var grain = _clusterClient.GetGrain<ISnapshotIndexGrain>(GrainIdHelper.GenerateGrainId(chainId, tradePairId, snapshotTime));
+            var marketData = await grain.getAsync();
+            
+            // var marketData = await GetTradePairMarketDataIndexAsync(chainId, tradePairId, snapshotTime);
 
             if (marketData == null)
             {
@@ -391,6 +420,9 @@ namespace AwakenServer.Trade
                     await _tradeRecordAppService.GetUserTradeAddressCountAsync(chainId, tradePairId,
                         timestamp.AddDays(-1), timestamp);
                 _logger.LogInformation("UpdateLiquidityAsync, supply:{supply}", marketData.TotalSupply);
+                
+                await grain.AddAsync(marketData);
+                
                 await _snapshotIndexRepository.AddAsync(marketData);
                 await AddOrUpdateTradePairIndexAsync(marketData);
             }
@@ -407,6 +439,9 @@ namespace AwakenServer.Trade
                 marketData.ValueLocked0 = valueLocked0;
                 marketData.ValueLocked1 = valueLocked1;
                 _logger.LogInformation("UpdateLiquidityAsync, supply:{supply}", marketData.TotalSupply);
+                
+                await grain.UpdateAsync(marketData);
+                
                 await _snapshotIndexRepository.UpdateAsync(marketData);
                 await AddOrUpdateTradePairIndexAsync(marketData);
             }

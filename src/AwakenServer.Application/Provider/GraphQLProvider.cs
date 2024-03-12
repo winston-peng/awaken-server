@@ -41,8 +41,11 @@ public class GraphQLProvider : IGraphQLProvider, ISingletonDependency
         var graphQlResponse = await _graphQLClient.SendQueryAsync<TradePairInfoDtoPageResultDto>(new GraphQLRequest
         {
             Query =
-                @"query($id:String = null ,$chainId:String = null,$address:String = null,$token0Symbol:String = null,$token1Symbol:String = null,$tokenSymbol:String = null,$feeRate:Float!){
-            getTradePairInfoList(getTradePairInfoDto: {id:$id,chainId:$chainId,address:$address,token0Symbol:$token0Symbol,token1Symbol:$token1Symbol,tokenSymbol:$tokenSymbol,feeRate:$feeRate,skipCount:0,maxResultCount:1000}){
+                @"query($id:String = null ,$chainId:String = null,$address:String = null,$token0Symbol:String = null,
+            $token1Symbol:String = null,$tokenSymbol:String = null,$feeRate:Float!,$startBlockHeight:Long!,$endBlockHeight:Long!){
+            getTradePairInfoList(getTradePairInfoDto: {id:$id,chainId:$chainId,address:$address,token0Symbol:$token0Symbol,
+            token1Symbol:$token1Symbol,tokenSymbol:$tokenSymbol,feeRate:$feeRate,skipCount:0,maxResultCount:1000,
+            startBlockHeight:$startBlockHeight,endBlockHeight:$endBlockHeight}){
             totalCount,
             data {
                 id,
@@ -51,8 +54,10 @@ public class GraphQLProvider : IGraphQLProvider, ISingletonDependency
                 token0Symbol,
                 token1Symbol,
                 feeRate,
-                isTokenReversed   
+                isTokenReversed,
+                blockHeight, 
             }}}",
+            
             Variables = new
             {
                 id = input.Id,
@@ -62,6 +67,8 @@ public class GraphQLProvider : IGraphQLProvider, ISingletonDependency
                 token1Symbol = input.Token1Symbol,
                 tokenSymbol = input.TokenSymbol,
                 feeRate = input.FeeRate == 0 ? input.FeeRate : 0,
+                startBlockHeight = input.StartBlockHeight,
+                endBlockHeight = input.EndBlockHeight
             }
         });
         

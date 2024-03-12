@@ -35,7 +35,7 @@ public class SwapEventSyncWorker : AsyncPeriodicBackgroundWorkerBase
         var chains = await _chainAppService.GetListAsync(new GetChainInput());
         foreach (var chain in chains.Items)
         {
-            var lastEndHeight = await _graphQlProvider.GetLastEndHeightAsync(chain.Name, QueryType.TradeRecord);
+            var lastEndHeight = await _graphQlProvider.GetLastEndHeightAsync(chain.Name, QueryType.Swap);
             _logger.LogInformation("swap first lastEndHeight: {lastEndHeight}", lastEndHeight);
 
             if(lastEndHeight < 0) continue;
@@ -44,7 +44,7 @@ public class SwapEventSyncWorker : AsyncPeriodicBackgroundWorkerBase
             foreach (var queryDto in queryList)
             {
                 if(!await _tradeRecordAppService.CreateAsync(queryDto)) continue;
-                await _graphQlProvider.SetLastEndHeightAsync(chain.Name, QueryType.TradeRecord, queryDto.BlockHeight);
+                await _graphQlProvider.SetLastEndHeightAsync(chain.Name, QueryType.Swap, queryDto.BlockHeight);
                 _logger.LogInformation("swap success lastEndHeight: {BlockHeight}", queryDto.BlockHeight);
             }
         }

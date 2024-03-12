@@ -1,3 +1,4 @@
+using System;
 using System.Threading.Tasks;
 using AwakenServer.Chains;
 using AwakenServer.Provider;
@@ -34,17 +35,31 @@ public class TradePairEventSyncWorker : AsyncPeriodicBackgroundWorkerBase
         var chains = await _chainAppService.GetListAsync(new GetChainInput());
         foreach (var chain in chains.Items)
         {
+            var lastEndHeight = await _graphQlProvider.GetLastEndHeightAsync(chain.Name, QueryType.TradePair);
+            _logger.LogInformation("trade first lastEndHeight: {lastEndHeight}", lastEndHeight);
+
+            if(lastEndHeight < 0) continue;
+            
             var result = await _graphQlProvider.GetTradePairInfoListAsync(new GetTradePairsInfoInput
             {
-                ChainId = chain.Name
+                ChainId = chain.Name,
+                StartBlockHeight = lastEndHeight+1,
+                EndBlockHeight = 0
+                
             });
+            
+            long blockHeight = -1;
             foreach (var pair in result.GetTradePairInfoList.Data)
             {
+                blockHeight = Math.Max(blockHeight, pair.BlockHeight);
+                
                 _logger.LogInformation("Syncing {pairId} on {chainName}, {Token0Symbol}/{Token1Symbol}",
                     pair.Id, chain.Name, pair.Token0Symbol, pair.Token1Symbol);
+                
                 await _tradePairAppService.SyncTokenAsync(pair, chain);
                 await _tradePairAppService.SyncPairAsync(pair, chain);
             }
+            await _graphQlProvider.SetLastEndHeightAsync(chain.Name, QueryType.TradePair, blockHeight);
         }
     }
 }

@@ -14,4 +14,5 @@ public static class QueryType
     public const string Liquidity = "Liquidity";
     public const string TradeRecord = "TradeRecord";
     public const string Sync = "Sync";
+    public const string Swap = "Swap";
 }

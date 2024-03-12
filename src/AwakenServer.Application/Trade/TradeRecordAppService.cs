@@ -233,7 +233,11 @@ namespace AwakenServer.Trade
                 return false;
             }
 
-            var pair = await GetAsync(dto.ChainId, dto.PairAddress);
+            var tradePairgrain = _clusterClient.GetGrain<ITradePairSyncGrain>(
+                GrainIdHelper.GenerateGrainId(dto.ChainId, dto.PairAddress));
+            var pair = await tradePairgrain.GetAsync();
+            
+            // var pair = await GetAsync(dto.ChainId, dto.PairAddress);
             if (pair == null)
             {
                 _logger.LogInformation("swap can not find trade pair: {chainId}, {pairAddress}", dto.ChainId,

@@ -6,6 +6,8 @@ using AElf.Indexing.Elasticsearch;
 using AwakenServer.Chains;
 using AwakenServer.CMS;
 using AwakenServer.Favorite;
+using AwakenServer.Grains;
+using AwakenServer.Grains.Grain.Trade;
 using AwakenServer.Provider;
 using AwakenServer.Tokens;
 using AwakenServer.Trade.Dtos;
@@ -13,6 +15,7 @@ using JetBrains.Annotations;
 using MassTransit;
 using Microsoft.Extensions.Logging;
 using Nest;
+using Orleans;
 using Volo.Abp;
 using Volo.Abp.Application.Dtos;
 using Volo.Abp.Application.Services;
@@ -38,6 +41,7 @@ namespace AwakenServer.Trade
         private readonly ILogger<TradePairAppService> _logger;
         private readonly IDistributedEventBus _distributedEventBus;
         private readonly IBus _bus;
+        private readonly IClusterClient _clusterClient;
 
         private const string ASC = "asc";
         private const string ASCEND = "ascend";
@@ -155,8 +159,9 @@ namespace AwakenServer.Trade
             }
 
             QueryContainer Filter(QueryContainerDescriptor<Index.TradePair> f) => f.Bool(b => b.Must(mustQuery));
-
+            
             var list = await _tradePairIndexRepository.GetListAsync(Filter, limit: 1);
+            
             return ObjectMapper.Map<Index.TradePair, TradePairIndexDto>(list.Item2.FirstOrDefault());
         }
 
@@ -239,11 +244,19 @@ namespace AwakenServer.Trade
             var tradePair = ObjectMapper.Map<TradePairCreateDto, TradePairInfoIndex>(input);
             tradePair.Token0Symbol = token0.Symbol;
             tradePair.Token1Symbol = token1.Symbol;
+            
+            var grain = _clusterClient.GetGrain<ITradePairSyncGrain>(
+                GrainIdHelper.GenerateGrainId(tradePair.ChainId, tradePair.Address));
+            
+            await grain.AddOrUpdateAsync(tradePair);
+            
             await _tradePairInfoIndex.AddOrUpdateAsync(tradePair);
             var index = ObjectMapper.Map<TradePairCreateDto, Index.TradePair>(input);
             index.Token0 = ObjectMapper.Map<TokenDto, Token>(token0);
             index.Token1 = ObjectMapper.Map<TokenDto, Token>(token1);
-
+            
+            await grain.AddOrUpdateAsync(index);
+            
             await _tradePairIndexRepository.AddOrUpdateAsync(index);
 
             return ObjectMapper.Map<TradePairInfoIndex, TradePairDto>(tradePair);
@@ -280,7 +293,12 @@ namespace AwakenServer.Trade
 
         public async Task UpdateLiquidityAsync(SyncRecordDto dto)
         {
-            var pair = await GetAsync(dto.ChainId, dto.PairAddress);
+            var grain = _clusterClient.GetGrain<ITradePairSyncGrain>(
+                GrainIdHelper.GenerateGrainId(dto.ChainId, dto.PairAddress));
+            var pair = await grain.GetAsync();
+            
+            // var pair = await GetAsync(dto.ChainId, dto.PairAddress);
+            
             var isReversed = pair.Token0.Symbol == dto.SymbolB;
             var token0Amount = isReversed
                 ? dto.ReserveB.ToDecimalsString(pair.Token0.Decimals)
@@ -311,6 +329,12 @@ namespace AwakenServer.Trade
             tradePair.Token0 = ObjectMapper.Map<TokenDto, Token>(token0);
             tradePair.Token1 = ObjectMapper.Map<TokenDto, Token>(token1);
             tradePair.ChainId = chain.Id;
+            
+            var grain = _clusterClient.GetGrain<ITradePairSyncGrain>(
+                GrainIdHelper.GenerateGrainId(tradePair.ChainId, tradePair.Address));
+
+            await grain.AddOrUpdateAsync(tradePair);
+            
             await _tradePairIndexRepository.AddOrUpdateAsync(tradePair);
         }
 
@@ -405,6 +429,11 @@ namespace AwakenServer.Trade
                 pair.Token0.Symbol, pair.Token1.Symbol, pair.FeeRate, pair.Price, pair.PriceUSD, pair.Token1.Symbol,
                 priceUSD1);
 
+            var grain = _clusterClient.GetGrain<ITradePairSyncGrain>(
+                GrainIdHelper.GenerateGrainId(pair.ChainId, pair.Address));
+
+            await grain.AddOrUpdateAsync(pair);
+            
             await _tradePairIndexRepository.AddOrUpdateAsync(pair);
 
             await _bus.Publish<NewIndexEvent<TradePairIndexDto>>(new NewIndexEvent<TradePairIndexDto>
@@ -477,7 +506,11 @@ namespace AwakenServer.Trade
                 return;
             }
 
-            var existPair = await GetTradePairAsync(pair.ChainId, pair.Address);
+            var tradePairgrain = _clusterClient.GetGrain<ITradePairSyncGrain>(
+                GrainIdHelper.GenerateGrainId(pair.ChainId, pair.Address));
+            var existPair = await tradePairgrain.GetAsync();
+            
+            // var existPair = await GetTradePairAsync(pair.ChainId, pair.Address);
             if (existPair != null)
             {
                 return;
@@ -510,6 +543,7 @@ namespace AwakenServer.Trade
 
             _logger.LogInformation("create pair success Id:{pairId},chainId:{chainId},token0:{token0}," +
                                    "token1:{token1}", pair.Id, chain.Id, pair.Token0Symbol, pair.Token1Symbol);
+            
             await CreateTradePairIndexAsync(pair, token0, token1, chain);
         }
 
