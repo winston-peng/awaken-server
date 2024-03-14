@@ -2,7 +2,7 @@ using AwakenServer.Trade.Index;
 
 namespace AwakenServer.Grains.State.Trade;
 
-public class SnapshotIndexState
+public class TradePairSnapshotState
 {
     public TradePairMarketDataSnapshot Snapshot;
 }

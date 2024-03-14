@@ -1,8 +1,10 @@
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using AElf.Indexing.Elasticsearch;
+using AwakenServer.Comparers;
 using AwakenServer.Grains;
 using AwakenServer.Grains.Grain.Trade;
 using AwakenServer.Trade.Dtos;
@@ -28,15 +30,11 @@ namespace AwakenServer.Trade
             string supply = null);
 
         Task UpdateTradeRecordAsync(string chainId, Guid tradePairId, DateTime timestamp, double volume,
-            double tradeValue);
+            double tradeValue, int tradeCount = 1);
 
         Task UpdateLiquidityAsync(string chainId, Guid tradePairId, DateTime timestamp, double price, double priceUSD,
             double tvl, double valueLocked0, double valueLocked1);
-
-        Task FlushTotalSupplyCacheToSnapshotAsync(string key);
-
-        Task FlushTradeRecordCacheToSnapshotAsync(string key);
-
+        
         Task<TradePairMarketDataSnapshot> GetLatestTradePairMarketDataAsync(string chainId, Guid tradePairId);
 
         Task<Index.TradePairMarketDataSnapshot> GetTradePairMarketDataIndexAsync(string chainId, Guid tradePairId,
@@ -50,7 +48,15 @@ namespace AwakenServer.Trade
         Task<Index.TradePairMarketDataSnapshot>
             GetLatestTradePairMarketDataIndexAsync(string chainId, Guid tradePairId);
 
+        Task<Index.TradePairMarketDataSnapshot>
+            GetLatestTradePairMarketDataIndexFromGrainAsync(string chainId, Guid tradePairId);
+
+
         Task<List<Index.TradePairMarketDataSnapshot>> GetIndexListAsync(string chainId, Guid tradePairId,
+            DateTime? timestampMin = null, DateTime? timestampMax = null);
+
+        Task<List<Index.TradePairMarketDataSnapshot>> GetIndexListFromGrainAsync(string chainId,
+            Guid tradePairId,
             DateTime? timestampMin = null, DateTime? timestampMax = null);
     }
 
@@ -62,13 +68,12 @@ namespace AwakenServer.Trade
         private readonly IDistributedEventBus _distributedEventBus;
         private readonly IObjectMapper _objectMapper;
         private readonly IBus _bus;
-        private readonly IDistributedCache<UpdateTotalSupplyBatch> _totalSupplyAccumulationCache;
-        private readonly IDistributedCache<UpdateTradeRecordBatch> _tradeRecordAccumulationCache;
         private readonly ILogger<TradePairMarketDataProvider> _logger;
         private readonly TradeRecordOptions _tradeRecordOptions;
         private readonly IAbpDistributedLock _distributedLock;
         private readonly IClusterClient _clusterClient;
-        
+        private readonly ConcurrentDictionary<string, HashSet<Tuple<string, DateTime>>> _tradePairToGrainIds;
+
         private static DateTime lastWriteTime;
 
         private static BigDecimal lastTotal;
@@ -82,12 +87,10 @@ namespace AwakenServer.Trade
             IBus bus,
             IObjectMapper objectMapper,
             IAbpDistributedLock distributedLock,
-            IDistributedCache<UpdateTotalSupplyBatch> totalSupplyAccumulationCache,
-            IDistributedCache<UpdateTradeRecordBatch> tradeRecordAccumulationCache,
             ILogger<TradePairMarketDataProvider> logger,
             IDistributedCache<CacheKeys> cacheKeys,
-            IDistributedCache<UpdateLiquidityBatch> updateLiquidityCache,
-            IOptionsSnapshot<TradeRecordOptions> tradeRecordOptions)
+            IOptionsSnapshot<TradeRecordOptions> tradeRecordOptions,
+            IClusterClient clusterClient)
         {
             _snapshotIndexRepository = snapshotIndexRepository;
             _tradePairIndexRepository = tradePairIndexRepository;
@@ -96,115 +99,26 @@ namespace AwakenServer.Trade
             _objectMapper = objectMapper;
             _bus = bus;
             _distributedLock = distributedLock;
-            _totalSupplyAccumulationCache = totalSupplyAccumulationCache;
-            _tradeRecordAccumulationCache = tradeRecordAccumulationCache;
             _logger = logger;
             _tradeRecordOptions = tradeRecordOptions.Value;
+            _tradePairToGrainIds = new ConcurrentDictionary<string, HashSet<Tuple<string, DateTime>>>();
+            _clusterClient = clusterClient;
         }
 
-        public async Task FlushTradeRecordCacheToSnapshotAsync(string cacheKey)
-        {
-            await using var handle = await _distributedLock.TryAcquireAsync(cacheKey);
-
-            var value = await _tradeRecordAccumulationCache.GetAsync(cacheKey);
-            if (value != null)
-            {
-                if (DateTime.UtcNow.Subtract(value.CreateTime).TotalSeconds >=
-                    _tradeRecordOptions.BatchFlushTimePeriod ||
-                    value.TradeCount >= _tradeRecordOptions.BatchFlushCount)
-                {
-                    _logger.LogInformation(
-                        "FlushTradeRecordCacheToSnapshot start.cacheKey:{cacheKey},chanId:{chanId},tradePairId:{tradePairId},timestamp:{timestamp},volume:{volume},tradeValue:{tradeValue},tradeCount:{tradeCount}",
-                        cacheKey, value.ChanId, value.TradePairId, value.Timestamp, value.Volume, value.TradeValue,
-                        value.TradeCount);
-                    await _updateTradeRecordAsync(value.ChanId, value.TradePairId, value.Timestamp, value.Volume,
-                        value.TradeValue, value.TradeCount);
-                    _tradeRecordAccumulationCache.Remove(cacheKey);
-                }
-            }
-        }
-
-        public async Task FlushTotalSupplyCacheToSnapshotAsync(string cacheKey)
-        {
-            await using var handle = await _distributedLock.TryAcquireAsync(cacheKey);
-
-            var value = await _totalSupplyAccumulationCache.GetAsync(cacheKey);
-            if (value == null)
-            {
-                return;
-            }
-
-            if (DateTime.UtcNow.Subtract(value.LastTime).TotalSeconds >=
-                _tradeRecordOptions.BatchFlushTimePeriod)
-            {
-                _logger.LogInformation(
-                    "FlushTotalSupplyCacheToSnapshot start.cacheKey:{cacheKey},chanId:{chanId},tradePairId:{tradePairId},timestamp:{timestamp},totalSupply:{totalSupply}",
-                    cacheKey, value.ChanId, value.TradePairId, value.Timestamp, value.LpTokenAmount);
-                await _updateTotalSupplyAsync(value.ChanId, value.TradePairId, value.Timestamp,
-                    BigDecimal.Parse(value.LpTokenAmount), value.Supply);
-                _totalSupplyAccumulationCache.Remove(cacheKey);
-            }
-        }
 
         public async Task UpdateTotalSupplyAsync(string chainId, Guid tradePairId, DateTime timestamp,
             BigDecimal lpTokenAmount, string supply = null)
         {
-            var lockName = string.Format("{0}-{1}-{2}", chainId,
-                tradePairId, GetSnapshotTime(timestamp));
-
-            _logger.LogInformation(
-                "UpdateTotalSupply,chainId:{chainId},tradePairId:{tradePairId},timestamp:{timestamp},lpTokenAmount:{lpTokenAmount},supply:{supply}",
-                chainId, tradePairId, timestamp, lpTokenAmount, supply);
-            await using var handle = await _distributedLock.TryAcquireAsync(lockName);
-
-            var value = await _totalSupplyAccumulationCache.GetAsync(lockName);
-            if (value == null)
-            {
-                _totalSupplyAccumulationCache.Set(lockName, new UpdateTotalSupplyBatch
-                {
-                    LastTime = DateTime.UtcNow,
-                    LpTokenAmount = lpTokenAmount.ToString(),
-                    ChanId = chainId,
-                    TradePairId = tradePairId,
-                    Timestamp = timestamp,
-                    Supply = supply
-                });
-                return;
-            }
-
-            lpTokenAmount += BigDecimal.Parse(value.LpTokenAmount);
-            var span = DateTime.UtcNow.Subtract(value.LastTime).TotalSeconds;
-
-            if (span < _tradeRecordOptions.BatchFlushTimePeriod)
-            {
-                await _totalSupplyAccumulationCache.SetAsync(lockName, new UpdateTotalSupplyBatch
-                {
-                    LastTime = value.LastTime,
-                    LpTokenAmount = lpTokenAmount.ToString(),
-                    Supply = supply
-                });
-                return;
-            }
-
-            await _updateTotalSupplyAsync(chainId, tradePairId, timestamp, lpTokenAmount, supply);
-            await _totalSupplyAccumulationCache.RemoveAsync(lockName);
-        }
-
-        private async Task _updateTotalSupplyAsync(string chainId, Guid tradePairId, DateTime timestamp,
-            BigDecimal lpTokenAmount, string supply = null)
-        {
             _logger.LogInformation("UpdateTotalSupplyAsync: input supply:{supply}", supply);
             var snapshotTime = GetSnapshotTime(timestamp);
-            
-            var grain = _clusterClient.GetGrain<ISnapshotIndexGrain>(GrainIdHelper.GenerateGrainId(chainId, tradePairId, snapshotTime));
-            var marketData = await grain.getAsync();
 
-            // var marketData = await GetTradePairMarketDataIndexAsync(chainId, tradePairId, snapshotTime);
-            
+            var grain = await GetSnapShotGrain(chainId, tradePairId, snapshotTime);
+            var marketData = await grain.GetAsync();
+
             if (marketData == null)
             {
                 var lastMarketData =
-                    await GetLatestTradePairMarketDataIndexAsync(chainId, tradePairId, snapshotTime);
+                    await GetLatestTradePairMarketDataIndexFromGrainAsync(chainId, tradePairId, snapshotTime);
                 var totalSupply = lpTokenAmount;
                 if (lastMarketData != null)
                 {
@@ -232,9 +146,9 @@ namespace AwakenServer.Trade
                 marketData.TradeAddressCount24h =
                     await _tradeRecordAppService.GetUserTradeAddressCountAsync(chainId, tradePairId,
                         timestamp.AddDays(-1), timestamp);
-                
+
                 await grain.AddAsync(marketData);
-                
+
                 await _snapshotIndexRepository.AddAsync(marketData);
                 await AddOrUpdateTradePairIndexAsync(marketData);
             }
@@ -245,7 +159,7 @@ namespace AwakenServer.Trade
                     string.IsNullOrWhiteSpace(supply) ? (totalSupply + lpTokenAmount).ToNormalizeString() : supply;
 
                 await grain.UpdateAsync(marketData);
-                
+
                 await _snapshotIndexRepository.UpdateAsync(marketData);
                 await AddOrUpdateTradePairIndexAsync(marketData);
             }
@@ -253,7 +167,7 @@ namespace AwakenServer.Trade
             _logger.LogInformation("UpdateTotalSupplyAsync: totalSupply:{supply}", marketData.TotalSupply);
 
             //nie:The current snapshot is not up-to-date. The latest snapshot needs to update TotalSupply 
-            var latestMarketData = await GetLatestTradePairMarketDataIndexAsync(chainId, tradePairId);
+            var latestMarketData = await GetLatestTradePairMarketDataIndexFromGrainAsync(chainId, tradePairId);
             if (latestMarketData != null && latestMarketData.Timestamp > snapshotTime)
             {
                 latestMarketData.TotalSupply = string.IsNullOrWhiteSpace(supply)
@@ -263,63 +177,22 @@ namespace AwakenServer.Trade
                     latestMarketData.TotalSupply);
 
                 await grain.UpdateAsync(marketData);
-                
+
                 await _snapshotIndexRepository.UpdateAsync(latestMarketData);
                 await AddOrUpdateTradePairIndexAsync(latestMarketData);
             }
         }
-
+        
         public async Task UpdateTradeRecordAsync(string chainId, Guid tradePairId, DateTime timestamp, double volume,
-            double tradeValue)
-        {
-            var lockName = string.Format("{0}-{1}-{2}", chainId,
-                tradePairId, GetSnapshotTime(timestamp));
-            await using var handle = await _distributedLock.TryAcquireAsync(lockName);
-            var value = await _tradeRecordAccumulationCache.GetAsync(lockName);
-
-            if (value == null)
-            {
-                await _tradeRecordAccumulationCache.SetAsync(lockName, new UpdateTradeRecordBatch()
-                {
-                    CreateTime = DateTime.UtcNow,
-                    ChanId = chainId,
-                    TradePairId = tradePairId,
-                    Timestamp = timestamp,
-                    Volume = volume,
-                    TradeValue = tradeValue,
-                    TradeCount = 1,
-                });
-            }
-            else
-            {
-                value.Volume += volume;
-                value.TradeValue += tradeValue;
-                value.TradeCount += 1;
-                if (value.TradeCount >= _tradeRecordOptions.BatchFlushCount)
-                {
-                    await _updateTradeRecordAsync(chainId, tradePairId, timestamp, value.Volume, value.TradeValue,
-                        value.TradeCount);
-                    await _tradeRecordAccumulationCache.RemoveAsync(lockName);
-                }
-                else
-                {
-                    await _tradeRecordAccumulationCache.SetAsync(lockName, value);
-                }
-            }
-        }
-
-        public async Task _updateTradeRecordAsync(string chainId, Guid tradePairId, DateTime timestamp, double volume,
-            double tradeValue, int tradeCount)
+            double tradeValue, int tradeCount = 1)
         {
             _logger.LogInformation(
                 "_updateTradeRecordAsync start.chainId:{chainId},tradePairId:{tradePairId},timestamp:{timestamp},volume:{volume},tradeValue:{tradeValue},tradeCount:{tradeCount}",
                 chainId, tradePairId, timestamp, volume, tradeValue, tradeCount);
             var snapshotTime = GetSnapshotTime(timestamp);
-            
-            var grain = _clusterClient.GetGrain<ISnapshotIndexGrain>(GrainIdHelper.GenerateGrainId(chainId, tradePairId, snapshotTime));
-            var marketData = await grain.getAsync();
-            
-            // var marketData = await GetTradePairMarketDataIndexAsync(chainId, tradePairId, snapshotTime);
+
+            var grain = await GetSnapShotGrain(chainId, tradePairId, snapshotTime);
+            var marketData = await grain.GetAsync();
 
             var tradeAddressCount24H = await _tradeRecordAppService.GetUserTradeAddressCountAsync(chainId,
                 tradePairId,
@@ -328,7 +201,7 @@ namespace AwakenServer.Trade
             if (marketData == null)
             {
                 var lastMarketData =
-                    await GetLatestTradePairMarketDataIndexAsync(chainId, tradePairId, snapshotTime);
+                    await GetLatestTradePairMarketDataIndexFromGrainAsync(chainId, tradePairId, snapshotTime);
                 BigDecimal totalSupply = 0;
                 if (lastMarketData != null)
                 {
@@ -357,7 +230,6 @@ namespace AwakenServer.Trade
                 }
 
                 await grain.AddAsync(marketData);
-                
                 await _snapshotIndexRepository.AddAsync(marketData);
                 await AddOrUpdateTradePairIndexAsync(marketData);
             }
@@ -367,32 +239,29 @@ namespace AwakenServer.Trade
                 marketData.TradeValue += tradeValue;
                 marketData.TradeCount += tradeCount;
                 marketData.TradeAddressCount24h = tradeAddressCount24H;
-                
+
                 await grain.UpdateAsync(marketData);
-                
                 await _snapshotIndexRepository.UpdateAsync(marketData);
                 await AddOrUpdateTradePairIndexAsync(marketData);
             }
         }
-
+        
         public async Task UpdateLiquidityAsync(string chainId, Guid tradePairId, DateTime timestamp, double price,
             double priceUSD, double tvl,
             double valueLocked0, double valueLocked1)
         {
-            var lockName = string.Format("{0}-{1}-{2}", chainId,
-                tradePairId, GetSnapshotTime(timestamp));
+            var lockName = $"{chainId}-{tradePairId}-{GetSnapshotTime(timestamp)}";
             await using var handle = await _distributedLock.TryAcquireAsync(lockName);
             var snapshotTime = GetSnapshotTime(timestamp);
-            
-            var grain = _clusterClient.GetGrain<ISnapshotIndexGrain>(GrainIdHelper.GenerateGrainId(chainId, tradePairId, snapshotTime));
-            var marketData = await grain.getAsync();
-            
+
+            var grain = await GetSnapShotGrain(chainId, tradePairId, snapshotTime);
+            var marketData = await grain.GetAsync();
             // var marketData = await GetTradePairMarketDataIndexAsync(chainId, tradePairId, snapshotTime);
 
             if (marketData == null)
             {
                 var lastMarketData =
-                    await GetLatestTradePairMarketDataIndexAsync(chainId, tradePairId, snapshotTime);
+                    await GetLatestTradePairMarketDataIndexFromGrainAsync(chainId, tradePairId, snapshotTime);
                 BigDecimal totalSupply = 0;
                 if (lastMarketData != null)
                 {
@@ -420,9 +289,8 @@ namespace AwakenServer.Trade
                     await _tradeRecordAppService.GetUserTradeAddressCountAsync(chainId, tradePairId,
                         timestamp.AddDays(-1), timestamp);
                 _logger.LogInformation("UpdateLiquidityAsync, supply:{supply}", marketData.TotalSupply);
-                
+
                 await grain.AddAsync(marketData);
-                
                 await _snapshotIndexRepository.AddAsync(marketData);
                 await AddOrUpdateTradePairIndexAsync(marketData);
             }
@@ -439,9 +307,8 @@ namespace AwakenServer.Trade
                 marketData.ValueLocked0 = valueLocked0;
                 marketData.ValueLocked1 = valueLocked1;
                 _logger.LogInformation("UpdateLiquidityAsync, supply:{supply}", marketData.TotalSupply);
-                
+
                 await grain.UpdateAsync(marketData);
-                
                 await _snapshotIndexRepository.UpdateAsync(marketData);
                 await AddOrUpdateTradePairIndexAsync(marketData);
             }
@@ -478,7 +345,7 @@ namespace AwakenServer.Trade
         public async Task<TradePairMarketDataSnapshot> GetLatestTradePairMarketDataAsync(string chainId,
             Guid tradePairId)
         {
-            var result = await GetLatestTradePairMarketDataIndexAsync(chainId, tradePairId);
+            var result = await GetLatestTradePairMarketDataIndexFromGrainAsync(chainId, tradePairId);
             return _objectMapper.Map<Index.TradePairMarketDataSnapshot, TradePairMarketDataSnapshot>(result);
         }
 
@@ -496,7 +363,6 @@ namespace AwakenServer.Trade
                      && q.Term(i => i.Field(f => f.Timestamp).Value(snapshotTime)));
         }
 
-
         public async Task<Index.TradePairMarketDataSnapshot> GetLatestTradePairMarketDataIndexAsync(string chainId,
             Guid tradePairId)
         {
@@ -505,7 +371,6 @@ namespace AwakenServer.Trade
                     q.Term(i => i.Field(f => f.TradePairId).Value(tradePairId)),
                 sortExp: s => s.Timestamp, sortType: SortOrder.Descending);
         }
-
 
         public async Task<List<Index.TradePairMarketDataSnapshot>> GetIndexListAsync(string chainId, Guid tradePairId,
             DateTime? timestampMin = null, DateTime? timestampMax = null)
@@ -541,7 +406,7 @@ namespace AwakenServer.Trade
             _logger.LogInformation("AddOrUpdateTradePairIndex, lp token {id}, totalSupply: {supply}",
                 snapshotDto.TradePairId, snapshotDto.TotalSupply);
             var latestSnapshot =
-                await GetLatestTradePairMarketDataIndexAsync(snapshotDto.ChainId,
+                await GetLatestTradePairMarketDataIndexFromGrainAsync(snapshotDto.ChainId,
                     snapshotDto.TradePairId);
 
             if (latestSnapshot != null && snapshotDto.Timestamp < latestSnapshot.Timestamp)
@@ -549,7 +414,7 @@ namespace AwakenServer.Trade
                 return;
             }
 
-            var snapshots = await GetIndexListAsync(snapshotDto.ChainId,
+            var snapshots = await GetIndexListFromGrainAsync(snapshotDto.ChainId,
                 snapshotDto.TradePairId, snapshotDto.Timestamp.AddDays(-2));
             var volume24h = 0d;
             var tradeValue24h = 0d;
@@ -613,8 +478,9 @@ namespace AwakenServer.Trade
                 }
             }
 
-
-            var existIndex = await _tradePairIndexRepository.GetAsync(snapshotDto.TradePairId);
+            var grain = _clusterClient.GetGrain<ITradePairSyncGrain>(
+                GrainIdHelper.GenerateGrainId(snapshotDto.TradePairId));
+            var existIndex = await grain.GetAsync();
 
             existIndex.TotalSupply = snapshotDto.TotalSupply;
             existIndex.Price = snapshotDto.Price;
@@ -656,6 +522,7 @@ namespace AwakenServer.Trade
 
             _logger.LogInformation("AddOrUpdateTradePairIndex: " + JsonConvert.SerializeObject(existIndex));
 
+            grain.AddOrUpdateAsync(existIndex);
             await _tradePairIndexRepository.AddOrUpdateAsync(existIndex);
             await _bus.Publish(new NewIndexEvent<TradePairIndexDto>
             {
@@ -664,58 +531,79 @@ namespace AwakenServer.Trade
         }
 
 
-        public class UpdateTotalSupplyBatch
+        public async Task<ITradePairSnapshotGrain> GetSnapShotGrain(string chainId, Guid tradePairId, DateTime snapshotTime)
         {
-            public DateTime LastTime { get; set; }
-            public string ChanId { get; set; }
-            public Guid TradePairId { get; set; }
-            public DateTime Timestamp { get; set; }
-            public string LpTokenAmount { get; set; }
-            public string Supply { get; set; }
+            _tradePairToGrainIds[GrainIdHelper.GenerateGrainId(chainId, tradePairId)]
+                .Add(new Tuple<string, DateTime>(GrainIdHelper.GenerateGrainId(chainId, tradePairId, snapshotTime),
+                    snapshotTime));
+            return _clusterClient.GetGrain<ITradePairSnapshotGrain>(
+                GrainIdHelper.GenerateGrainId(chainId, tradePairId, snapshotTime));
         }
 
+        private async Task<Index.TradePairMarketDataSnapshot> GetLatestTradePairMarketDataIndexFromGrainAsync(
+            string chainId,
+            Guid tradePairId, DateTime maxTime)
+        {
+            var grainList = _tradePairToGrainIds[GrainIdHelper.GenerateGrainId(chainId, tradePairId)].ToList();
+            grainList.Sort(new StringDateTimeDescendingComparer());
+            foreach (var grainId in grainList)
+            {
+                if (maxTime >= grainId.Item2)
+                {
+                    var grain = _clusterClient.GetGrain<ITradePairSnapshotGrain>(grainId.Item1);
+                    var marketData = await grain.GetAsync();
+                    return marketData;
+                }
+            }
+
+            return null;
+        }
+
+        public async Task<Index.TradePairMarketDataSnapshot> GetLatestTradePairMarketDataIndexFromGrainAsync(
+            string chainId,
+            Guid tradePairId)
+        {
+            var grainList = _tradePairToGrainIds[GrainIdHelper.GenerateGrainId(chainId, tradePairId)].ToList();
+            grainList.Sort(new StringDateTimeDescendingComparer());
+            if (grainList.IsNullOrEmpty())
+            {
+                return null;
+            }
+
+            var grain = _clusterClient.GetGrain<ITradePairSnapshotGrain>(grainList.First().Item1);
+            return await grain.GetAsync();
+        }
+
+        public async Task<List<Index.TradePairMarketDataSnapshot>> GetIndexListFromGrainAsync(string chainId,
+            Guid tradePairId,
+            DateTime? timestampMin = null, DateTime? timestampMax = null)
+        {
+            List<Index.TradePairMarketDataSnapshot> resultList = new List<Index.TradePairMarketDataSnapshot>();
+            var grainList = _tradePairToGrainIds[GrainIdHelper.GenerateGrainId(chainId, tradePairId)].ToList();
+            grainList.Sort(new StringDateTimeDescendingComparer());
+            foreach (var grainId in grainList)
+            {
+                if (timestampMin != null && grainId.Item2 < timestampMin)
+                {
+                    continue;
+                }
+
+                if (timestampMax != null && grainId.Item2 >= timestampMax)
+                {
+                    continue;
+                }
+
+                var grain = _clusterClient.GetGrain<ITradePairSnapshotGrain>(grainId.Item1);
+                var marketData = await grain.GetAsync();
+                resultList.Add(marketData);
+            }
+
+            return resultList;
+        }
+        
         public class CacheKeys
         {
             HashSet<string> Set { get; set; }
-        }
-
-        public class UpdateTradeRecordBatch
-        {
-            public DateTime CreateTime { get; set; }
-            public string ChanId { get; set; }
-
-            public BigDecimal TotalSupply { get; set; }
-            public Guid TradePairId { get; set; }
-            public DateTime Timestamp { get; set; }
-            public double Volume { get; set; }
-            public double TradeValue { get; set; }
-            public int TradeAddressCount24h { get; set; }
-            public int TradeCount { get; set; }
-        }
-
-        public class UpdateLiquidityBatch
-        {
-            public DateTime CreateTime { get; set; }
-            public string ChainId { get; set; }
-            public Guid TradePairId { get; set; }
-            public DateTime Timestamp { get; set; }
-            public double Price { get; set; }
-
-            public double PriceHigh { get; set; }
-
-            public double PriceHighUSD { get; set; }
-
-            public double PriceLow { get; set; }
-
-            public double PriceLowUSD { get; set; }
-
-            public double PriceUSD { get; set; }
-
-            public double TVL { get; set; }
-
-            public double ValueLocked0 { get; set; }
-
-            public double ValueLocked1 { get; set; }
         }
     }
 }

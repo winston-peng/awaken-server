@@ -1,4 +1,3 @@
-using System.Collections;
 using AwakenServer.Trade;
 using TradePair = AwakenServer.Trade.Index.TradePair;
 

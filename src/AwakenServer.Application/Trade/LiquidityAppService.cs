@@ -261,9 +261,9 @@ namespace AwakenServer.Trade
             
             
             // var tradePair = await _tradePairAppService.GetTradePairAsync(input.ChainId, input.Pair);
-            var tradePairgrain = _clusterClient.GetGrain<ITradePairSyncGrain>(
-                GrainIdHelper.GenerateGrainId(input.ChainId, input.Pair));
-            var tradePair = await tradePairgrain.GetAsync();
+            var tradePairGrain = _clusterClient.GetGrain<ITradePairSyncGrain>(
+                GrainIdHelper.GenerateGrainId(input.Pair));
+            var tradePair = await tradePairGrain.GetAsync();
             if (tradePair == null)
             {
                 _logger.LogInformation("tradePair not existed,chainId:{chainId},address:{address}", input.ChainId,

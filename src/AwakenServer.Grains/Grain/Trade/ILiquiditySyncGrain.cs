@@ -1,4 +1,3 @@
-using AwakenServer.Trade.Index;
 using Orleans;
 
 namespace AwakenServer.Grains.Grain.Trade;

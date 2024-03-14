@@ -1,14 +1,14 @@
 using AwakenServer.Trade;
+using Orleans;
+using TradePair = AwakenServer.Trade.Index.TradePair;
 
 namespace AwakenServer.Grains.Grain.Trade;
 
-using Orleans;
-
 public interface ITradePairSyncGrain : IGrainWithStringKey
 {
-    public Task AddOrUpdateAsync(AwakenServer.Trade.Index.TradePair tradePair);
+    public Task AddOrUpdateAsync(TradePair tradePair);
     
     public Task AddOrUpdateAsync(TradePairInfoIndex infoIndex);
 
-    public Task<AwakenServer.Trade.Index.TradePair> GetAsync();
+    public Task<TradePair> GetAsync();
 }

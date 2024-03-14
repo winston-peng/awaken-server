@@ -4,7 +4,7 @@ using Orleans;
 
 namespace AwakenServer.Grains.Grain.Trade;
 
-public class SnapshotIndexGrain : Grain<SnapshotIndexState>, ISnapshotIndexGrain
+public class TradePairSnapshotGrain : Grain<TradePairSnapshotState>, ITradePairSnapshotGrain
 {
     
     public override async Task OnActivateAsync()
@@ -31,8 +31,13 @@ public class SnapshotIndexGrain : Grain<SnapshotIndexState>, ISnapshotIndexGrain
         await WriteStateAsync();
     }
 
-    public async Task<TradePairMarketDataSnapshot> getAsync()
+    public async Task<TradePairMarketDataSnapshot> GetAsync()
     {
+        if (State.Snapshot == null)
+        {
+            return null;
+        }
+        
         return State.Snapshot;
     }
     

@@ -6,11 +6,11 @@ using Orleans;
 
 namespace AwakenServer.Grains.Grain.Trade;
 
-public interface ISnapshotIndexGrain : IGrainWithStringKey
+public interface ITradePairSnapshotGrain : IGrainWithStringKey
 {
     public Task AddAsync(TradePairMarketDataSnapshot snapshot);
     
     public Task UpdateAsync(TradePairMarketDataSnapshot snapshot);
 
-    public Task<TradePairMarketDataSnapshot> getAsync();
+    public Task<TradePairMarketDataSnapshot> GetAsync();
 }

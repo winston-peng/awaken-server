@@ -32,8 +32,12 @@ public class TradePairSyncGrain : Grain<TradePairSyncState>, ITradePairSyncGrain
     }
 
 
-    public async Task<AwakenServer.Trade.Index.TradePair> GetAsync()
+    public async Task<TradePair> GetAsync()
     {
+        if (State.TradePair == null)
+        {
+            return null;
+        }
         return State.TradePair;
     }
     
