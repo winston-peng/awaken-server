@@ -11,7 +11,6 @@ using AwakenServer.Trade.Dtos;
 using MassTransit;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-using MongoDB.Bson.IO;
 using Nest;
 using Nethereum.Util;
 using Orleans;
@@ -26,6 +25,8 @@ namespace AwakenServer.Trade
 {
     public interface ITradePairMarketDataProvider
     {
+        Task InitializeDataAsync();
+
         Task UpdateTotalSupplyAsync(string chainId, Guid tradePairId, DateTime timestamp, BigDecimal lpTokenAmount,
             string supply = null);
 
@@ -34,7 +35,7 @@ namespace AwakenServer.Trade
 
         Task UpdateLiquidityAsync(string chainId, Guid tradePairId, DateTime timestamp, double price, double priceUSD,
             double tvl, double valueLocked0, double valueLocked1);
-        
+
         Task<TradePairMarketDataSnapshot> GetLatestTradePairMarketDataAsync(string chainId, Guid tradePairId);
 
         Task<Index.TradePairMarketDataSnapshot> GetTradePairMarketDataIndexAsync(string chainId, Guid tradePairId,
@@ -50,7 +51,6 @@ namespace AwakenServer.Trade
 
         Task<Index.TradePairMarketDataSnapshot>
             GetLatestTradePairMarketDataIndexFromGrainAsync(string chainId, Guid tradePairId);
-
 
         Task<List<Index.TradePairMarketDataSnapshot>> GetIndexListAsync(string chainId, Guid tradePairId,
             DateTime? timestampMin = null, DateTime? timestampMax = null);
@@ -105,12 +105,44 @@ namespace AwakenServer.Trade
             _clusterClient = clusterClient;
         }
 
+        private string genPartOfTradePairGrainId(string chainId, Guid tradePairId)
+        {
+            return GrainIdHelper.GenerateGrainId(chainId, tradePairId);
+        }
+
+        private string genTradePairGrainId(string chainId, Guid tradePairId, DateTime datetime)
+        {
+            return GrainIdHelper.GenerateGrainId(chainId, tradePairId, datetime);
+        }
+
+        public async Task InitializeDataAsync()
+        {
+            var tradePairList = await _tradePairIndexRepository.GetListAsync();
+            var now = DateTime.Now;
+            foreach (var tradePair in tradePairList.Item2)
+            {
+                var tradePairSnapshots = await GetIndexListAsync(tradePair.ChainId, tradePair.Id, now.AddDays(-7), now);
+                foreach (var snapshot in tradePairSnapshots)
+                {
+                    _tradePairToGrainIds[genPartOfTradePairGrainId(tradePair.ChainId, tradePair.Id)]
+                        .Add(new Tuple<string, DateTime>(
+                            genTradePairGrainId(tradePair.ChainId, tradePair.Id, snapshot.Timestamp),
+                            snapshot.Timestamp));
+                    // for history data before add grain
+                    var grain = await GetSnapShotGrain(tradePair.ChainId, tradePair.Id, snapshot.Timestamp);
+                    grain.AddAsync(snapshot);
+                }
+            }
+        }
 
         public async Task UpdateTotalSupplyAsync(string chainId, Guid tradePairId, DateTime timestamp,
             BigDecimal lpTokenAmount, string supply = null)
         {
             _logger.LogInformation("UpdateTotalSupplyAsync: input supply:{supply}", supply);
+            
             var snapshotTime = GetSnapshotTime(timestamp);
+            var lockName = $"{chainId}-{tradePairId}-{snapshotTime}";
+            await using var handle = await _distributedLock.TryAcquireAsync(lockName);
 
             var grain = await GetSnapShotGrain(chainId, tradePairId, snapshotTime);
             var marketData = await grain.GetAsync();
@@ -182,15 +214,18 @@ namespace AwakenServer.Trade
                 await AddOrUpdateTradePairIndexAsync(latestMarketData);
             }
         }
-        
+
         public async Task UpdateTradeRecordAsync(string chainId, Guid tradePairId, DateTime timestamp, double volume,
             double tradeValue, int tradeCount = 1)
         {
             _logger.LogInformation(
-                "_updateTradeRecordAsync start.chainId:{chainId},tradePairId:{tradePairId},timestamp:{timestamp},volume:{volume},tradeValue:{tradeValue},tradeCount:{tradeCount}",
+                "UpdateTradeRecordAsync start.chainId:{chainId},tradePairId:{tradePairId},timestamp:{timestamp},volume:{volume},tradeValue:{tradeValue},tradeCount:{tradeCount}",
                 chainId, tradePairId, timestamp, volume, tradeValue, tradeCount);
+            
             var snapshotTime = GetSnapshotTime(timestamp);
-
+            var lockName = $"{chainId}-{tradePairId}-{snapshotTime}";
+            await using var handle = await _distributedLock.TryAcquireAsync(lockName);
+            
             var grain = await GetSnapShotGrain(chainId, tradePairId, snapshotTime);
             var marketData = await grain.GetAsync();
 
@@ -245,18 +280,21 @@ namespace AwakenServer.Trade
                 await AddOrUpdateTradePairIndexAsync(marketData);
             }
         }
-        
+
         public async Task UpdateLiquidityAsync(string chainId, Guid tradePairId, DateTime timestamp, double price,
             double priceUSD, double tvl,
             double valueLocked0, double valueLocked1)
         {
-            var lockName = $"{chainId}-{tradePairId}-{GetSnapshotTime(timestamp)}";
-            await using var handle = await _distributedLock.TryAcquireAsync(lockName);
+            _logger.LogInformation(
+                "UpdateLiquidityAsync start.chainId:{chainId},tradePairId:{tradePairId},timestamp:{timestamp},price:{price},priceUSD:{priceUSD},tvl:{tvl}",
+                chainId, tradePairId, timestamp, price, priceUSD, tvl);
+            
             var snapshotTime = GetSnapshotTime(timestamp);
-
+            var lockName = $"{chainId}-{tradePairId}-{snapshotTime}";
+            await using var handle = await _distributedLock.TryAcquireAsync(lockName);
+            
             var grain = await GetSnapShotGrain(chainId, tradePairId, snapshotTime);
             var marketData = await grain.GetAsync();
-            // var marketData = await GetTradePairMarketDataIndexAsync(chainId, tradePairId, snapshotTime);
 
             if (marketData == null)
             {
@@ -478,9 +516,9 @@ namespace AwakenServer.Trade
                 }
             }
 
-            var grain = _clusterClient.GetGrain<ITradePairSyncGrain>(
+            var tradePairGrain = _clusterClient.GetGrain<ITradePairSyncGrain>(
                 GrainIdHelper.GenerateGrainId(snapshotDto.TradePairId));
-            var existIndex = await grain.GetAsync();
+            var existIndex = await tradePairGrain.GetAsync();
 
             existIndex.TotalSupply = snapshotDto.TotalSupply;
             existIndex.Price = snapshotDto.Price;
@@ -511,7 +549,7 @@ namespace AwakenServer.Trade
 
             if (snapshotDto.TVL != 0)
             {
-                var volume7d = (await GetIndexListAsync(snapshotDto.ChainId,
+                var volume7d = (await GetIndexListFromGrainAsync(snapshotDto.ChainId,
                         snapshotDto.TradePairId, snapshotDto.Timestamp.AddDays(-7), snapshotDto.Timestamp))
                     .Sum(k => k.Volume);
                 volume7d += snapshotDto.Volume;
@@ -522,7 +560,7 @@ namespace AwakenServer.Trade
 
             _logger.LogInformation("AddOrUpdateTradePairIndex: " + JsonConvert.SerializeObject(existIndex));
 
-            grain.AddOrUpdateAsync(existIndex);
+            tradePairGrain.AddOrUpdateAsync(existIndex);
             await _tradePairIndexRepository.AddOrUpdateAsync(existIndex);
             await _bus.Publish(new NewIndexEvent<TradePairIndexDto>
             {
@@ -531,10 +569,11 @@ namespace AwakenServer.Trade
         }
 
 
-        public async Task<ITradePairSnapshotGrain> GetSnapShotGrain(string chainId, Guid tradePairId, DateTime snapshotTime)
+        public async Task<ITradePairSnapshotGrain> GetSnapShotGrain(string chainId, Guid tradePairId,
+            DateTime snapshotTime)
         {
-            _tradePairToGrainIds[GrainIdHelper.GenerateGrainId(chainId, tradePairId)]
-                .Add(new Tuple<string, DateTime>(GrainIdHelper.GenerateGrainId(chainId, tradePairId, snapshotTime),
+            _tradePairToGrainIds[genPartOfTradePairGrainId(chainId, tradePairId)]
+                .Add(new Tuple<string, DateTime>(genTradePairGrainId(chainId, tradePairId, snapshotTime),
                     snapshotTime));
             return _clusterClient.GetGrain<ITradePairSnapshotGrain>(
                 GrainIdHelper.GenerateGrainId(chainId, tradePairId, snapshotTime));
@@ -544,7 +583,7 @@ namespace AwakenServer.Trade
             string chainId,
             Guid tradePairId, DateTime maxTime)
         {
-            var grainList = _tradePairToGrainIds[GrainIdHelper.GenerateGrainId(chainId, tradePairId)].ToList();
+            var grainList = _tradePairToGrainIds[genPartOfTradePairGrainId(chainId, tradePairId)].ToList();
             grainList.Sort(new StringDateTimeDescendingComparer());
             foreach (var grainId in grainList)
             {
@@ -563,7 +602,7 @@ namespace AwakenServer.Trade
             string chainId,
             Guid tradePairId)
         {
-            var grainList = _tradePairToGrainIds[GrainIdHelper.GenerateGrainId(chainId, tradePairId)].ToList();
+            var grainList = _tradePairToGrainIds[genPartOfTradePairGrainId(chainId, tradePairId)].ToList();
             grainList.Sort(new StringDateTimeDescendingComparer());
             if (grainList.IsNullOrEmpty())
             {
@@ -579,7 +618,7 @@ namespace AwakenServer.Trade
             DateTime? timestampMin = null, DateTime? timestampMax = null)
         {
             List<Index.TradePairMarketDataSnapshot> resultList = new List<Index.TradePairMarketDataSnapshot>();
-            var grainList = _tradePairToGrainIds[GrainIdHelper.GenerateGrainId(chainId, tradePairId)].ToList();
+            var grainList = _tradePairToGrainIds[genPartOfTradePairGrainId(chainId, tradePairId)].ToList();
             grainList.Sort(new StringDateTimeDescendingComparer());
             foreach (var grainId in grainList)
             {
@@ -600,7 +639,7 @@ namespace AwakenServer.Trade
 
             return resultList;
         }
-        
+
         public class CacheKeys
         {
             HashSet<string> Set { get; set; }

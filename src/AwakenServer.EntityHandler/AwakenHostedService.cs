@@ -2,6 +2,7 @@ using System;
 using System.Threading;
 using System.Threading.Tasks;
 using AwakenServer.EntityHandler.Services;
+using AwakenServer.Trade;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Volo.Abp;
@@ -26,6 +27,8 @@ namespace AwakenServer.EntityHandler
             await _application.InitializeAsync(_serviceProvider);
             var chainDataInitializer = _serviceProvider.GetRequiredService<ChainInitializeService>();
             await chainDataInitializer.InitializeDataAsync();
+            var tradePairMarketDataProvider = _serviceProvider.GetRequiredService<ITradePairMarketDataProvider>();
+            await tradePairMarketDataProvider.InitializeDataAsync();
         }
 
         public Task StopAsync(CancellationToken cancellationToken)
