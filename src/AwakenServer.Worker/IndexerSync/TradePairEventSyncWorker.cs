@@ -38,27 +38,28 @@ public class TradePairEventSyncWorker : AsyncPeriodicBackgroundWorkerBase
             var lastEndHeight = await _graphQlProvider.GetLastEndHeightAsync(chain.Name, QueryType.TradePair);
             _logger.LogInformation("trade first lastEndHeight: {lastEndHeight}", lastEndHeight);
 
-            if(lastEndHeight < 0) continue;
-            
+            if (lastEndHeight < 0) continue;
+
             var result = await _graphQlProvider.GetTradePairInfoListAsync(new GetTradePairsInfoInput
             {
                 ChainId = chain.Name,
-                StartBlockHeight = lastEndHeight+1,
-                EndBlockHeight = 0
-                
+                StartBlockHeight = lastEndHeight + 1,
+                EndBlockHeight = lastEndHeight + 1001
             });
-            
+
             long blockHeight = -1;
-            foreach (var pair in result.GetTradePairInfoList.Data)
+            foreach (var pair in result.TradePairInfoDtoList.Data)
             {
                 blockHeight = Math.Max(blockHeight, pair.BlockHeight);
-                
+
                 _logger.LogInformation("Syncing {pairId} on {chainName}, {Token0Symbol}/{Token1Symbol}",
                     pair.Id, chain.Name, pair.Token0Symbol, pair.Token1Symbol);
-                
-                await _tradePairAppService.SyncTokenAsync(pair, chain);
+
+                await _tradePairAppService.SyncTokenAsync(pair.ChainId, pair.Token0Symbol, chain);
+                await _tradePairAppService.SyncTokenAsync(pair.ChainId, pair.Token1Symbol, chain);
                 await _tradePairAppService.SyncPairAsync(pair, chain);
             }
+
             await _graphQlProvider.SetLastEndHeightAsync(chain.Name, QueryType.TradePair, blockHeight);
         }
     }

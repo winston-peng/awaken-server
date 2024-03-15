@@ -46,10 +46,8 @@ namespace AwakenServer.Trade.Handlers
                 TradePairId = TradePairEthUsdtId
             };
 
-            var lockName = string.Format("{0}-{1}-{2}", "cahce",
-                recordInput.TradePairId, dateTime.Date.AddHours(dateTime.Hour));
-
-
+            var lockName = $"cache-{recordInput.TradePairId}-{dateTime.Date.AddHours(dateTime.Hour)}";
+            
             await _tradeRecordAppService.CreateAsync(recordInput);
             recordInput.TransactionHash = "tx2";
             await _tradeRecordAppService.CreateAsync(recordInput);

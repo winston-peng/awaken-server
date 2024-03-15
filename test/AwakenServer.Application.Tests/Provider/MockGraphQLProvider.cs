@@ -43,7 +43,7 @@ public class MockGraphQLProvider :  IGraphQLProvider, ISingletonDependency
     {
         return Task.FromResult(new TradePairInfoDtoPageResultDto
         {
-            GetTradePairInfoList = new TradePairInfoGplResultDto
+            TradePairInfoDtoList = new TradePairInfoGqlResultDto
             {
                 TotalCount = tradePairInfoList.Count,
                 Data = tradePairInfoList,
@@ -81,7 +81,7 @@ public class MockGraphQLProvider :  IGraphQLProvider, ISingletonDependency
         
         return new TradePairInfoDtoPageResultDto
         {
-            GetTradePairInfoList = new TradePairInfoGplResultDto
+            TradePairInfoDtoList = new TradePairInfoGqlResultDto
             {
                 TotalCount = totalCount.Count,
                 Data = _objectMapper.Map<List<TradePairInfoIndex>, List<TradePairInfoDto>>(list.Item2)

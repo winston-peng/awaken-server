@@ -325,6 +325,8 @@ namespace AwakenServer.Trade
                 TVL = 50000,
                 PriceUSD = 1.5,
             };
+            var grain = await _tradePairMarketDataProvider.GetSnapShotGrain(snapshot.ChainId, snapshot.TradePairId, _tradePairMarketDataProvider.GetSnapshotTime(snapshot.Timestamp));
+            await grain.AddOrUpdateAsync(snapshot);
             await _tradePairSnapshotIndexRepository.AddAsync(snapshot);
 
             var snapshot2 = new Index.TradePairMarketDataSnapshot(Guid.NewGuid())
@@ -341,6 +343,7 @@ namespace AwakenServer.Trade
                 TVL = 60000,
                 PriceUSD = 2,
             };
+            await grain.AddOrUpdateAsync(snapshot);
             await _tradePairSnapshotIndexRepository.AddAsync(snapshot2);
 
             var snapshot3 = new Index.TradePairMarketDataSnapshot(Guid.NewGuid())
@@ -357,6 +360,7 @@ namespace AwakenServer.Trade
                 TVL = 60000,
                 PriceUSD = 2,
             };
+            await grain.AddOrUpdateAsync(snapshot);
             await _tradePairSnapshotIndexRepository.AddAsync(snapshot3);
 
             var snapshot4 = new Index.TradePairMarketDataSnapshot(Guid.NewGuid())
@@ -373,6 +377,7 @@ namespace AwakenServer.Trade
                 TVL = 60000,
                 PriceUSD = 2,
             };
+            await grain.AddOrUpdateAsync(snapshot);
             await _tradePairSnapshotIndexRepository.AddAsync(snapshot4);
 
             await _tradePairAppService.UpdateTradePairAsync(TradePairEthUsdtId);
@@ -934,9 +939,10 @@ namespace AwakenServer.Trade
                 {
                     ChainId = chain.Name
                 });
-                foreach (var pair in result.GetTradePairInfoList.Data)
+                foreach (var pair in result.TradePairInfoDtoList.Data)
                 {
-                    await _tradePairAppService.SyncTokenAsync(pair, chain);
+                    await _tradePairAppService.SyncTokenAsync(pair.ChainId, pair.Token0Symbol, chain);
+                    await _tradePairAppService.SyncTokenAsync(pair.ChainId, pair.Token1Symbol, chain);
                     await _tradePairAppService.SyncPairAsync(pair, chain);
                 }
 

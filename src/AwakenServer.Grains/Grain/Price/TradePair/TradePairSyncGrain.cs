@@ -25,7 +25,7 @@ public class TradePairSyncGrain : Grain<TradePairSyncState>, ITradePairSyncGrain
         await WriteStateAsync();
     }
 
-    public async Task AddOrUpdateAsync(TradePairInfoIndex infoIndex)
+    public async Task AddOrUpdateInfoAsync(TradePairInfoIndex infoIndex)
     {
         State.InfoIndex = infoIndex;
         await WriteStateAsync();

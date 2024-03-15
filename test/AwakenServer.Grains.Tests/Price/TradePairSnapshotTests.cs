@@ -29,7 +29,7 @@ public class TradePairSnapshotTests : AwakenServerGrainTestBase
         Assert.Null(result);
         
         //add
-        await grain.AddAsync(data);
+        await grain.AddOrUpdateAsync(data);
         
         //get
         result = await grain.GetAsync();
@@ -41,7 +41,7 @@ public class TradePairSnapshotTests : AwakenServerGrainTestBase
         //update
         data = result;
         data.TotalSupply = "22.2";
-        await grain.UpdateAsync(data);
+        await grain.AddOrUpdateAsync(data);
         result = await grain.GetAsync();
         result.Id.ShouldBe(data.Id);
         result.TotalSupply.ShouldBe("22.2");

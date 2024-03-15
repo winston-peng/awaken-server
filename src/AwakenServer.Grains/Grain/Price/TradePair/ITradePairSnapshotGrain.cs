@@ -8,9 +8,7 @@ namespace AwakenServer.Grains.Grain.Trade;
 
 public interface ITradePairSnapshotGrain : IGrainWithStringKey
 {
-    public Task AddAsync(TradePairMarketDataSnapshot snapshot);
-    
-    public Task UpdateAsync(TradePairMarketDataSnapshot snapshot);
+    public Task AddOrUpdateAsync(TradePairMarketDataSnapshot snapshot);
 
     public Task<TradePairMarketDataSnapshot> GetAsync();
 }

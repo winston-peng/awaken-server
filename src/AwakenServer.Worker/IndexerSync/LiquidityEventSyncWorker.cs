@@ -40,7 +40,7 @@ public class LiquidityEventSyncWorker : AsyncPeriodicBackgroundWorkerBase
             var lastEndHeight = await _graphQlProvider.GetLastEndHeightAsync(chain.Name, QueryType.Liquidity);
 
 
-            var queryList = await _graphQlProvider.GetLiquidRecordsAsync(chain.Name, lastEndHeight + 1, 0);
+            var queryList = await _graphQlProvider.GetLiquidRecordsAsync(chain.Name, lastEndHeight + 1, lastEndHeight + 1001);
             _logger.LogInformation(
                 "liquidity event sync, queryList count: {count}, lastEndHeight: {lastEndHeight}",
                 queryList.Count, lastEndHeight);

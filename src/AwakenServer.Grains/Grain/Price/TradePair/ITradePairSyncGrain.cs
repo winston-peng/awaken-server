@@ -8,7 +8,7 @@ public interface ITradePairSyncGrain : IGrainWithStringKey
 {
     public Task AddOrUpdateAsync(TradePair tradePair);
     
-    public Task AddOrUpdateAsync(TradePairInfoIndex infoIndex);
+    public Task AddOrUpdateInfoAsync(TradePairInfoIndex infoIndex);
 
     public Task<TradePair> GetAsync();
 }

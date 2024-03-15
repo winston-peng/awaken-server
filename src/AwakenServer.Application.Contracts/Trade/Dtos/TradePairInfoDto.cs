@@ -6,10 +6,10 @@ namespace AwakenServer.Trade.Dtos;
 
 public class TradePairInfoDtoPageResultDto 
 {
-    public TradePairInfoGplResultDto GetTradePairInfoList { get; set; }
+    public TradePairInfoGqlResultDto TradePairInfoDtoList { get; set; }
 }
 
-public class TradePairInfoGplResultDto
+public class TradePairInfoGqlResultDto
 {
     public long TotalCount { get; set; }
     public List<TradePairInfoDto> Data { get; set; }

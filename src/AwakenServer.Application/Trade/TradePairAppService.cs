@@ -11,6 +11,7 @@ using AwakenServer.Grains.Grain.Trade;
 using AwakenServer.Provider;
 using AwakenServer.Tokens;
 using AwakenServer.Trade.Dtos;
+using AwakenServer.Trade.Etos;
 using JetBrains.Annotations;
 using MassTransit;
 using Microsoft.Extensions.Logging;
@@ -19,6 +20,7 @@ using Orleans;
 using Volo.Abp;
 using Volo.Abp.Application.Dtos;
 using Volo.Abp.Application.Services;
+using Volo.Abp.Domain.Entities.Events.Distributed;
 using Volo.Abp.EventBus.Distributed;
 using Token = AwakenServer.Tokens.Token;
 
@@ -94,10 +96,10 @@ namespace AwakenServer.Trade
         public async Task<List<TradePairDto>> GetTradePairInfoListAsync(GetTradePairsInfoInput input)
         {
             var tradePairInfoDtoPageResultDto = await _graphQlProvider.GetTradePairInfoListAsync(input);
-            return tradePairInfoDtoPageResultDto.GetTradePairInfoList.Data.Count == 0
+            return tradePairInfoDtoPageResultDto.TradePairInfoDtoList.Data.Count == 0
                 ? new List<TradePairDto>()
                 : ObjectMapper.Map<List<TradePairInfoDto>, List<TradePairDto>>(tradePairInfoDtoPageResultDto
-                    .GetTradePairInfoList.Data);
+                    .TradePairInfoDtoList.Data);
         }
 
         public async Task<PagedResultDto<TradePairIndexDto>> GetListAsync(GetTradePairsInput input)
@@ -115,7 +117,7 @@ namespace AwakenServer.Trade
                 Id = id.ToString()
             });
 
-            return ObjectMapper.Map<TradePairInfoDto, TradePairDto>(result.GetTradePairInfoList.Data.FirstOrDefault());
+            return ObjectMapper.Map<TradePairInfoDto, TradePairDto>(result.TradePairInfoDtoList.Data.FirstOrDefault());
         }
 
         public async Task<TradePairIndexDto> GetAsync(Guid id)
@@ -166,7 +168,7 @@ namespace AwakenServer.Trade
 
             QueryContainer Filter(QueryContainerDescriptor<Index.TradePair> f) => f.Bool(b => b.Must(mustQuery));
 
-            var list = await _tradePairIndexRepository.GetListAsync(Filter, limit: 1);
+            var list = await _tradePairIndexRepository.GetListAsync(Filter);
 
             return ObjectMapper.Map<Index.TradePair, TradePairIndexDto>(list.Item2.FirstOrDefault());
         }
@@ -218,7 +220,7 @@ namespace AwakenServer.Trade
                 Address = address
             });
 
-            return ObjectMapper.Map<TradePairInfoDto, TradePairDto>(result.GetTradePairInfoList.Data.FirstOrDefault());
+            return ObjectMapper.Map<TradePairInfoDto, TradePairDto>(result.TradePairInfoDtoList.Data.FirstOrDefault());
         }
 
         public async Task<List<TradePairIndexDto>> GetListAsync(string chainId, IEnumerable<string> addresses)
@@ -247,15 +249,15 @@ namespace AwakenServer.Trade
 
             var token0 = await _tokenAppService.GetAsync(input.Token0Id);
             var token1 = await _tokenAppService.GetAsync(input.Token1Id);
-            var tradePair = ObjectMapper.Map<TradePairCreateDto, TradePairInfoIndex>(input);
-            tradePair.Token0Symbol = token0.Symbol;
-            tradePair.Token1Symbol = token1.Symbol;
+            var tradePairInfo = ObjectMapper.Map<TradePairCreateDto, TradePairInfoIndex>(input);
+            tradePairInfo.Token0Symbol = token0.Symbol;
+            tradePairInfo.Token1Symbol = token1.Symbol;
 
             var grain = _clusterClient.GetGrain<ITradePairSyncGrain>(
-                GrainIdHelper.GenerateGrainId(tradePair.Id));
-            await grain.AddOrUpdateAsync(tradePair);
-
-            await _tradePairInfoIndex.AddOrUpdateAsync(tradePair);
+                GrainIdHelper.GenerateGrainId(tradePairInfo.Id));
+            await grain.AddOrUpdateInfoAsync(tradePairInfo);
+            await _tradePairInfoIndex.AddOrUpdateAsync(tradePairInfo);
+            
             var index = ObjectMapper.Map<TradePairCreateDto, Index.TradePair>(input);
             index.Token0 = ObjectMapper.Map<TokenDto, Token>(token0);
             index.Token1 = ObjectMapper.Map<TokenDto, Token>(token1);
@@ -263,7 +265,7 @@ namespace AwakenServer.Trade
             await grain.AddOrUpdateAsync(index);
             await _tradePairIndexRepository.AddOrUpdateAsync(index);
 
-            return ObjectMapper.Map<TradePairInfoIndex, TradePairDto>(tradePair);
+            return ObjectMapper.Map<TradePairInfoIndex, TradePairDto>(tradePairInfo);
         }
 
         public async Task UpdateLiquidityAsync(LiquidityUpdateDto input)
@@ -331,11 +333,14 @@ namespace AwakenServer.Trade
             tradePair.Token0 = ObjectMapper.Map<TokenDto, Token>(token0);
             tradePair.Token1 = ObjectMapper.Map<TokenDto, Token>(token1);
             tradePair.ChainId = chain.Id;
-
+            
             var grain = _clusterClient.GetGrain<ITradePairSyncGrain>(
                 GrainIdHelper.GenerateGrainId(tradePair.Id));
             await grain.AddOrUpdateAsync(tradePair);
-            await _tradePairIndexRepository.AddOrUpdateAsync(tradePair);
+            await _distributedEventBus.PublishAsync(new EntityCreatedEto<TradePairEto>(
+                ObjectMapper.Map<Index.TradePair, TradePairEto>(tradePair)
+            ));
+            
         }
 
         public async Task UpdateTradePairAsync(Guid id)
@@ -444,42 +449,18 @@ namespace AwakenServer.Trade
             });*/
         }
 
-        public async Task SyncTokenAsync(TradePairInfoDto pair, ChainDto chain)
+        public async Task SyncTokenAsync(string chainId, string symbol, ChainDto chain)
         {
             var tokenDto = await _tokenAppService.GetAsync(new GetTokenInput
             {
-                ChainId = pair.ChainId,
-                Symbol = pair.Token0Symbol,
+                ChainId = chainId,
+                Symbol = symbol,
             });
 
             if (tokenDto == null)
             {
                 var tokenInfo =
-                    await _blockchainAppService.GetTokenInfoAsync(pair.ChainId, null, pair.Token0Symbol);
-
-                var token = await _tokenAppService.CreateAsync(new TokenCreateDto
-                {
-                    Address = tokenInfo.Address,
-                    Decimals = tokenInfo.Decimals,
-                    Symbol = tokenInfo.Symbol,
-                    ChainId = chain.Id
-                });
-                _logger.LogInformation("token created: Id:{id},ChainId:{chainId},Symbol:{symbol},Decimal:{decimal}",
-                    token.Id,
-                    token.ChainId, token.Symbol, token.Decimals);
-            }
-
-
-            tokenDto = await _tokenAppService.GetAsync(new GetTokenInput
-            {
-                ChainId = pair.ChainId,
-                Symbol = pair.Token1Symbol,
-            });
-
-            if (tokenDto == null)
-            {
-                var tokenInfo =
-                    await _blockchainAppService.GetTokenInfoAsync(pair.ChainId, null, pair.Token1Symbol);
+                    await _blockchainAppService.GetTokenInfoAsync(chainId, null, symbol);
 
                 var token = await _tokenAppService.CreateAsync(new TokenCreateDto
                 {

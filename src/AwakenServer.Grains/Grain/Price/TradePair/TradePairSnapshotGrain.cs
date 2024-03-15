@@ -19,13 +19,7 @@ public class TradePairSnapshotGrain : Grain<TradePairSnapshotState>, ITradePairS
         await base.OnDeactivateAsync();
     }
     
-    public async Task AddAsync(TradePairMarketDataSnapshot snapshot)
-    {
-        State.Snapshot = snapshot;
-        await WriteStateAsync();
-    }
-
-    public async Task UpdateAsync(TradePairMarketDataSnapshot snapshot)
+    public async Task AddOrUpdateAsync(TradePairMarketDataSnapshot snapshot)
     {
         State.Snapshot = snapshot;
         await WriteStateAsync();

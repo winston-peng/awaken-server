@@ -36,7 +36,7 @@ public class SyncEventSyncWorker : AsyncPeriodicBackgroundWorkerBase
         {
             var lastEndHeight = await _graphQlProvider.GetLastEndHeightAsync(chain.Name, QueryType.Sync);
 
-            var queryList = await _graphQlProvider.GetSyncRecordsAsync(chain.Name, lastEndHeight + 1, 0);
+            var queryList = await _graphQlProvider.GetSyncRecordsAsync(chain.Name, lastEndHeight + 1, lastEndHeight + 1001);
             _logger.LogInformation("sync queryList count: {count} ,chainId:{chainId}", queryList.Count, chain.Name);
             try
             {

@@ -34,9 +34,7 @@ namespace AwakenServer.EntityHandler.Trade
             var index = ObjectMapper.Map<TradePairEto, TradePair>(eventData.Entity);
             index.Token0 = await GetTokenAsync(eventData.Entity.Token0Id);
             index.Token1 = await GetTokenAsync(eventData.Entity.Token1Id);
-
-            var grain = _clusterClient.GetGrain<ITradePairSyncGrain>(GrainIdHelper.GenerateGrainId(index.Id));
-            grain.AddOrUpdateAsync(index);
+            
             await _tradePairIndexRepository.AddOrUpdateAsync(index);
             
             await _bus.Publish<NewIndexEvent<TradePairIndexDto>>(new NewIndexEvent<TradePairIndexDto>

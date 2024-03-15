@@ -276,7 +276,7 @@ namespace AwakenServer.Trade
                 ChainId = chain.Id,
                 LpTokenAmount = input.LpTokenAmount.ToDecimalsString(8),
                 TradePairId = tradePair.Id,
-                Timestamp = DateTime.UnixEpoch.AddMilliseconds(input.Timestamp)
+                Timestamp = DateTimeHelper.FromUnixTimeMilliseconds(input.Timestamp)
             };
             await _localEventBus.PublishAsync(liquidityEvent);
             await grain.AddTransactionHashAsync(input.TransactionHash);

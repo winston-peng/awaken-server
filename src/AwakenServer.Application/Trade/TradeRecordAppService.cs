@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using AElf.Indexing.Elasticsearch;
+using AwakenServer.CMS;
 using AwakenServer.Grains;
 using AwakenServer.Grains.Grain.Price.TradePair;
 using AwakenServer.Grains.Grain.Price.TradeRecord;
@@ -45,14 +46,7 @@ namespace AwakenServer.Trade
         private readonly IDistributedCache<TransactionHashDto> _transactionHashCache;
         private readonly IGraphQLProvider _graphQlProvider;
         private readonly IBus _bus;
-
-        private const string ASC = "asc";
-        private const string ASCEND = "ascend";
-        private const string TIMESTAMP = "timestamp";
-        private const string TRADEPAIR = "tradepair";
-        private const string SIDE = "side";
-        private const string TOTALPRICEINUSD = "totalpriceinusd";
-
+        
         public TradeRecordAppService(INESTRepository<Index.TradeRecord, Guid> tradeRecordIndexRepository,
             INESTRepository<Index.UserTradeSummary, Guid> userTradeSummaryIndexRepository,
             INESTRepository<Index.TradePair, Guid> tradePairIndexRepository,
@@ -454,20 +448,20 @@ namespace AwakenServer.Trade
                 case 1:
                     switch (sortingArray[0])
                     {
-                        case TIMESTAMP:
+                        case CmsConst.Timestamp:
                             result = new Func<SortDescriptor<Index.TradeRecord>, IPromise<IList<ISort>>>(s =>
                                 s.Ascending(t => t.Timestamp));
                             break;
-                        case TRADEPAIR:
+                        case CmsConst.Tradepair:
                             result = new Func<SortDescriptor<Index.TradeRecord>, IPromise<IList<ISort>>>(s =>
                                 s.Ascending(t => t.TradePair.Token0.Symbol)
                                     .Ascending(t => t.TradePair.Token1.Symbol));
                             break;
-                        case SIDE:
+                        case CmsConst.Side:
                             result = new Func<SortDescriptor<Index.TradeRecord>, IPromise<IList<ISort>>>(s =>
                                 s.Ascending(t => t.Side));
                             break;
-                        case TOTALPRICEINUSD:
+                        case CmsConst.Totalpriceinusd:
                             result = new Func<SortDescriptor<Index.TradeRecord>, IPromise<IList<ISort>>>(s =>
                                 s.Ascending(t => t.TotalPriceInUsd));
                             break;
@@ -477,29 +471,29 @@ namespace AwakenServer.Trade
                 case 2:
                     switch (sortingArray[0])
                     {
-                        case TIMESTAMP:
+                        case CmsConst.Timestamp:
                             result = new Func<SortDescriptor<Index.TradeRecord>, IPromise<IList<ISort>>>(s =>
-                                sortingArray[1] == ASC || sortingArray[1] == ASCEND
+                                sortingArray[1] == CmsConst.Asc || sortingArray[1] == CmsConst.Ascend
                                     ? s.Ascending(t => t.Timestamp)
                                     : s.Descending(t => t.Timestamp));
                             break;
-                        case TRADEPAIR:
+                        case CmsConst.Tradepair:
                             result = new Func<SortDescriptor<Index.TradeRecord>, IPromise<IList<ISort>>>(
-                                s => sortingArray[1] == ASC || sortingArray[1] == ASCEND
+                                s => sortingArray[1] == CmsConst.Asc || sortingArray[1] == CmsConst.Ascend
                                     ? s.Ascending(t => t.TradePair.Token0.Symbol)
                                         .Ascending(t => t.TradePair.Token1.Symbol)
                                     : s.Descending(t => t.TradePair.Token0.Symbol)
                                         .Descending(t => t.TradePair.Token1.Symbol));
                             break;
-                        case SIDE:
+                        case CmsConst.Side:
                             result = new Func<SortDescriptor<Index.TradeRecord>, IPromise<IList<ISort>>>(s =>
-                                sortingArray[1] == ASC || sortingArray[1] == ASCEND
+                                sortingArray[1] == CmsConst.Asc || sortingArray[1] == CmsConst.Ascend
                                     ? s.Ascending(t => t.Side)
                                     : s.Descending(t => t.Side));
                             break;
-                        case TOTALPRICEINUSD:
+                        case CmsConst.Totalpriceinusd:
                             result = new Func<SortDescriptor<Index.TradeRecord>, IPromise<IList<ISort>>>(s =>
-                                sortingArray[1] == ASC || sortingArray[1] == ASCEND
+                                sortingArray[1] == CmsConst.Asc || sortingArray[1] == CmsConst.Ascend
                                     ? s.Ascending(t => t.TotalPriceInUsd)
                                     : s.Descending(t => t.TotalPriceInUsd));
                             break;

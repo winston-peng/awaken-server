@@ -77,7 +77,7 @@ public class GraphQLProvider : IGraphQLProvider, ISingletonDependency
             ErrorLog(graphQlResponse.Errors);
             return new TradePairInfoDtoPageResultDto
             {
-                GetTradePairInfoList = new TradePairInfoGplResultDto
+                TradePairInfoDtoList = new TradePairInfoGqlResultDto
                 {
                     TotalCount = 0,
                     Data = new List<TradePairInfoDto>()
@@ -85,22 +85,22 @@ public class GraphQLProvider : IGraphQLProvider, ISingletonDependency
             };
         }
         
-        _logger.LogInformation("graphQlResponse:"+graphQlResponse.Data.GetTradePairInfoList.TotalCount);
+        _logger.LogInformation("graphQlResponse: {totalCount}", graphQlResponse.Data.TradePairInfoDtoList.TotalCount);
         
-        if (graphQlResponse.Data.GetTradePairInfoList.TotalCount == 0)
+        if (graphQlResponse.Data.TradePairInfoDtoList.TotalCount == 0)
         {
             return new TradePairInfoDtoPageResultDto
             {
-                GetTradePairInfoList = new TradePairInfoGplResultDto
+                TradePairInfoDtoList = new TradePairInfoGqlResultDto
                 {
                     TotalCount = 0,
                     Data = new List<TradePairInfoDto>()
                 },
             };
         }
-        _logger.LogInformation("total count is {totalCount},data count:{dataCount}", graphQlResponse.Data.GetTradePairInfoList.TotalCount,graphQlResponse.Data.GetTradePairInfoList.Data.Count);
+        _logger.LogInformation("total count is {totalCount},data count:{dataCount}", graphQlResponse.Data.TradePairInfoDtoList.TotalCount,graphQlResponse.Data.TradePairInfoDtoList.Data.Count);
 
-        graphQlResponse.Data.GetTradePairInfoList.Data.ForEach(pair =>
+        graphQlResponse.Data.TradePairInfoDtoList.Data.ForEach(pair =>
         {
             var token0 = _tokenAppService.GetBySymbolCache(pair.Token0Symbol);
             var token1 = _tokenAppService.GetBySymbolCache(pair.Token1Symbol);
@@ -110,10 +110,10 @@ public class GraphQLProvider : IGraphQLProvider, ISingletonDependency
 
         return new TradePairInfoDtoPageResultDto
         {
-            GetTradePairInfoList = new TradePairInfoGplResultDto
+            TradePairInfoDtoList = new TradePairInfoGqlResultDto
             {
-                TotalCount = graphQlResponse.Data.GetTradePairInfoList.TotalCount,
-                Data = graphQlResponse.Data.GetTradePairInfoList.Data
+                TotalCount = graphQlResponse.Data.TradePairInfoDtoList.TotalCount,
+                Data = graphQlResponse.Data.TradePairInfoDtoList.Data
             },
         };
     }

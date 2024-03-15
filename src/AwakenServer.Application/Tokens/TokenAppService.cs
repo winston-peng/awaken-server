@@ -115,7 +115,6 @@ namespace AwakenServer.Tokens
             input.Id = (input.Id == Guid.Empty) ? Guid.NewGuid() : input.Id;
             token.Id = input.Id;
 
-            //await _tokenIndexRepository.AddOrUpdateAsync(token);
             var tokenStateGrain = _clusterClient.GetGrain<ITokenStateGrain>(token.Id);
             var tokenGrainDto = await tokenStateGrain.CreateAsync(input);
 

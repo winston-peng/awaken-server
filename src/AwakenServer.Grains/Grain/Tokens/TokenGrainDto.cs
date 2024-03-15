@@ -16,6 +16,6 @@ public class TokenGrainDto
 
     public bool IsEmpty()
     {
-        return string.IsNullOrEmpty(Address) && string.IsNullOrEmpty(Symbol) && string.IsNullOrEmpty(ChainId) && Decimals == 0;
+        return string.IsNullOrEmpty(Address) && string.IsNullOrEmpty(Symbol) && string.IsNullOrEmpty(ChainId);
     }
 }
