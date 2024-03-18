@@ -28,12 +28,12 @@ namespace AwakenServer.Trade
     {
         Task InitializeDataAsync();
 
-        Task UpdateTotalSupplyAsync(string chainId, Guid tradePairId, DateTime timestamp, BigDecimal lpTokenAmount);
+        Task UpdateTotalSupplyWithLiquidityEventAsync(string chainId, Guid tradePairId, DateTime timestamp, BigDecimal lpTokenAmount);
 
         Task UpdateTradeRecordAsync(string chainId, Guid tradePairId, DateTime timestamp, double volume,
             double tradeValue, int tradeCount = 1);
 
-        Task UpdateLiquidityAsync(string chainId, Guid tradePairId, DateTime timestamp, double price, double priceUSD,
+        Task UpdateLiquidityWithSyncEventAsync(string chainId, Guid tradePairId, DateTime timestamp, double price, double priceUSD,
             double tvl, double valueLocked0, double valueLocked1);
 
         Task<TradePairMarketDataSnapshot> GetLatestTradePairMarketDataAsync(string chainId, Guid tradePairId);
@@ -177,7 +177,7 @@ namespace AwakenServer.Trade
         }
 
 
-        public async Task UpdateTotalSupplyAsync(string chainId, Guid tradePairId, DateTime timestamp,
+        public async Task UpdateTotalSupplyWithLiquidityEventAsync(string chainId, Guid tradePairId, DateTime timestamp,
             BigDecimal lpTokenAmount)
         {
             _logger.LogInformation("UpdateTotalSupplyAsync: input supply:{supply}", lpTokenAmount);
@@ -327,7 +327,7 @@ namespace AwakenServer.Trade
             }
         }
 
-        public async Task UpdateLiquidityAsync(string chainId, Guid tradePairId, DateTime timestamp, double price,
+        public async Task UpdateLiquidityWithSyncEventAsync(string chainId, Guid tradePairId, DateTime timestamp, double price,
             double priceUSD, double tvl,
             double valueLocked0, double valueLocked1)
         {
@@ -500,8 +500,8 @@ namespace AwakenServer.Trade
 
             var snapshots = await GetIndexListFromGrainAsync(snapshotDto.ChainId,
                 snapshotDto.TradePairId, snapshotDto.Timestamp.AddDays(-2));
-            var volume24h = 0d;
-            var tradeValue24h = 0d;
+            var tokenAValue24 = 0d;
+            var tokenBValue24 = 0d;
             var tradeCount24h = 0;
             var priceHigh24h = snapshotDto.PriceHigh;
             var priceLow24h = snapshotDto.PriceLow;
@@ -511,8 +511,8 @@ namespace AwakenServer.Trade
             var daySnapshot = snapshots.Where(s => s.Timestamp >= snapshotDto.Timestamp.AddDays(-1)).ToList();
             foreach (var snapshot in daySnapshot)
             {
-                volume24h += snapshot.Volume;
-                tradeValue24h += snapshot.TradeValue;
+                tokenAValue24 += snapshot.Volume;
+                tokenBValue24 += snapshot.TradeValue;
                 tradeCount24h += snapshot.TradeCount;
 
                 if (priceLow24h == 0)
@@ -572,8 +572,8 @@ namespace AwakenServer.Trade
             existIndex.TVL = snapshotDto.TVL;
             existIndex.ValueLocked0 = snapshotDto.ValueLocked0;
             existIndex.ValueLocked1 = snapshotDto.ValueLocked1;
-            existIndex.Volume24h = volume24h;
-            existIndex.TradeValue24h = tradeValue24h;
+            existIndex.Volume24h = tokenAValue24;
+            existIndex.TradeValue24h = tokenBValue24;
             existIndex.TradeCount24h = tradeCount24h;
             existIndex.TradeAddressCount24h = snapshotDto.TradeAddressCount24h;
             existIndex.PriceHigh24h = priceHigh24h;

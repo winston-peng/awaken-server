@@ -28,7 +28,7 @@ namespace AwakenServer.Trade.Handlers
             var lpAmount = BigDecimal.Parse(eventData.LpTokenAmount);
             lpAmount = eventData.Type == LiquidityType.Mint ? lpAmount : -lpAmount;
 
-            await _tradePairMarketDataProvider.UpdateTotalSupplyAsync(eventData.ChainId, eventData.TradePairId,
+            await _tradePairMarketDataProvider.UpdateTotalSupplyWithLiquidityEventAsync(eventData.ChainId, eventData.TradePairId,
                 eventData.Timestamp, lpAmount);
         }
     }
