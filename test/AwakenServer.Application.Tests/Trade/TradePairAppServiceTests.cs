@@ -4,15 +4,20 @@ using System.Threading.Tasks;
 using AElf.Indexing.Elasticsearch;
 using AwakenServer.Chains;
 using AwakenServer.Favorite;
+using AwakenServer.Grains;
+using AwakenServer.Grains.Grain.Trade;
+using AwakenServer.Grains.Tests;
 using AwakenServer.Provider;
 using AwakenServer.Tokens;
 using AwakenServer.Trade.Dtos;
+using Orleans;
 using Shouldly;
 using Volo.Abp.ObjectMapping;
 using Xunit;
 
 namespace AwakenServer.Trade
 {
+    [Collection(ClusterCollection.Name)]
     public class TradePairAppServiceTests : TradeTestBase
     {
         private readonly ITradePairAppService _tradePairAppService;
@@ -26,21 +31,23 @@ namespace AwakenServer.Trade
         private readonly IFavoriteAppService _favoriteAppService;
         private readonly IObjectMapper _objectMapper;
         private readonly MockGraphQLProvider _mockGraphQLProvider;
+        private readonly IClusterClient _clusterClient;
 
         public TradePairAppServiceTests()
         {
             _tradePairIndexRepository = GetRequiredService<INESTRepository<Index.TradePair, Guid>>();
             _tradePairSnapshotIndexRepository =
                 GetRequiredService<INESTRepository<Index.TradePairMarketDataSnapshot, Guid>>();
+            _tradePairMarketDataProvider = GetRequiredService<ITradePairMarketDataProvider>();
             _tradePairAppService = GetRequiredService<ITradePairAppService>();
             _tokenPriceProvider = GetRequiredService<ITokenPriceProvider>();
-            _tradePairMarketDataProvider = GetRequiredService<ITradePairMarketDataProvider>();
             _chainAppService = GetService<IChainAppService>();
             _tokenAppService = GetService<ITokenAppService>();
             _objectMapper = GetService<IObjectMapper>();
             _tradePairInfoIndex = GetService<INESTRepository<TradePairInfoIndex, Guid>>();
             _favoriteAppService = GetRequiredService<IFavoriteAppService>();
             _mockGraphQLProvider = new MockGraphQLProvider(_objectMapper, _tradePairInfoIndex, _tokenAppService);
+            _clusterClient = GetRequiredService<IClusterClient>();
         }
 
         [Fact]
@@ -69,6 +76,13 @@ namespace AwakenServer.Trade
             tradePairIndex.FeeRate.ShouldBe(pairDto.FeeRate);
             tradePairIndex.Token0.Id.ShouldBe(pairDto.Token0Id);
             tradePairIndex.Token1.Id.ShouldBe(pairDto.Token1Id);
+
+            var tradePairIndexFromGrain = await _tradePairAppService.GetFromGrainAsync(tradePair.Id);
+            tradePairIndexFromGrain.ChainId.ShouldBe(pairDto.ChainId);
+            tradePairIndexFromGrain.Address.ShouldBe(pairDto.Address);
+            tradePairIndexFromGrain.FeeRate.ShouldBe(pairDto.FeeRate);
+            tradePairIndexFromGrain.Token0.Id.ShouldBe(pairDto.Token0Id);
+            tradePairIndexFromGrain.Token1.Id.ShouldBe(pairDto.Token1Id);
         }
 
         [Fact]
@@ -172,7 +186,7 @@ namespace AwakenServer.Trade
                 Timestamp = DateTimeHelper.ToUnixTimeMilliseconds(DateTime.UtcNow.AddDays(-2))
             };
             await _tradePairAppService.UpdateLiquidityAsync(newLiquidity);
-            
+
 
             var snapshotTime =
                 _tradePairMarketDataProvider.GetSnapshotTime(
@@ -208,7 +222,7 @@ namespace AwakenServer.Trade
             snapshotTime =
                 _tradePairMarketDataProvider.GetSnapshotTime(
                     DateTimeHelper.FromUnixTimeMilliseconds(newLiquidity2.Timestamp));
-          
+
             marketDataSnapshot = await _tradePairSnapshotIndexRepository.GetAsync(q =>
                 q.Term(i => i.Field(f => f.TradePairId).Value(newLiquidity.TradePairId)) &&
                 q.Term(i => i.Field(f => f.Timestamp)
@@ -239,7 +253,7 @@ namespace AwakenServer.Trade
             snapshotTime =
                 _tradePairMarketDataProvider.GetSnapshotTime(
                     DateTimeHelper.FromUnixTimeMilliseconds(newLiquidity3.Timestamp));
-           
+
 
             marketDataSnapshot = await _tradePairSnapshotIndexRepository.GetAsync(q =>
                 q.Term(i => i.Field(f => f.TradePairId).Value(newLiquidity.TradePairId)) &&
@@ -271,7 +285,7 @@ namespace AwakenServer.Trade
             snapshotTime =
                 _tradePairMarketDataProvider.GetSnapshotTime(
                     DateTimeHelper.FromUnixTimeMilliseconds(newLiquidity4.Timestamp));
-           
+
 
             marketDataSnapshot = await _tradePairSnapshotIndexRepository.GetAsync(q =>
                 q.Term(i => i.Field(f => f.TradePairId).Value(newLiquidity.TradePairId)) &&
@@ -296,7 +310,6 @@ namespace AwakenServer.Trade
         [Fact]
         public async Task UpdateTradePairTest()
         {
-
             var tradePair = await _tradePairAppService.GetAsync(TradePairEthUsdtId);
             tradePair.Price.ShouldBe(0);
             tradePair.Volume24h.ShouldBe(0);
@@ -325,8 +338,6 @@ namespace AwakenServer.Trade
                 TVL = 50000,
                 PriceUSD = 1.5,
             };
-            var grain = await _tradePairMarketDataProvider.GetSnapShotGrain(snapshot.ChainId, snapshot.TradePairId, _tradePairMarketDataProvider.GetSnapshotTime(snapshot.Timestamp));
-            await grain.AddOrUpdateAsync(snapshot);
             await _tradePairSnapshotIndexRepository.AddAsync(snapshot);
 
             var snapshot2 = new Index.TradePairMarketDataSnapshot(Guid.NewGuid())
@@ -343,7 +354,6 @@ namespace AwakenServer.Trade
                 TVL = 60000,
                 PriceUSD = 2,
             };
-            await grain.AddOrUpdateAsync(snapshot);
             await _tradePairSnapshotIndexRepository.AddAsync(snapshot2);
 
             var snapshot3 = new Index.TradePairMarketDataSnapshot(Guid.NewGuid())
@@ -360,7 +370,6 @@ namespace AwakenServer.Trade
                 TVL = 60000,
                 PriceUSD = 2,
             };
-            await grain.AddOrUpdateAsync(snapshot);
             await _tradePairSnapshotIndexRepository.AddAsync(snapshot3);
 
             var snapshot4 = new Index.TradePairMarketDataSnapshot(Guid.NewGuid())
@@ -377,44 +386,161 @@ namespace AwakenServer.Trade
                 TVL = 60000,
                 PriceUSD = 2,
             };
+            await _tradePairSnapshotIndexRepository.AddAsync(snapshot4);
+            
+            await _tradePairAppService.UpdateTradePairAsync(TradePairEthUsdtId);
+
+            tradePair = await _tradePairAppService.GetAsync(TradePairEthUsdtId);
+            tradePair.Price.ShouldBe(2);
+            tradePair.PricePercentChange24h.ShouldBe(0);
+            tradePair.Volume24h.ShouldBe(0);
+            tradePair.VolumePercentChange24h.ShouldBe(0);
+            tradePair.PriceHigh24h.ShouldBe(0);
+            tradePair.PriceLow24h.ShouldBe(0);
+            tradePair.TradeCount24h.ShouldBe(0);
+            tradePair.TradeValue24h.ShouldBe(0);
+            tradePair.TradeAddressCount24h.ShouldBe(0);
+            tradePair.TVL.ShouldBe(0);
+            tradePair.TVLPercentChange24h.ShouldBe(0);
+            tradePair.PriceUSD.ShouldBe(0);
+            tradePair.FeePercent7d.ShouldBe(6400 * 2 * 0.5 * 365 * 100 / (400000 * 7));
+
+            await _tradePairAppService.UpdateTradePairAsync(TradePairEthUsdtId);
+            tradePair = await _tradePairAppService.GetAsync(TradePairEthUsdtId);
+            tradePair.Price.ShouldBe(2);
+            tradePair.PricePercentChange24h.ShouldBe(0);
+            tradePair.Volume24h.ShouldBe(0);
+            tradePair.VolumePercentChange24h.ShouldBe(0);
+            tradePair.PriceHigh24h.ShouldBe(0);
+            tradePair.PriceLow24h.ShouldBe(0);
+            tradePair.TradeCount24h.ShouldBe(0);
+            tradePair.TradeValue24h.ShouldBe(0);
+            tradePair.TradeAddressCount24h.ShouldBe(0);
+            tradePair.TVL.ShouldBe(0);
+            tradePair.TVLPercentChange24h.ShouldBe(0);
+            tradePair.PriceUSD.ShouldBe(0);
+            tradePair.FeePercent7d.ShouldBe(6400 * 2 * 0.5 * 365 * 100 / (400000 * 7));
+
+            await _tradePairAppService.UpdateTradePairAsync(Guid.NewGuid());
+        }
+
+        [Fact]
+        public async Task UpdateTradePairFromGrainTest()
+        {
+            var tradePair = await _tradePairAppService.GetFromGrainAsync(TradePairEthUsdtId);
+            tradePair.Price.ShouldBe(0);
+            tradePair.Volume24h.ShouldBe(0);
+            tradePair.PriceHigh24h.ShouldBe(0);
+            tradePair.PriceLow24h.ShouldBe(0);
+            tradePair.TradeCount24h.ShouldBe(0);
+            tradePair.TradeValue24h.ShouldBe(0);
+            tradePair.TradeAddressCount24h.ShouldBe(0);
+            tradePair.TVL.ShouldBe(0);
+            tradePair.PriceUSD.ShouldBe(0);
+            tradePair.FeePercent7d.ShouldBe(0);
+
+            await InitTradePairAsync();
+
+            var snapshot = new Index.TradePairMarketDataSnapshot(Guid.NewGuid())
+            {
+                ChainId = ChainName,
+                TradePairId = TradePairEthUsdtId,
+                Timestamp = DateTime.UtcNow.AddDays(-1).AddHours(-2),
+                Volume = 2000,
+                PriceHigh = 100,
+                PriceLow = 80,
+                TradeCount = 3,
+                TradeValue = 20000,
+                TradeAddressCount24h = 3,
+                TVL = 50000,
+                PriceUSD = 1.5,
+            };
+
+            var grain = await _tradePairMarketDataProvider.GetSnapShotGrain(snapshot.ChainId, snapshot.TradePairId,
+                _tradePairMarketDataProvider.GetSnapshotTime(snapshot.Timestamp));
             await grain.AddOrUpdateAsync(snapshot);
+            await _tradePairSnapshotIndexRepository.AddAsync(snapshot);
+
+
+            var snapshot2 = new Index.TradePairMarketDataSnapshot(Guid.NewGuid())
+            {
+                ChainId = ChainName,
+                TradePairId = TradePairEthUsdtId,
+                Timestamp = DateTime.UtcNow.AddHours(-3),
+                Volume = 2200,
+                PriceHigh = 120,
+                PriceLow = 100,
+                TradeCount = 3,
+                TradeValue = 24000,
+                TradeAddressCount24h = 2,
+                TVL = 60000,
+                PriceUSD = 2,
+            };
+
+            var grain2 = await _tradePairMarketDataProvider.GetSnapShotGrain(snapshot2.ChainId, snapshot2.TradePairId,
+                _tradePairMarketDataProvider.GetSnapshotTime(snapshot2.Timestamp));
+            await grain2.AddOrUpdateAsync(snapshot2);
+            await _tradePairSnapshotIndexRepository.AddAsync(snapshot2);
+
+
+            var snapshot3 = new Index.TradePairMarketDataSnapshot(Guid.NewGuid())
+            {
+                ChainId = ChainName,
+                TradePairId = TradePairEthUsdtId,
+                Timestamp = DateTime.UtcNow.AddHours(-2),
+                Volume = 2200,
+                PriceHigh = 130,
+                PriceLow = 110,
+                TradeCount = 3,
+                TradeValue = 24000,
+                TradeAddressCount24h = 3,
+                TVL = 60000,
+                PriceUSD = 2,
+            };
+            var grain3 = await _tradePairMarketDataProvider.GetSnapShotGrain(snapshot3.ChainId, snapshot3.TradePairId,
+                _tradePairMarketDataProvider.GetSnapshotTime(snapshot3.Timestamp));
+            await grain3.AddOrUpdateAsync(snapshot3);
+            await _tradePairSnapshotIndexRepository.AddAsync(snapshot3);
+
+
+            var snapshot4 = new Index.TradePairMarketDataSnapshot(Guid.NewGuid())
+            {
+                ChainId = ChainName,
+                TradePairId = TradePairEthUsdtId,
+                Timestamp = DateTime.UtcNow.AddDays(-3),
+                Volume = 2200,
+                PriceHigh = 130,
+                PriceLow = 110,
+                TradeCount = 3,
+                TradeValue = 24000,
+                TradeAddressCount24h = 3,
+                TVL = 60000,
+                PriceUSD = 2,
+            };
+            var grain4 = await _tradePairMarketDataProvider.GetSnapShotGrain(snapshot4.ChainId, snapshot4.TradePairId,
+                _tradePairMarketDataProvider.GetSnapshotTime(snapshot4.Timestamp));
+            await grain4.AddOrUpdateAsync(snapshot4);
             await _tradePairSnapshotIndexRepository.AddAsync(snapshot4);
 
-            await _tradePairAppService.UpdateTradePairAsync(TradePairEthUsdtId);
-
-            tradePair = await _tradePairAppService.GetAsync(TradePairEthUsdtId);
-            tradePair.Price.ShouldBe(2);
-            tradePair.PricePercentChange24h.ShouldBe(0);
-            tradePair.Volume24h.ShouldBe(0);
-            tradePair.VolumePercentChange24h.ShouldBe(0);
-            tradePair.PriceHigh24h.ShouldBe(0);
-            tradePair.PriceLow24h.ShouldBe(0);
-            tradePair.TradeCount24h.ShouldBe(0);
-            tradePair.TradeValue24h.ShouldBe(0);
-            tradePair.TradeAddressCount24h.ShouldBe(0);
-            tradePair.TVL.ShouldBe(0);
-            tradePair.TVLPercentChange24h.ShouldBe(0);
-            tradePair.PriceUSD.ShouldBe(0);
-            //tradePair.FeePercent7d.ShouldBe( 6400 *2 * 0.5 * 365 * 100 / (400000 * 7));
 
             await _tradePairAppService.UpdateTradePairAsync(TradePairEthUsdtId);
-            tradePair = await _tradePairAppService.GetAsync(TradePairEthUsdtId);
+
+            tradePair = await _tradePairAppService.GetFromGrainAsync(TradePairEthUsdtId);
             tradePair.Price.ShouldBe(2);
-            tradePair.PricePercentChange24h.ShouldBe(0);
-            tradePair.Volume24h.ShouldBe(0);
-            tradePair.VolumePercentChange24h.ShouldBe(0);
-            tradePair.PriceHigh24h.ShouldBe(0);
-            tradePair.PriceLow24h.ShouldBe(0);
-            tradePair.TradeCount24h.ShouldBe(0);
-            tradePair.TradeValue24h.ShouldBe(0);
+            tradePair.PricePercentChange24h.ShouldBe(33.333333333333336d);
+            tradePair.Volume24h.ShouldBe(4400);
+            tradePair.VolumePercentChange24h.ShouldBe(120);
+            tradePair.PriceHigh24h.ShouldBe(130);
+            tradePair.PriceLow24h.ShouldBe(2d);
+            tradePair.TradeCount24h.ShouldBe(6);
+            tradePair.TradeValue24h.ShouldBe(48000);
             tradePair.TradeAddressCount24h.ShouldBe(0);
-            tradePair.TVL.ShouldBe(0);
-            tradePair.TVLPercentChange24h.ShouldBe(0);
-            tradePair.PriceUSD.ShouldBe(0);
+            tradePair.TVL.ShouldBe(200000d);
+            tradePair.TVLPercentChange24h.ShouldBe(300d);
+            tradePair.PriceUSD.ShouldBe(2d);
             //tradePair.FeePercent7d.ShouldBe( 6400 *2 * 0.5 * 365 * 100 / (400000 * 7));
 
             await _tradePairAppService.UpdateTradePairAsync(Guid.NewGuid());
-
         }
 
         [Fact]
@@ -586,7 +712,6 @@ namespace AwakenServer.Trade
 
             var tradePair = await _tradePairAppService.GetAsync(TradePairBtcEthId);
             tradePair.PriceUSD.ShouldBe(0);
-
         }
 
         private async Task InitTradePairAsync()
@@ -596,9 +721,28 @@ namespace AwakenServer.Trade
             tradePairIndex.Price = 2;
             tradePairIndex.ValueLocked0 = 100000;
             tradePairIndex.ValueLocked1 = 200000;
+            var tradePairInfo = new TradePairInfoIndex()
+            {
+                Id = TradePairEthUsdtId,
+            };
+            var grain = _clusterClient.GetGrain<ITradePairSyncGrain>(
+                GrainIdHelper.GenerateGrainId(TradePairEthUsdtId));
+            await grain.AddOrUpdateInfoAsync(tradePairInfo);
+            await grain.AddOrUpdateAsync(tradePairIndex);
             await _tradePairIndexRepository.UpdateAsync(tradePairIndex);
         }
 
+        [Fact]
+        public async Task GetFromGrainTest()
+        {
+            var pair = await _tradePairAppService.GetFromGrainAsync(TradePairEthUsdtId);
+            pair.FeeRate.ShouldBe(0.5);
+            pair.Address.ShouldBe("0xPool006a6FaC8c710e53c4B2c2F96477119dA361");
+            pair.Token0.Id.ShouldBe(TokenEthId);
+            pair.Token1.Id.ShouldBe(TokenUsdtId);
+            pair.ChainId.ShouldBe(ChainName);
+        }
+        
         [Fact]
         public async Task GetByIdsTest()
         {
@@ -879,7 +1023,7 @@ namespace AwakenServer.Trade
                 TradePairFeature = TradePairFeature.OtherSymbol
             });
             tradePairs.TotalCount.ShouldBe(2);
-            
+
             tradePairs = await _tradePairAppService.GetListAsync(new GetTradePairsInput
             {
                 ChainId = ChainName,
@@ -897,7 +1041,6 @@ namespace AwakenServer.Trade
         [Fact]
         public async Task GetTokenAsyncTest()
         {
-            
             /*var tokenETH = AsyncHelper.RunSync(async ()=> await tokenService.CreateAsync(new TokenCreateDto
             {
                 Address = "0xToken06a6FaC8c710e53c4B2c2F96477119dA360",
@@ -909,7 +1052,7 @@ namespace AwakenServer.Trade
             {
                 Id = TokenEthId
             });
-            
+
             var token = await _tokenAppService.GetAsync(new GetTokenInput
             {
                 ChainId = tokenExist.ChainId,
@@ -917,7 +1060,7 @@ namespace AwakenServer.Trade
             });
             token.ShouldNotBeNull();
         }
-        
+
         [Fact]
         public async Task SyncTradePair_Test()
         {
@@ -959,6 +1102,9 @@ namespace AwakenServer.Trade
                 token.ShouldNotBeNull();
                 var tradePair = await _tradePairAppService.GetAsync(Guid.Parse(TradePairInfoDto.Id));
                 tradePair.ShouldNotBeNull();
+
+                var tradePairFromGrain = await _tradePairAppService.GetFromGrainAsync(Guid.Parse(TradePairInfoDto.Id));
+                tradePairFromGrain.ShouldNotBeNull();
             }
 
             return;

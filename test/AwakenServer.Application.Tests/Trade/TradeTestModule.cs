@@ -115,6 +115,9 @@ namespace AwakenServer.Trade
             });
 
             context.Services.AddSingleton<TestEnvironmentProvider>();
+            
+            context.Services.AddSingleton<IBlockchainClientProvider, MockEthereumClientProvider>(); 
+            context.Services.AddSingleton<ITradePairMarketDataProvider, TradePairMarketDataProvider>();
         }
 
         public override void OnApplicationInitialization(ApplicationInitializationContext context)

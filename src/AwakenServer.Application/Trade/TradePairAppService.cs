@@ -122,10 +122,15 @@ namespace AwakenServer.Trade
 
         public async Task<TradePairIndexDto> GetAsync(Guid id)
         {
-            var grain = _clusterClient.GetGrain<ITradePairSyncGrain>(
-                GrainIdHelper.GenerateGrainId(id));
             return ObjectMapper.Map<Index.TradePair, TradePairIndexDto>(
-                await grain.GetAsync());
+                await _tradePairIndexRepository.GetAsync(id));
+        }
+        
+        public async Task<TradePairIndexDto> GetFromGrainAsync(Guid id)
+        {
+            var grainId = GrainIdHelper.GenerateGrainId(id);
+            var grain = _clusterClient.GetGrain<ITradePairSyncGrain>(grainId);
+            return ObjectMapper.Map<Index.TradePair, TradePairIndexDto>(await grain.GetAsync());
         }
 
         public async Task<TradePairIndexDto> GetByAddressAsync(Guid id, [CanBeNull] string address)
@@ -333,14 +338,13 @@ namespace AwakenServer.Trade
             tradePair.Token0 = ObjectMapper.Map<TokenDto, Token>(token0);
             tradePair.Token1 = ObjectMapper.Map<TokenDto, Token>(token1);
             tradePair.ChainId = chain.Id;
-            
-            var grain = _clusterClient.GetGrain<ITradePairSyncGrain>(
-                GrainIdHelper.GenerateGrainId(tradePair.Id));
+
+            var grainId = GrainIdHelper.GenerateGrainId(tradePair.Id);
+            var grain = _clusterClient.GetGrain<ITradePairSyncGrain>(grainId);
             await grain.AddOrUpdateAsync(tradePair);
             await _distributedEventBus.PublishAsync(new EntityCreatedEto<TradePairEto>(
                 ObjectMapper.Map<Index.TradePair, TradePairEto>(tradePair)
             ));
-            
         }
 
         public async Task UpdateTradePairAsync(Guid id)
@@ -485,11 +489,10 @@ namespace AwakenServer.Trade
                 return;
             }
 
-            var tradePairgrain = _clusterClient.GetGrain<ITradePairSyncGrain>(
+            var tradePairGrain = _clusterClient.GetGrain<ITradePairSyncGrain>(
                 GrainIdHelper.GenerateGrainId(pair.Id));
-            var existPair = await tradePairgrain.GetAsync();
+            var existPair = await tradePairGrain.GetAsync();
 
-            // var existPair = await GetTradePairAsync(pair.ChainId, pair.Address);
             if (existPair != null)
             {
                 return;

@@ -55,6 +55,7 @@ namespace AwakenServer
             context.Services.AddTransient<IAElfClientProvider, AElfClientProvider>();
             context.Services.AddSingleton<IBlockchainClientFactory<AElfClient>, AElfClientFactory>();
             context.Services.AddSingleton<IHttpService>(provider => { return new HttpService(3); });
+            context.Services.AddSingleton<ITradePairMarketDataProvider, TradePairMarketDataProvider>();
         }
 
         public override void OnPreApplicationInitialization(ApplicationInitializationContext context)

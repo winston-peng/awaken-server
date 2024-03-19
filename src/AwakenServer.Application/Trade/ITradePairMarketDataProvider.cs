@@ -125,9 +125,8 @@ namespace AwakenServer.Trade
                 var tradePairSnapshots = await GetIndexListAsync(tradePair.ChainId, tradePair.Id, now.AddDays(-7), now);
                 foreach (var snapshot in tradePairSnapshots)
                 {
-                    
                     _tradePairToGrainIds.TryAdd(genPartOfTradePairGrainId(tradePair.ChainId, tradePair.Id),
-                            new HashSet<Tuple<string, DateTime>>());
+                        new HashSet<Tuple<string, DateTime>>());
                     _tradePairToGrainIds[genPartOfTradePairGrainId(tradePair.ChainId, tradePair.Id)]
                         .Add(new Tuple<string, DateTime>(
                             genTradePairGrainId(tradePair.ChainId, tradePair.Id, snapshot.Timestamp),
@@ -576,13 +575,11 @@ namespace AwakenServer.Trade
         public async Task<ITradePairSnapshotGrain> GetSnapShotGrain(string chainId, Guid tradePairId,
             DateTime snapshotTime)
         {
-            _tradePairToGrainIds.TryAdd(genPartOfTradePairGrainId(chainId, tradePairId),
-                new HashSet<Tuple<string, DateTime>>());
-            _tradePairToGrainIds[genPartOfTradePairGrainId(chainId, tradePairId)]
-                .Add(new Tuple<string, DateTime>(genTradePairGrainId(chainId, tradePairId, snapshotTime),
-                    snapshotTime));
-            return _clusterClient.GetGrain<ITradePairSnapshotGrain>(
-                GrainIdHelper.GenerateGrainId(chainId, tradePairId, snapshotTime));
+            var partOfGrainId = genPartOfTradePairGrainId(chainId, tradePairId);
+            var grainId = GrainIdHelper.GenerateGrainId(chainId, tradePairId, snapshotTime);
+            _tradePairToGrainIds.TryAdd(partOfGrainId, new HashSet<Tuple<string, DateTime>>());
+            _tradePairToGrainIds[partOfGrainId].Add(new Tuple<string, DateTime>(grainId, snapshotTime));
+            return _clusterClient.GetGrain<ITradePairSnapshotGrain>(grainId);
         }
 
         private async Task<Index.TradePairMarketDataSnapshot> GetLatestTradePairMarketDataIndexFromGrainAsync(
@@ -593,15 +590,19 @@ namespace AwakenServer.Trade
             {
                 return null;
             }
+
             var grainList = _tradePairToGrainIds[genPartOfTradePairGrainId(chainId, tradePairId)].ToList();
             grainList.Sort(new StringDateTimeDescendingComparer());
             foreach (var grainId in grainList)
             {
-                if (maxTime >= grainId.Item2)
+                if (maxTime > grainId.Item2)
                 {
                     var grain = _clusterClient.GetGrain<ITradePairSnapshotGrain>(grainId.Item1);
                     var marketData = await grain.GetAsync();
-                    return marketData;
+                    if (marketData != null)
+                    {
+                        return marketData;
+                    }
                 }
             }
 
@@ -619,7 +620,7 @@ namespace AwakenServer.Trade
 
             var grainList = _tradePairToGrainIds[genPartOfTradePairGrainId(chainId, tradePairId)].ToList();
             grainList.Sort(new StringDateTimeDescendingComparer());
-            
+
             if (grainList.IsNullOrEmpty())
             {
                 return null;
@@ -638,6 +639,7 @@ namespace AwakenServer.Trade
             {
                 return resultList;
             }
+
             var grainList = _tradePairToGrainIds[genPartOfTradePairGrainId(chainId, tradePairId)].ToList();
             grainList.Sort(new StringDateTimeDescendingComparer());
             foreach (var grainId in grainList)

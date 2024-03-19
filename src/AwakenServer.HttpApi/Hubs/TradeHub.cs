@@ -138,7 +138,7 @@ namespace AwakenServer.Hubs
                 return;
             }
 
-            var tradePairIndexDto = await _tradePairAppService.GetAsync(pairId);
+            var tradePairIndexDto = await _tradePairAppService.GetFromGrainAsync(pairId);
             if (tradePairIndexDto == null)
             {
                 return;

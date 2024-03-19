@@ -59,7 +59,7 @@ namespace AwakenServer.Trade
             ObjectMapper.Map(input, qlQueryInput);
             if (input.TradePairId.HasValue)
             {
-                var tradePairIndexDto = await _tradePairAppService.GetAsync(input.TradePairId.Value);
+                var tradePairIndexDto = await _tradePairAppService.GetFromGrainAsync(input.TradePairId.Value);
                 qlQueryInput.Pair = tradePairIndexDto?.Address;
             }
 
@@ -258,12 +258,7 @@ namespace AwakenServer.Trade
             }
 
             var chain = await _chainAppService.GetByNameCacheAsync(input.ChainId);
-            
-            
-            // var tradePair = await _tradePairAppService.GetTradePairAsync(input.ChainId, input.Pair);
-            var tradePairGrain = _clusterClient.GetGrain<ITradePairSyncGrain>(
-                GrainIdHelper.GenerateGrainId(input.Pair));
-            var tradePair = await tradePairGrain.GetAsync();
+            var tradePair = await _tradePairAppService.GetTradePairAsync(input.ChainId, input.Pair);
             if (tradePair == null)
             {
                 _logger.LogInformation("tradePair not existed,chainId:{chainId},address:{address}", input.ChainId,

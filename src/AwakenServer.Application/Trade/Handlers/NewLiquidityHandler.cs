@@ -47,7 +47,7 @@ namespace AwakenServer.Trade.Handlers
         {
             try
             {
-                var tradePairIndexDto = await _tradePairAppService.GetAsync(eventData.TradePairId);
+                var tradePairIndexDto = await _tradePairAppService.GetFromGrainAsync(eventData.TradePairId);
 
                 if (tradePairIndexDto == null || !_contractsTokenOptions.Contracts.TryGetValue(
                         tradePairIndexDto.FeeRate.ToString(),

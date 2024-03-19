@@ -73,7 +73,7 @@ namespace AwakenServer
                 .ForMember(dest => dest.Token1Symbol, opt => opt.MapFrom(src => src.Token1.Symbol))
                 .ForMember(dest => dest.Token0Id, opt => opt.MapFrom(src => src.Token0.Id))
                 .ForMember(dest => dest.Token1Id, opt => opt.MapFrom(src => src.Token1.Id));
-            CreateMap<TradePairEto, Trade.Index.TradePair>();
+            CreateMap<TradePairEto, Trade.Index.TradePair>().ReverseMap();
 
             CreateMap<Trade.TradePair, TradePairWithToken>();
             CreateMap<TradePairWithToken, TradePairWithTokenDto>();

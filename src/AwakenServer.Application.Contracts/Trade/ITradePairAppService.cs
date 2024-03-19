@@ -12,8 +12,9 @@ namespace AwakenServer.Trade
     public interface ITradePairAppService : IApplicationService
     {
         Task<PagedResultDto<TradePairIndexDto>> GetListAsync(GetTradePairsInput input);
-        
         Task<TradePairIndexDto> GetAsync(Guid id);
+        Task<TradePairIndexDto> GetFromGrainAsync(Guid id);
+
         Task<TradePairIndexDto> GetByAddressAsync(Guid id, [CanBeNull] string address);
 
         Task<TradePairDto> GetTradePairInfoAsync(Guid id);
@@ -28,7 +29,7 @@ namespace AwakenServer.Trade
         Task<List<TradePairIndexDto>> GetListAsync(string chainId, IEnumerable<string> addresses);
         Task<List<TradePairDto>> GetTradePairInfoListAsync(GetTradePairsInfoInput input);
         Task<TradePairDto> CreateAsync(TradePairCreateDto input);
-        
+
         Task UpdateLiquidityAsync(LiquidityUpdateDto input);
         Task UpdateLiquidityAsync(SyncRecordDto dto);
 
@@ -36,7 +37,7 @@ namespace AwakenServer.Trade
         Task DeleteManyAsync(List<Guid> ids);
 
         Task SyncTokenAsync(string chainId, string symbol, ChainDto chain);
-            
+
         Task SyncPairAsync(TradePairInfoDto pair, ChainDto chain);
     }
 }

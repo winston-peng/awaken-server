@@ -15,7 +15,7 @@ public class MockDefaultBlockchainClientProviderFactory : IBlockchainClientProvi
 
     public IBlockchainClientProvider GetBlockChainClientProvider(string chainName)
     {
- 
+        
         switch (chainName)
         {
             case "Ethereum":
