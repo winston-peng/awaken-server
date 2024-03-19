@@ -127,7 +127,7 @@ namespace AwakenServer.Trade
         [Fact]
         public async Task InitPriceTest()
         {
-            await _tradePairMarketDataProvider.UpdateLiquidityAsync(ChainId, TradePairEthUsdtId, DateTime.UtcNow, 10, 10, 2000,
+            await _tradePairMarketDataProvider.UpdateLiquidityWithSyncEventAsync(ChainId, TradePairEthUsdtId, DateTime.UtcNow, 10, 10, 2000,
                 100, 1000);
 
             var price = await _tokenPriceProvider.GetTokenUSDPriceAsync(ChainId, TokenEthSymbol);
@@ -148,7 +148,7 @@ namespace AwakenServer.Trade
                 Token1Id = TokenEthId
             });
             
-            await _tradePairMarketDataProvider.UpdateLiquidityAsync(ChainId, pair.Id, DateTime.UtcNow, 0.1, 0.1, 2000,
+            await _tradePairMarketDataProvider.UpdateLiquidityWithSyncEventAsync(ChainId, pair.Id, DateTime.UtcNow, 0.1, 0.1, 2000,
                 100, 1000);
 
             var price = await _tokenPriceProvider.GetTokenUSDPriceAsync(ChainId, TokenEthSymbol);

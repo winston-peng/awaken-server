@@ -300,7 +300,7 @@ namespace AwakenServer.Trade
                 tradePair.Id, tradePair.Token0Symbol, tradePair.Token1Symbol, tradePair.FeeRate,
                 price, priceUSD1 != 0 ? price * priceUSD1 : priceUSD0, tradePair.Token1Symbol, priceUSD1, tvl);
 
-            await _tradePairMarketDataProvider.UpdateLiquidityAsync(tradePair.ChainId, tradePair.Id, timestamp, price,
+            await _tradePairMarketDataProvider.UpdateLiquidityWithSyncEventAsync(tradePair.ChainId, tradePair.Id, timestamp, price,
                 priceUSD1 != 0 ? price * priceUSD1 : priceUSD0, tvl, double.Parse(input.Token0Amount),
                 double.Parse(input.Token1Amount));
         }
