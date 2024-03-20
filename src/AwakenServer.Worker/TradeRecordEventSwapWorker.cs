@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Threading.Tasks;
 using AwakenServer.Chains;
 using AwakenServer.Provider;
@@ -33,6 +34,7 @@ public class TradeRecordEventSwapWorker : AsyncPeriodicBackgroundWorkerBase
     {
         if (!executed)
         {
+            _logger.LogInformation("FixTrade start");
             await UpdateTransaction();
             executed = true;
         }
@@ -65,6 +67,10 @@ public class TradeRecordEventSwapWorker : AsyncPeriodicBackgroundWorkerBase
         for (long i = curHeight; i <= endHeight;)
         {
             var queryList = await _graphQlProvider.GetSwapRecordsAsync("tDVV", i, 0);
+            if (queryList.IsNullOrEmpty())
+            {
+                i++;
+            }
 
             foreach (var queryDto in queryList)
             {
