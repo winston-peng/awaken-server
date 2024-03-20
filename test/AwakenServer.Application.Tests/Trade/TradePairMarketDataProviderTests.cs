@@ -51,17 +51,17 @@ public class TradePairMarketDataProviderTests : TradeTestBase
     public async Task UpdateTotalSupplyTest()
     {
         // new snapshot
-        await _tradePairMarketDataProvider.UpdateTotalSupplyWithLiquidityEventAsync(ChainId, TradePairEthUsdtId, DateTime.Now.AddHours(-2), 10);
+        await _tradePairMarketDataProvider.UpdateTotalSupplyWithLiquidityEventAsync(ChainId, TradePairEthUsdtId, TokenEthSymbol, TokenUsdtSymbol, 0.5, DateTime.Now.AddHours(-2), 10);
         var pair = await _tradePairAppService.GetAsync(TradePairEthUsdtId);
         pair.TotalSupply.ShouldBe("10");
         
         // new snapshot but exist lastMarketData
-        await _tradePairMarketDataProvider.UpdateTotalSupplyWithLiquidityEventAsync(ChainId, TradePairEthUsdtId, DateTime.Now.AddHours(-1), 20);
+        await _tradePairMarketDataProvider.UpdateTotalSupplyWithLiquidityEventAsync(ChainId, TradePairEthUsdtId,TokenEthSymbol, TokenUsdtSymbol , 0.5, DateTime.Now.AddHours(-1), 20);
         pair = await _tradePairAppService.GetAsync(TradePairEthUsdtId);
         pair.TotalSupply.ShouldBe("30");
 
         // merge
-        await _tradePairMarketDataProvider.UpdateTotalSupplyWithLiquidityEventAsync(ChainId, TradePairEthUsdtId, DateTime.Now.AddHours(-1), 30);
+        await _tradePairMarketDataProvider.UpdateTotalSupplyWithLiquidityEventAsync(ChainId, TradePairEthUsdtId, TokenEthSymbol, TokenUsdtSymbol, 0.5, DateTime.Now.AddHours(-1), 30);
         pair = await _tradePairAppService.GetAsync(TradePairEthUsdtId);
         pair.TotalSupply.ShouldBe("60");
     }

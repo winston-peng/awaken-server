@@ -28,7 +28,7 @@ namespace AwakenServer.Trade
     {
         Task InitializeDataAsync();
 
-        Task UpdateTotalSupplyWithLiquidityEventAsync(string chainId, Guid tradePairId, DateTime timestamp, BigDecimal lpTokenAmount);
+        Task UpdateTotalSupplyWithLiquidityEventAsync(string chainId, Guid tradePairId, string Token0Symbol, string Token1Symbol, double FeeRate, DateTime timestamp, BigDecimal lpTokenAmount);
 
         Task UpdateTradeRecordAsync(string chainId, Guid tradePairId, DateTime timestamp, double volume,
             double tradeValue, int tradeCount = 1);
@@ -68,7 +68,6 @@ namespace AwakenServer.Trade
         private readonly INESTRepository<Index.TradePairMarketDataSnapshot, Guid> _snapshotIndexRepository;
         private readonly INESTRepository<Index.TradePair, Guid> _tradePairIndexRepository;
         private readonly ITradeRecordAppService _tradeRecordAppService;
-        private readonly ITradePairAppService _tradePairAppService;
         private readonly IDistributedEventBus _distributedEventBus;
         private readonly IObjectMapper _objectMapper;
         private readonly IBus _bus;
@@ -94,7 +93,7 @@ namespace AwakenServer.Trade
             IAbpDistributedLock distributedLock,
             ILogger<TradePairMarketDataProvider> logger,
             IOptionsSnapshot<TradeRecordOptions> tradeRecordOptions,
-            IClusterClient clusterClient, ITradePairAppService tradePairAppService,
+            IClusterClient clusterClient, 
             IAElfClientProvider blockchainClientProvider, IOptions<ContractsTokenOptions> contractsTokenOptions)
         {
             _snapshotIndexRepository = snapshotIndexRepository;
@@ -108,7 +107,6 @@ namespace AwakenServer.Trade
             _tradeRecordOptions = tradeRecordOptions.Value;
             _tradePairToGrainIds = new ConcurrentDictionary<string, HashSet<Tuple<string, DateTime>>>();
             _clusterClient = clusterClient;
-            _tradePairAppService = tradePairAppService;
             _blockchainClientProvider = blockchainClientProvider;
             _contractsTokenOptions = contractsTokenOptions.Value;
         }
@@ -145,28 +143,24 @@ namespace AwakenServer.Trade
             }
         }
 
-        private async Task<string> GetLpTokenInfoAsync(string chainId, Guid tradePairId)
+        private async Task<string> GetLpTokenInfoAsync(string chainId, string Token0Symbol, string Token1Symbol, double FeeRate)
         {
             try
             {
-                var tradePairIndexDto = await _tradePairAppService.GetAsync(tradePairId);
-
-                if (tradePairIndexDto == null || !_contractsTokenOptions.Contracts.TryGetValue(
-                        tradePairIndexDto.FeeRate.ToString(),
-                        out var address))
+                if (!_contractsTokenOptions.Contracts.TryGetValue(FeeRate.ToString(), out var address))
                 {
                     return null;
                 }
 
                 var token = await _blockchainClientProvider.GetTokenInfoFromChainAsync(chainId, address,
-                    TradePairHelper.GetLpToken(tradePairIndexDto.Token0.Symbol, tradePairIndexDto.Token1.Symbol));
+                    TradePairHelper.GetLpToken(Token0Symbol, Token1Symbol));
                 if (token != null)
                 {
                     return token.Supply.ToDecimalsString(token.Decimals);
                 }
 
                 _logger.LogError("Get lp token info is null:lp token:{0}",
-                    TradePairHelper.GetLpToken(tradePairIndexDto.Token0.Symbol, tradePairIndexDto.Token1.Symbol));
+                    TradePairHelper.GetLpToken(Token0Symbol, Token1Symbol));
                 return "";
             }
             catch (Exception e)
@@ -177,7 +171,7 @@ namespace AwakenServer.Trade
         }
 
 
-        public async Task UpdateTotalSupplyWithLiquidityEventAsync(string chainId, Guid tradePairId, DateTime timestamp,
+        public async Task UpdateTotalSupplyWithLiquidityEventAsync(string chainId, Guid tradePairId, string Token0Symbol, string Token1Symbol, double FeeRate, DateTime timestamp,
             BigDecimal lpTokenAmount)
         {
             _logger.LogInformation("UpdateTotalSupplyAsync: input supply:{supply}", lpTokenAmount);
@@ -195,7 +189,7 @@ namespace AwakenServer.Trade
                     await GetLatestTradePairMarketDataIndexFromGrainAsync(chainId, tradePairId, snapshotTime);
                 var totalSupply = lpTokenAmount;
 
-                var lpTokenCurrentSupply = await GetLpTokenInfoAsync(chainId, tradePairId);
+                var lpTokenCurrentSupply = await GetLpTokenInfoAsync(chainId, Token0Symbol, Token1Symbol, FeeRate);
                 if (lastMarketData != null)
                 {
                     totalSupply += BigDecimal.Parse(lastMarketData.TotalSupply);
@@ -247,7 +241,7 @@ namespace AwakenServer.Trade
             var latestMarketData = await GetLatestTradePairMarketDataIndexFromGrainAsync(chainId, tradePairId);
             if (latestMarketData != null && latestMarketData.Timestamp > snapshotTime)
             {
-                var lpTokenCurrentSupply = await GetLpTokenInfoAsync(chainId, tradePairId);
+                var lpTokenCurrentSupply = await GetLpTokenInfoAsync(chainId, Token0Symbol, Token1Symbol, FeeRate);
                 latestMarketData.TotalSupply = string.IsNullOrWhiteSpace(lpTokenCurrentSupply)
                     ? (BigDecimal.Parse(latestMarketData.TotalSupply) + lpTokenAmount).ToNormalizeString()
                     : lpTokenCurrentSupply;

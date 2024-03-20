@@ -13,12 +13,15 @@ namespace AwakenServer.Trade.Handlers
     public class NewLiquidityHandler : ILocalEventHandler<NewLiquidityRecordEvent>, ITransientDependency
     {
         private readonly ITradePairMarketDataProvider _tradePairMarketDataProvider;
+        private readonly ITradePairAppService _tradePairAppService;
         private readonly ILogger<NewLiquidityHandler> _logger;
 
         public NewLiquidityHandler(ITradePairMarketDataProvider tradePairMarketDataProvider,
+            ITradePairAppService tradePairAppService,
             ILogger<NewLiquidityHandler> logger)
         {
             _tradePairMarketDataProvider = tradePairMarketDataProvider;
+            _tradePairAppService = tradePairAppService;
 
             _logger = logger;
         }
@@ -28,7 +31,19 @@ namespace AwakenServer.Trade.Handlers
             var lpAmount = BigDecimal.Parse(eventData.LpTokenAmount);
             lpAmount = eventData.Type == LiquidityType.Mint ? lpAmount : -lpAmount;
             
-            await _tradePairMarketDataProvider.UpdateTotalSupplyWithLiquidityEventAsync(eventData.ChainId, eventData.TradePairId,
+            var tradePairIndexDto = await _tradePairAppService.GetAsync(eventData.TradePairId);
+
+            if (tradePairIndexDto == null)
+            {
+                _logger.LogError($"NewLiquidityHandler can not find trade pair: {eventData.TradePairId}");
+                return;
+            }
+            
+            await _tradePairMarketDataProvider.UpdateTotalSupplyWithLiquidityEventAsync(eventData.ChainId, 
+                eventData.TradePairId, 
+                tradePairIndexDto.Token0.Symbol, 
+                tradePairIndexDto.Token1.Symbol, 
+                tradePairIndexDto.FeeRate, 
                 eventData.Timestamp, lpAmount);
         }
     }

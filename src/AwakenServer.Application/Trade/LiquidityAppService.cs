@@ -265,7 +265,7 @@ namespace AwakenServer.Trade
                     input.Pair);
                 throw new Exception("tradePair not existed");
             }
-
+            
             var liquidityEvent = new NewLiquidityRecordEvent
             {
                 ChainId = chain.Id,
