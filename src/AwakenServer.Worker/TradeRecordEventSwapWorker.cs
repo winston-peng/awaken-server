@@ -37,7 +37,7 @@ public class TradeRecordEventSwapWorker : AsyncPeriodicBackgroundWorkerBase
         {
             var lastEndHeight = await _graphQlProvider.GetLastEndHeightAsync(chain.Name, QueryType.TradeRecord);
             _logger.LogInformation("swap first lastEndHeight: {lastEndHeight}", lastEndHeight);
-
+        
             if(lastEndHeight < 0) continue;
             var queryList = await _graphQlProvider.GetSwapRecordsAsync(chain.Name, lastEndHeight+1, 0);
             _logger.LogInformation("swap queryList count: {count}", queryList.Count);
