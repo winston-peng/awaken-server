@@ -20,6 +20,7 @@ public class LiquidityEventSyncWorker : AsyncPeriodicBackgroundWorkerBase
     private readonly ILiquidityAppService _liquidityService;
     private readonly ILogger<LiquidityEventSyncWorker> _logger;
 
+
     public LiquidityEventSyncWorker(AbpAsyncTimer timer, IServiceScopeFactory serviceScopeFactory,
         IChainAppService chainAppService, IGraphQLProvider iGraphQlProvider, ILiquidityAppService liquidityService,
         ILogger<LiquidityEventSyncWorker> logger)
@@ -38,9 +39,8 @@ public class LiquidityEventSyncWorker : AsyncPeriodicBackgroundWorkerBase
         foreach (var chain in chains.Items)
         {
             var lastEndHeight = await _graphQlProvider.GetLastEndHeightAsync(chain.Name, QueryType.Liquidity);
-
-
-            var queryList = await _graphQlProvider.GetLiquidRecordsAsync(chain.Name, lastEndHeight + 1, lastEndHeight + 1001);
+            
+            var queryList = await _graphQlProvider.GetLiquidRecordsAsync(chain.Name, lastEndHeight + 1, lastEndHeight + WorkerOptions.QueryBlockHeightLimit);
             _logger.LogInformation(
                 "liquidity event sync, queryList count: {count}, lastEndHeight: {lastEndHeight}",
                 queryList.Count, lastEndHeight);

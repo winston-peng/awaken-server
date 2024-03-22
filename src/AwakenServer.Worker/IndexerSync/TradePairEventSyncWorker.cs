@@ -1,6 +1,7 @@
 using System;
 using System.Threading.Tasks;
 using AwakenServer.Chains;
+using AwakenServer.CMS;
 using AwakenServer.Provider;
 using AwakenServer.Trade;
 using AwakenServer.Trade.Dtos;
@@ -37,14 +38,12 @@ public class TradePairEventSyncWorker : AsyncPeriodicBackgroundWorkerBase
         {
             var lastEndHeight = await _graphQlProvider.GetLastEndHeightAsync(chain.Name, QueryType.TradePair);
             _logger.LogInformation("trade first lastEndHeight: {lastEndHeight}", lastEndHeight);
-
-            if (lastEndHeight < 0) continue;
-
+            
             var result = await _graphQlProvider.GetTradePairInfoListAsync(new GetTradePairsInfoInput
             {
                 ChainId = chain.Name,
                 StartBlockHeight = lastEndHeight + 1,
-                EndBlockHeight = lastEndHeight + 1001
+                EndBlockHeight = lastEndHeight + WorkerOptions.QueryBlockHeightLimit
             });
 
             long blockHeight = -1;

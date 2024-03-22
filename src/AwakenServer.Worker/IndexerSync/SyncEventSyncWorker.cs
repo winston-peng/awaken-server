@@ -1,6 +1,7 @@
 using System;
 using System.Threading.Tasks;
 using AwakenServer.Chains;
+using AwakenServer.CMS;
 using AwakenServer.Provider;
 using AwakenServer.Trade;
 using Microsoft.Extensions.DependencyInjection;
@@ -36,7 +37,7 @@ public class SyncEventSyncWorker : AsyncPeriodicBackgroundWorkerBase
         {
             var lastEndHeight = await _graphQlProvider.GetLastEndHeightAsync(chain.Name, QueryType.Sync);
 
-            var queryList = await _graphQlProvider.GetSyncRecordsAsync(chain.Name, lastEndHeight + 1, lastEndHeight + 1001);
+            var queryList = await _graphQlProvider.GetSyncRecordsAsync(chain.Name, lastEndHeight + 1, lastEndHeight + WorkerOptions.QueryBlockHeightLimit);
             _logger.LogInformation("sync queryList count: {count} ,chainId:{chainId}", queryList.Count, chain.Name);
             try
             {
