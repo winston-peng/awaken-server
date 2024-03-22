@@ -8,11 +8,14 @@ using AwakenServer.Trade;
 using AwakenServer.Trade.Dtos;
 using AwakenServer.Trade.Etos;
 using MassTransit;
+using Microsoft.Extensions.Logging;
 using Orleans;
 using Volo.Abp.Domain.Entities.Events.Distributed;
 using Volo.Abp.EventBus.Distributed;
-using TradePair = AwakenServer.Trade.Index.TradePair;
 using TradePairMarketDataSnapshot = AwakenServer.Trade.Index.TradePairMarketDataSnapshot;
+using JsonConvert = Newtonsoft.Json.JsonConvert;
+using IObjectMapper = Volo.Abp.ObjectMapping.IObjectMapper;
+using TradePair = AwakenServer.Trade.Index.TradePair;
 
 namespace AwakenServer.EntityHandler.Trade
 {
@@ -25,19 +28,25 @@ namespace AwakenServer.EntityHandler.Trade
         private readonly ITradePairMarketDataProvider _tradePairMarketDataProvider;
         private readonly IBus _bus;
         private readonly IClusterClient _clusterClient;
-
+        private readonly ILogger<TradePairMarketDataIndexHandler> _logger;
+        private readonly IObjectMapper _objectMapper;
+        
         public TradePairMarketDataIndexHandler(
             INESTRepository<TradePairMarketDataSnapshot, Guid> snapshotIndexRepository,
             INESTRepository<TradePair, Guid> tradePairIndexRepository,
             ITradePairMarketDataProvider tradePairMarketDataProvider,
             IBus bus,
-            IClusterClient clusterClient)
+            IClusterClient clusterClient,
+            ILogger<TradePairMarketDataIndexHandler> logger,
+            IObjectMapper objectMapper)
         {
             _snapshotIndexRepository = snapshotIndexRepository;
             _tradePairIndexRepository = tradePairIndexRepository;
             _tradePairMarketDataProvider = tradePairMarketDataProvider;
             _bus = bus;
             _clusterClient = clusterClient;
+            _logger = logger;
+            _objectMapper = objectMapper;
         }
 
         public async Task HandleEventAsync(EntityCreatedEto<TradePairMarketDataSnapshotEto> eventData)
@@ -60,35 +69,56 @@ namespace AwakenServer.EntityHandler.Trade
 
         private async Task AddOrUpdateTradePairIndexAsync(TradePairMarketDataSnapshotEto snapshotEto)
         {
+            _logger.LogInformation("AddOrUpdateTradePairIndexAsync, lp token {id}, totalSupply: {supply}",
+                snapshotEto.TradePairId, snapshotEto.TotalSupply);
             var latestSnapshot =
                 await _tradePairMarketDataProvider.GetLatestTradePairMarketDataIndexFromGrainAsync(snapshotEto.ChainId,
                     snapshotEto.TradePairId);
+
             if (latestSnapshot != null && snapshotEto.Timestamp < latestSnapshot.Timestamp)
             {
                 return;
             }
 
             var snapshots = await _tradePairMarketDataProvider.GetIndexListFromGrainAsync(snapshotEto.ChainId,
-                snapshotEto.TradePairId, snapshotEto.Timestamp.AddDays(-2), snapshotEto.Timestamp);
-
-            var volume24h = snapshotEto.Volume;
-            var tradeValue24h = snapshotEto.TradeValue;
-            var tradeCount24h = snapshotEto.TradeCount;
+                snapshotEto.TradePairId, snapshotEto.Timestamp.AddDays(-2));
+            var tokenAValue24 = 0d;
+            var tokenBValue24 = 0d;
+            var tradeCount24h = 0;
             var priceHigh24h = snapshotEto.PriceHigh;
             var priceLow24h = snapshotEto.PriceLow;
             var priceHigh24hUSD = snapshotEto.PriceHighUSD;
             var priceLow24hUSD = snapshotEto.PriceLowUSD;
 
-            var daySnapshot = snapshots.Where(s=>s.Timestamp >= snapshotEto.Timestamp.AddDays(-1)).ToList();
+            var daySnapshot = snapshots.Where(s => s.Timestamp >= snapshotEto.Timestamp.AddDays(-1)).ToList();
             foreach (var snapshot in daySnapshot)
             {
-                volume24h += snapshot.Volume;
-                tradeValue24h += snapshot.TradeValue;
+                tokenAValue24 += snapshot.Volume;
+                tokenBValue24 += snapshot.TradeValue;
                 tradeCount24h += snapshot.TradeCount;
-                priceHigh24h = Math.Max(priceHigh24h, snapshot.PriceHigh);
-                priceLow24h = Math.Min(priceLow24h, snapshot.PriceLow);
+
+                if (priceLow24h == 0)
+                {
+                    priceLow24h = snapshot.PriceLow;
+                }
+
+                if (snapshot.PriceLow != 0)
+                {
+                    priceLow24h = Math.Min(priceLow24h, snapshot.PriceLow);
+                }
+
+                if (priceLow24hUSD == 0)
+                {
+                    priceLow24hUSD = snapshot.PriceLowUSD;
+                }
+
+                if (snapshot.PriceLowUSD != 0)
+                {
+                    priceLow24hUSD = Math.Min(priceLow24hUSD, snapshot.PriceLowUSD);
+                }
+
                 priceHigh24hUSD = Math.Max(priceHigh24hUSD, snapshot.PriceHighUSD);
-                priceLow24hUSD = Math.Min(priceLow24hUSD, snapshot.PriceLowUSD);
+                priceHigh24h = Math.Max(priceHigh24h, snapshot.PriceHigh);
             }
 
             var lastDaySnapshot = snapshots.Where(s => s.Timestamp < snapshotEto.Timestamp.AddDays(-1))
@@ -96,15 +126,27 @@ namespace AwakenServer.EntityHandler.Trade
             var lastDayVolume24h = lastDaySnapshot.Sum(snapshot => snapshot.Volume);
             var lastDayTvl = 0d;
             var lastDayPriceUSD = 0d;
-            
+
             if (lastDaySnapshot.Count > 0)
             {
                 var snapshot = lastDaySnapshot.First();
                 lastDayTvl = snapshot.TVL;
                 lastDayPriceUSD = snapshot.PriceUSD;
             }
+            else
+            {
+                var snapshot = _tradePairMarketDataProvider.GetLatestPriceTradePairMarketDataIndexAsync(snapshotEto.ChainId, snapshotEto.TradePairId,
+                    snapshotEto.Timestamp);
+                if (snapshot != null && snapshot.Result != null)
+                {
+                    lastDayTvl = snapshot.Result.TVL;
+                    lastDayPriceUSD = snapshot.Result.PriceUSD;
+                }
+            }
 
-            var existIndex = await _tradePairIndexRepository.GetAsync(snapshotEto.TradePairId);
+            var grain = _clusterClient.GetGrain<ITradePairSyncGrain>(
+                GrainIdHelper.GenerateGrainId(snapshotEto.TradePairId));
+            var existIndex = await grain.GetAsync();
 
             existIndex.TotalSupply = snapshotEto.TotalSupply;
             existIndex.Price = snapshotEto.Price;
@@ -112,14 +154,17 @@ namespace AwakenServer.EntityHandler.Trade
             existIndex.TVL = snapshotEto.TVL;
             existIndex.ValueLocked0 = snapshotEto.ValueLocked0;
             existIndex.ValueLocked1 = snapshotEto.ValueLocked1;
-            existIndex.Volume24h = volume24h;
-            existIndex.TradeValue24h = tradeValue24h;
+            existIndex.Volume24h = tokenAValue24;
+            existIndex.TradeValue24h = tokenBValue24;
             existIndex.TradeCount24h = tradeCount24h;
             existIndex.TradeAddressCount24h = snapshotEto.TradeAddressCount24h;
             existIndex.PriceHigh24h = priceHigh24h;
             existIndex.PriceLow24h = priceLow24h;
             existIndex.PriceHigh24hUSD = priceHigh24hUSD;
             existIndex.PriceLow24hUSD = priceLow24hUSD;
+            existIndex.PriceChange24h = lastDayPriceUSD == 0
+                ? 0
+                : existIndex.PriceUSD - lastDayPriceUSD;
             existIndex.PricePercentChange24h = lastDayPriceUSD == 0
                 ? 0
                 : (existIndex.PriceUSD - lastDayPriceUSD) * 100 / lastDayPriceUSD;
@@ -139,20 +184,15 @@ namespace AwakenServer.EntityHandler.Trade
                 existIndex.FeePercent7d = (volume7d * snapshotEto.PriceUSD * existIndex.FeeRate * 365 * 100) /
                                           (snapshotEto.TVL * 7);
             }
+            
+            _logger.LogInformation("AddOrUpdateTradePairIndexAsync: " + JsonConvert.SerializeObject(existIndex));
 
-            var grain = _clusterClient.GetGrain<ITradePairSyncGrain>(
-                GrainIdHelper.GenerateGrainId(snapshotEto.TradePairId));
             grain.AddOrUpdateAsync(existIndex);
             await _tradePairIndexRepository.AddOrUpdateAsync(existIndex);
-
-            await _bus.Publish<NewIndexEvent<TradePairIndexDto>>(new NewIndexEvent<TradePairIndexDto>
+            await _bus.Publish(new NewIndexEvent<TradePairIndexDto>
             {
-                Data = ObjectMapper.Map<TradePair, TradePairIndexDto>(existIndex)
+                Data = _objectMapper.Map<TradePair, TradePairIndexDto>(existIndex)
             });
-            /*await DistributedEventBus.PublishAsync(new NewIndexEvent<TradePairIndexDto>
-            {
-                Data = ObjectMapper.Map<TradePair, TradePairIndexDto>(existIndex)
-            });*/
         }
     }
 }

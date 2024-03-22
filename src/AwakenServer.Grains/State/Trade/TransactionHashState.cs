@@ -1,6 +1,6 @@
 namespace AwakenServer.Grains.State.Trade;
 
-public class LiquiditySyncState
+public class TransactionHashState
 {
     public HashSet<String> SyncTransactionHashSet { get; set; }
 }

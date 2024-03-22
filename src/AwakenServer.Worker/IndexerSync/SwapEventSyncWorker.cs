@@ -1,3 +1,4 @@
+using System;
 using System.Threading.Tasks;
 using AwakenServer.Chains;
 using AwakenServer.CMS;
@@ -38,16 +39,25 @@ public class SwapEventSyncWorker : AsyncPeriodicBackgroundWorkerBase
         {
             var lastEndHeight = await _graphQlProvider.GetLastEndHeightAsync(chain.Name, QueryType.Swap);
             _logger.LogInformation("swap first lastEndHeight: {lastEndHeight}", lastEndHeight);
-
+            
             // if(lastEndHeight < 0) continue;
             var queryList = await _graphQlProvider.GetSwapRecordsAsync(chain.Name, lastEndHeight+1, lastEndHeight + WorkerOptions.QueryBlockHeightLimit);
+
             _logger.LogInformation("swap queryList count: {count}", queryList.Count);
+            
+            long blockHeight = -1;
             foreach (var queryDto in queryList)
             {
                 if(!await _tradeRecordAppService.CreateAsync(queryDto)) continue;
-                await _graphQlProvider.SetLastEndHeightAsync(chain.Name, QueryType.Swap, queryDto.BlockHeight);
-                _logger.LogInformation("swap success lastEndHeight: {BlockHeight}", queryDto.BlockHeight);
+                blockHeight = Math.Max(blockHeight, queryDto.BlockHeight);
             }
+
+            if (blockHeight > 0)
+            {
+                await _graphQlProvider.SetLastEndHeightAsync(chain.Name, QueryType.Swap, blockHeight);
+                _logger.LogInformation("swap success lastEndHeight: {BlockHeight}", blockHeight);
+            }
+            
         }
     }
 }

@@ -9,6 +9,7 @@ using AwakenServer.Comparers;
 using AwakenServer.Grains;
 using AwakenServer.Grains.Grain.Trade;
 using AwakenServer.Trade.Dtos;
+using AwakenServer.Trade.Etos;
 using MassTransit;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -18,6 +19,7 @@ using Orleans;
 using Volo.Abp.Caching;
 using Volo.Abp.DependencyInjection;
 using Volo.Abp.DistributedLocking;
+using Volo.Abp.Domain.Entities.Events.Distributed;
 using Volo.Abp.EventBus.Distributed;
 using Volo.Abp.ObjectMapping;
 using JsonConvert = Newtonsoft.Json.JsonConvert;
@@ -187,42 +189,43 @@ namespace AwakenServer.Trade
             {
                 var lastMarketData =
                     await GetLatestTradePairMarketDataIndexFromGrainAsync(chainId, tradePairId, snapshotTime);
-                var totalSupply = lpTokenAmount;
-
-                var lpTokenCurrentSupply = await GetLpTokenInfoAsync(chainId, Token0Symbol, Token1Symbol, FeeRate);
-                if (lastMarketData != null)
-                {
-                    totalSupply += BigDecimal.Parse(lastMarketData.TotalSupply);
-                }
-
+                
                 marketData = new Index.TradePairMarketDataSnapshot()
                 {
                     Id = Guid.NewGuid(),
                     ChainId = chainId,
                     TradePairId = tradePairId,
-                    TotalSupply = string.IsNullOrWhiteSpace(lpTokenCurrentSupply)
-                        ? totalSupply.ToNormalizeString()
-                        : lpTokenCurrentSupply,
+                    TotalSupply = lpTokenAmount.ToNormalizeString(),
                     Timestamp = snapshotTime
                 };
+                
                 if (lastMarketData != null)
                 {
+                    marketData.TotalSupply += BigDecimal.Parse(lastMarketData.TotalSupply);
                     marketData.Price = lastMarketData.Price;
                     marketData.PriceUSD = lastMarketData.PriceUSD;
                     marketData.TVL = lastMarketData.TVL;
                     marketData.ValueLocked0 = lastMarketData.ValueLocked0;
                     marketData.ValueLocked1 = lastMarketData.ValueLocked1;
                 }
-
+                
+                var lpTokenCurrentSupply = await GetLpTokenInfoAsync(chainId, Token0Symbol, Token1Symbol, FeeRate);
+                if (!string.IsNullOrWhiteSpace(lpTokenCurrentSupply))
+                {
+                    marketData.TotalSupply = lpTokenCurrentSupply;
+                }
 
                 marketData.TradeAddressCount24h =
                     await _tradeRecordAppService.GetUserTradeAddressCountAsync(chainId, tradePairId,
                         timestamp.AddDays(-1), timestamp);
 
                 await grain.AddOrUpdateAsync(marketData);
-
-                await _snapshotIndexRepository.AddAsync(marketData);
-                await AddOrUpdateTradePairIndexAsync(marketData);
+                
+                // await _snapshotIndexRepository.AddAsync(marketData);
+                // await AddOrUpdateTradePairIndexAsync(marketData);
+                await _distributedEventBus.PublishAsync(new EntityCreatedEto<TradePairMarketDataSnapshotEto>(
+                    _objectMapper.Map<Index.TradePairMarketDataSnapshot, TradePairMarketDataSnapshotEto>(marketData)
+                ));
             }
             else
             {
@@ -230,9 +233,11 @@ namespace AwakenServer.Trade
                 marketData.TotalSupply = (totalSupply + lpTokenAmount).ToNormalizeString();
 
                 await grain.AddOrUpdateAsync(marketData);
-
-                await _snapshotIndexRepository.UpdateAsync(marketData);
-                await AddOrUpdateTradePairIndexAsync(marketData);
+                // await _snapshotIndexRepository.UpdateAsync(marketData);
+                // await AddOrUpdateTradePairIndexAsync(marketData);
+                await _distributedEventBus.PublishAsync(new  EntityUpdatedEto<TradePairMarketDataSnapshotEto>(
+                    _objectMapper.Map<Index.TradePairMarketDataSnapshot, TradePairMarketDataSnapshotEto>(marketData)
+                ));
             }
 
             _logger.LogInformation("UpdateTotalSupplyAsync: totalSupply:{supply}", marketData.TotalSupply);
@@ -250,8 +255,11 @@ namespace AwakenServer.Trade
 
                 await grain.AddOrUpdateAsync(marketData);
 
-                await _snapshotIndexRepository.UpdateAsync(latestMarketData);
-                await AddOrUpdateTradePairIndexAsync(latestMarketData);
+                // await _snapshotIndexRepository.UpdateAsync(latestMarketData);
+                // await AddOrUpdateTradePairIndexAsync(latestMarketData);
+                await _distributedEventBus.PublishAsync(new  EntityUpdatedEto<TradePairMarketDataSnapshotEto>(
+                    _objectMapper.Map<Index.TradePairMarketDataSnapshot, TradePairMarketDataSnapshotEto>(marketData)
+                ));
             }
         }
 
@@ -277,11 +285,6 @@ namespace AwakenServer.Trade
             {
                 var lastMarketData =
                     await GetLatestTradePairMarketDataIndexFromGrainAsync(chainId, tradePairId, snapshotTime);
-                BigDecimal totalSupply = 0;
-                if (lastMarketData != null)
-                {
-                    totalSupply += BigDecimal.Parse(lastMarketData.TotalSupply);
-                }
 
                 marketData = new Index.TradePairMarketDataSnapshot()
                 {
@@ -293,10 +296,10 @@ namespace AwakenServer.Trade
                     TradeCount = tradeCount,
                     TradeAddressCount24h = tradeAddressCount24H,
                     Timestamp = snapshotTime,
-                    TotalSupply = totalSupply.ToNormalizeString()
                 };
                 if (lastMarketData != null)
                 {
+                    marketData.TotalSupply = lastMarketData.TotalSupply;
                     marketData.Price = lastMarketData.Price;
                     marketData.PriceUSD = lastMarketData.PriceUSD;
                     marketData.TVL = lastMarketData.TVL;
@@ -305,8 +308,11 @@ namespace AwakenServer.Trade
                 }
 
                 await grain.AddOrUpdateAsync(marketData);
-                await _snapshotIndexRepository.AddAsync(marketData);
-                await AddOrUpdateTradePairIndexAsync(marketData);
+                // await _snapshotIndexRepository.AddAsync(marketData);
+                // await AddOrUpdateTradePairIndexAsync(marketData);
+                await _distributedEventBus.PublishAsync(new  EntityCreatedEto<TradePairMarketDataSnapshotEto>(
+                    _objectMapper.Map<Index.TradePairMarketDataSnapshot, TradePairMarketDataSnapshotEto>(marketData)
+                ));
             }
             else
             {
@@ -316,8 +322,11 @@ namespace AwakenServer.Trade
                 marketData.TradeAddressCount24h = tradeAddressCount24H;
 
                 await grain.AddOrUpdateAsync(marketData);
-                await _snapshotIndexRepository.UpdateAsync(marketData);
-                await AddOrUpdateTradePairIndexAsync(marketData);
+                // await _snapshotIndexRepository.UpdateAsync(marketData);
+                // await AddOrUpdateTradePairIndexAsync(marketData);
+                await _distributedEventBus.PublishAsync(new  EntityUpdatedEto<TradePairMarketDataSnapshotEto>(
+                    _objectMapper.Map<Index.TradePairMarketDataSnapshot, TradePairMarketDataSnapshotEto>(marketData)
+                ));
             }
         }
 
@@ -340,12 +349,7 @@ namespace AwakenServer.Trade
             {
                 var lastMarketData =
                     await GetLatestTradePairMarketDataIndexFromGrainAsync(chainId, tradePairId, snapshotTime);
-                BigDecimal totalSupply = 0;
-                if (lastMarketData != null)
-                {
-                    totalSupply += BigDecimal.Parse(lastMarketData.TotalSupply);
-                }
-
+                
                 marketData = new Index.TradePairMarketDataSnapshot
                 {
                     Id = Guid.NewGuid(),
@@ -361,16 +365,24 @@ namespace AwakenServer.Trade
                     ValueLocked0 = valueLocked0,
                     ValueLocked1 = valueLocked1,
                     Timestamp = snapshotTime,
-                    TotalSupply = totalSupply.ToNormalizeString()
                 };
+                
+                if (lastMarketData != null)
+                {
+                    marketData.TotalSupply = lastMarketData.TotalSupply;
+                }
+                
                 marketData.TradeAddressCount24h =
                     await _tradeRecordAppService.GetUserTradeAddressCountAsync(chainId, tradePairId,
                         timestamp.AddDays(-1), timestamp);
                 _logger.LogInformation("UpdateLiquidityAsync, supply:{supply}", marketData.TotalSupply);
 
                 await grain.AddOrUpdateAsync(marketData);
-                await _snapshotIndexRepository.AddAsync(marketData);
-                await AddOrUpdateTradePairIndexAsync(marketData);
+                // await _snapshotIndexRepository.AddAsync(marketData);
+                // await AddOrUpdateTradePairIndexAsync(marketData);
+                await _distributedEventBus.PublishAsync(new  EntityCreatedEto<TradePairMarketDataSnapshotEto>(
+                    _objectMapper.Map<Index.TradePairMarketDataSnapshot, TradePairMarketDataSnapshotEto>(marketData)
+                ));
             }
             else
             {
@@ -387,8 +399,11 @@ namespace AwakenServer.Trade
                 _logger.LogInformation("UpdateLiquidityAsync, supply:{supply}", marketData.TotalSupply);
 
                 await grain.AddOrUpdateAsync(marketData);
-                await _snapshotIndexRepository.UpdateAsync(marketData);
-                await AddOrUpdateTradePairIndexAsync(marketData);
+                // await _snapshotIndexRepository.UpdateAsync(marketData);
+                // await AddOrUpdateTradePairIndexAsync(marketData);
+                await _distributedEventBus.PublishAsync(new  EntityUpdatedEto<TradePairMarketDataSnapshotEto>(
+                    _objectMapper.Map<Index.TradePairMarketDataSnapshot, TradePairMarketDataSnapshotEto>(marketData)
+                ));
             }
         }
 
@@ -601,11 +616,14 @@ namespace AwakenServer.Trade
             _logger.LogInformation("AddOrUpdateTradePairIndex: " + JsonConvert.SerializeObject(existIndex));
 
             grain.AddOrUpdateAsync(existIndex);
-            await _tradePairIndexRepository.AddOrUpdateAsync(existIndex);
-            await _bus.Publish(new NewIndexEvent<TradePairIndexDto>
-            {
-                Data = _objectMapper.Map<Index.TradePair, TradePairIndexDto>(existIndex)
-            });
+            // await _tradePairIndexRepository.AddOrUpdateAsync(existIndex);
+            // await _bus.Publish(new NewIndexEvent<TradePairIndexDto>
+            // {
+            //     Data = _objectMapper.Map<Index.TradePair, TradePairIndexDto>(existIndex)
+            // });
+            await _distributedEventBus.PublishAsync(new EntityCreatedEto<TradePairEto>(
+                _objectMapper.Map<Index.TradePair, TradePairEto>(existIndex)
+            ));
         }
 
 

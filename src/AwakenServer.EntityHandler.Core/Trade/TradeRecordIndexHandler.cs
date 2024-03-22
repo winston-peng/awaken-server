@@ -16,7 +16,9 @@ using Volo.Abp.EventBus.Distributed;
 namespace AwakenServer.EntityHandler.Trade
 {
     public class TradeRecordIndexHandler : TradeIndexHandlerBase,
-        IDistributedEventHandler<EntityCreatedEto<TradeRecordEto>>
+        IDistributedEventHandler<EntityCreatedEto<TradeRecordEto>>,
+        IDistributedEventHandler<EntityDeletedEto<TradeRecordEto>>
+        
     {
         private readonly INESTRepository<TradeRecord, Guid> _tradeRecordIndexRepository;
         private readonly IPriceAppService _priceAppService;
@@ -55,6 +57,11 @@ namespace AwakenServer.EntityHandler.Trade
 
             _logger.LogInformation(
                 $"publish TradeRecordIndexDto address:{index.Address} tradePairId:{index.TradePair.Id} chainId:{index.ChainId} txId:{index.TransactionHash}");
+        }
+        
+        public async Task HandleEventAsync(EntityDeletedEto<TradeRecordEto> eventData)
+        {
+            
         }
 
         private async Task<double> GetHistoryPriceInUsdAsync(TradeRecord index)

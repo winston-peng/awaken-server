@@ -23,6 +23,7 @@ using Volo.Abp.Application.Services;
 using Volo.Abp.Domain.Entities.Events.Distributed;
 using Volo.Abp.EventBus.Distributed;
 using Token = AwakenServer.Tokens.Token;
+using IObjectMapper = Volo.Abp.ObjectMapping.IObjectMapper;
 
 namespace AwakenServer.Trade
 {
@@ -44,6 +45,7 @@ namespace AwakenServer.Trade
         private readonly IDistributedEventBus _distributedEventBus;
         private readonly IBus _bus;
         private readonly IClusterClient _clusterClient;
+        private readonly IObjectMapper _objectMapper;
 
         private const string ASC = "asc";
         private const string ASCEND = "ascend";
@@ -74,7 +76,8 @@ namespace AwakenServer.Trade
             ICmsAppService cmsAppService,
             IBus bus,
             ILogger<TradePairAppService> logger,
-            IClusterClient clusterClient)
+            IClusterClient clusterClient,
+            IObjectMapper objectMapper)
         {
             _tradePairInfoIndex = tradePairInfoIndex;
             _tokenPriceProvider = tokenPriceProvider;
@@ -91,6 +94,7 @@ namespace AwakenServer.Trade
             _logger = logger;
             _bus = bus;
             _clusterClient = clusterClient;
+            _objectMapper = objectMapper;
         }
 
         public async Task<List<TradePairDto>> GetTradePairInfoListAsync(GetTradePairsInfoInput input)
@@ -268,7 +272,10 @@ namespace AwakenServer.Trade
             index.Token1 = ObjectMapper.Map<TokenDto, Token>(token1);
 
             await grain.AddOrUpdateAsync(index);
-            await _tradePairIndexRepository.AddOrUpdateAsync(index);
+            // await _tradePairIndexRepository.AddOrUpdateAsync(index);
+            await _distributedEventBus.PublishAsync(new EntityCreatedEto<TradePairEto>(
+                _objectMapper.Map<Index.TradePair, TradePairEto>(index)
+            ));
 
             return ObjectMapper.Map<TradePairInfoIndex, TradePairDto>(tradePairInfo);
         }
@@ -441,12 +448,14 @@ namespace AwakenServer.Trade
                 priceUSD1);
 
             await grain.AddOrUpdateAsync(pair);
-            await _tradePairIndexRepository.AddOrUpdateAsync(pair);
-
-            await _bus.Publish<NewIndexEvent<TradePairIndexDto>>(new NewIndexEvent<TradePairIndexDto>
-            {
-                Data = ObjectMapper.Map<Index.TradePair, TradePairIndexDto>(pair)
-            });
+            // await _tradePairIndexRepository.AddOrUpdateAsync(pair);
+            // await _bus.Publish<NewIndexEvent<TradePairIndexDto>>(new NewIndexEvent<TradePairIndexDto>
+            // {
+            //     Data = ObjectMapper.Map<Index.TradePair, TradePairIndexDto>(pair)
+            // });
+            await _distributedEventBus.PublishAsync(new EntityCreatedEto<TradePairEto>(
+                _objectMapper.Map<Index.TradePair, TradePairEto>(pair)
+            ));
             /*await _distributedEventBus.PublishAsync(new NewIndexEvent<TradePairIndexDto>
             {
                 Data = ObjectMapper.Map<Index.TradePair, TradePairIndexDto>(pair)

@@ -3,7 +3,7 @@ using Orleans;
 
 namespace AwakenServer.Grains.Grain.Trade;
 
-public class LiquiditySyncGrain : Grain<LiquiditySyncState>, ILiquiditySyncGrain
+public class TransactionHashGrain : Grain<TransactionHashState>, ITransactionHashGrain
 {
     public async Task AddTransactionHashAsync(string transactionHash)
     {

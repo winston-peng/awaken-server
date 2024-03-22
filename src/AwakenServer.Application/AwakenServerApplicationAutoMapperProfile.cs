@@ -78,7 +78,7 @@ namespace AwakenServer
             CreateMap<Trade.TradePair, TradePairWithToken>();
             CreateMap<TradePairWithToken, TradePairWithTokenDto>();
 
-            CreateMap<TradePairMarketDataSnapshotEto, TradePairMarketDataSnapshot>();
+            CreateMap<TradePairMarketDataSnapshotEto, TradePairMarketDataSnapshot>().ReverseMap();
 
 
             CreateMap<TradePairInfoDto, TradePairDto>()

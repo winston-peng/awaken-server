@@ -248,8 +248,8 @@ namespace AwakenServer.Trade
 
         public async Task CreateAsync(LiquidityRecordDto input)
         {
-            var grain = _clusterClient.GetGrain<ILiquiditySyncGrain>(
-                GrainIdHelper.GenerateGrainId(input.ChainId, input.BlockHeight));
+            var grain = _clusterClient.GetGrain<ITransactionHashGrain>(
+                GrainIdHelper.GenerateGrainId(input.ChainId, input.TransactionHash));
             if (await grain.ExistTransactionHashAsync(input.TransactionHash))
             {
                 _logger.LogInformation("liquidity event transactionHash existed:{transactionHash}",
@@ -271,7 +271,8 @@ namespace AwakenServer.Trade
                 ChainId = chain.Id,
                 LpTokenAmount = input.LpTokenAmount.ToDecimalsString(8),
                 TradePairId = tradePair.Id,
-                Timestamp = DateTimeHelper.FromUnixTimeMilliseconds(input.Timestamp)
+                Timestamp = DateTimeHelper.FromUnixTimeMilliseconds(input.Timestamp),
+                Type = input.Type
             };
             await _localEventBus.PublishAsync(liquidityEvent);
             await grain.AddTransactionHashAsync(input.TransactionHash);

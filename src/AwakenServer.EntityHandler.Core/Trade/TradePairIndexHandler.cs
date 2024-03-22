@@ -36,7 +36,6 @@ namespace AwakenServer.EntityHandler.Trade
             index.Token1 = await GetTokenAsync(eventData.Entity.Token1Id);
             
             await _tradePairIndexRepository.AddOrUpdateAsync(index);
-            
             await _bus.Publish<NewIndexEvent<TradePairIndexDto>>(new NewIndexEvent<TradePairIndexDto>
             {
                 Data = ObjectMapper.Map<TradePair, TradePairIndexDto>(index)

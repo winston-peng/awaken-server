@@ -60,6 +60,7 @@ public class TradePairEventSyncWorker : AsyncPeriodicBackgroundWorkerBase
             }
 
             await _graphQlProvider.SetLastEndHeightAsync(chain.Name, QueryType.TradePair, blockHeight);
+            _logger.LogInformation($"TradePair lastEndHeight: {blockHeight},:chainId:{chain.Name}");
         }
     }
 }

@@ -226,7 +226,7 @@ namespace AwakenServer.Trade
 
         public async Task<bool> CreateAsync(SwapRecordDto dto)
         {
-            var grain = _clusterClient.GetGrain<ILiquiditySyncGrain>(
+            var grain = _clusterClient.GetGrain<ITransactionHashGrain>(
                 GrainIdHelper.GenerateGrainId(dto.ChainId, dto.TransactionHash));
             if (await grain.ExistTransactionHashAsync(dto.TransactionHash))
             {
@@ -589,7 +589,7 @@ namespace AwakenServer.Trade
             var txnHashs = new List<string>();
             while (minBlockHeight <= confirmedHeight)
             {
-                var endBlockHeight = minBlockHeight + _tradeRecordOptions.QueryOnceLimit > confirmedHeight
+                var endBlockHeight = minBlockHeight + _tradeRecordOptions.BlockHeightLimit > confirmedHeight
                     ? confirmedHeight
                     : minBlockHeight + _tradeRecordOptions.QueryOnceLimit;
                 var dtoList = await _graphQlProvider.GetSwapRecordsAsync(chainId, minBlockHeight, endBlockHeight);
