@@ -55,6 +55,10 @@ public class AwakenServerEntityHandlerModule : AbpModule
         Configure<ApiOptions>(configuration.GetSection("Api"));
 
         Configure<TradeRecordOptions>(configuration.GetSection("TradeRecord"));
+        
+        Configure<TradePairEventSyncOptions>(configuration.GetSection("TradePairEventSync"));
+        
+        Configure<SwapEventSyncOptions>(configuration.GetSection("SwapEventSync"));
 
         context.Services.AddMassTransit(x =>
         {

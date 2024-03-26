@@ -131,7 +131,7 @@ public class GraphQLProvider : IGraphQLProvider, ISingletonDependency
         {
             Query =
                 @"query($chainId:String,$startBlockHeight:Long!,$endBlockHeight:Long!){
-            getLiquidityRecords(dto: {chainId:$chainId,startBlockHeight:$startBlockHeight,endBlockHeight:$endBlockHeight})
+            getLiquidityRecords(dto: {chainId:$chainId,startBlockHeight:$startBlockHeight,endBlockHeight:$endBlockHeight, skipCount:0, maxResultCount:10000})
             {
                 chainId,
                 pair,
@@ -156,6 +156,13 @@ public class GraphQLProvider : IGraphQLProvider, ISingletonDependency
                 endBlockHeight
             }
         });
+        
+        if (graphQlResponse.Errors != null)
+        {
+            ErrorLog(graphQlResponse.Errors);
+            return new List<LiquidityRecordDto>();
+        }
+        
         if (graphQlResponse.Data.GetLiquidityRecords.IsNullOrEmpty())
         {
             return new List<LiquidityRecordDto>();
@@ -175,7 +182,7 @@ public class GraphQLProvider : IGraphQLProvider, ISingletonDependency
         {
             Query =
                 @"query($chainId:String,$startBlockHeight:Long!,$endBlockHeight:Long!){
-            getSwapRecords(dto: {chainId:$chainId,startBlockHeight:$startBlockHeight,endBlockHeight:$endBlockHeight})
+            getSwapRecords(dto: {chainId:$chainId,startBlockHeight:$startBlockHeight,endBlockHeight:$endBlockHeight,skipCount:0,maxResultCount:10000})
             {
                 chainId,
                 pairAddress,
@@ -197,6 +204,11 @@ public class GraphQLProvider : IGraphQLProvider, ISingletonDependency
                 endBlockHeight
             }
         });
+        if (graphQlResponse.Errors != null)
+        {
+            ErrorLog(graphQlResponse.Errors);
+            return new List<SwapRecordDto>();
+        }
         if (graphQlResponse.Data.GetSwapRecords.IsNullOrEmpty())
         {
             return new List<SwapRecordDto>();
@@ -212,7 +224,7 @@ public class GraphQLProvider : IGraphQLProvider, ISingletonDependency
         {
             Query =
                 @"query($chainId:String,$startBlockHeight:Long!,$endBlockHeight:Long!){
-            getSyncRecords(dto: {chainId:$chainId,startBlockHeight:$startBlockHeight,endBlockHeight:$endBlockHeight})
+            getSyncRecords(dto: {chainId:$chainId,startBlockHeight:$startBlockHeight,endBlockHeight:$endBlockHeight,skipCount:0,maxResultCount:10000})
             {
                 chainId,
                 pairAddress,
@@ -230,6 +242,11 @@ public class GraphQLProvider : IGraphQLProvider, ISingletonDependency
                 endBlockHeight
             }
         });
+        if (graphQlResponse.Errors != null)
+        {
+            ErrorLog(graphQlResponse.Errors);
+            return new List<SyncRecordDto>();
+        }
         if (graphQlResponse.Data.GetSyncRecords.IsNullOrEmpty())
         {
             return new List<SyncRecordDto>();

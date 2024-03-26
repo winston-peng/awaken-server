@@ -6,6 +6,7 @@ using AwakenServer.Provider;
 using AwakenServer.Trade;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Volo.Abp.BackgroundWorkers;
 using Volo.Abp.Threading;
 
@@ -17,10 +18,13 @@ public class SwapEventSyncWorker : AsyncPeriodicBackgroundWorkerBase
     private readonly IGraphQLProvider _graphQlProvider;
     private readonly ITradeRecordAppService _tradeRecordAppService;
     private readonly ILogger<SwapEventSyncWorker> _logger;
+    private readonly SwapEventSyncOptions _option;
 
+    
     public SwapEventSyncWorker(AbpAsyncTimer timer, IServiceScopeFactory serviceScopeFactory,
         IChainAppService chainAppService, IGraphQLProvider iGraphQlProvider, 
-        ITradeRecordAppService tradeRecordAppService, ILogger<SwapEventSyncWorker> logger)
+        ITradeRecordAppService tradeRecordAppService, ILogger<SwapEventSyncWorker> logger,
+        IOptionsSnapshot<SwapEventSyncOptions> swapEventSyncOptions)
         : base(timer, serviceScopeFactory)
     {
         _graphQlProvider = iGraphQlProvider;
@@ -28,6 +32,7 @@ public class SwapEventSyncWorker : AsyncPeriodicBackgroundWorkerBase
         _tradeRecordAppService = tradeRecordAppService;
         _logger = logger;
         timer.Period = WorkerOptions.TimePeriod;
+        _option = swapEventSyncOptions.Value;
     }
 
     protected override async Task DoWorkAsync(PeriodicBackgroundWorkerContext workerContext)
@@ -38,6 +43,18 @@ public class SwapEventSyncWorker : AsyncPeriodicBackgroundWorkerBase
         foreach (var chain in chains.Items)
         {
             var lastEndHeight = await _graphQlProvider.GetLastEndHeightAsync(chain.Name, QueryType.Swap);
+            foreach (var option in _option.Chains)
+            {
+                if (option.ChainName != chain.Name)
+                {
+                    continue;
+                }
+
+                if (option.LastEndHeight > 0)
+                {
+                    lastEndHeight = option.LastEndHeight;
+                }
+            }
             _logger.LogInformation("swap first lastEndHeight: {lastEndHeight}", lastEndHeight);
             
             // if(lastEndHeight < 0) continue;

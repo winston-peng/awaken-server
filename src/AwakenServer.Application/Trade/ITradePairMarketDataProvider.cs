@@ -113,12 +113,12 @@ namespace AwakenServer.Trade
             _contractsTokenOptions = contractsTokenOptions.Value;
         }
 
-        private string genPartOfTradePairGrainId(string chainId, Guid tradePairId)
+        private string GenPartOfTradePairGrainId(string chainId, Guid tradePairId)
         {
             return GrainIdHelper.GenerateGrainId(chainId, tradePairId);
         }
 
-        private string genTradePairGrainId(string chainId, Guid tradePairId, DateTime datetime)
+        private string GenTradePairGrainId(string chainId, Guid tradePairId, DateTime datetime)
         {
             return GrainIdHelper.GenerateGrainId(chainId, tradePairId, datetime);
         }
@@ -132,15 +132,15 @@ namespace AwakenServer.Trade
                 var tradePairSnapshots = await GetIndexListAsync(tradePair.ChainId, tradePair.Id, now.AddDays(-7), now);
                 foreach (var snapshot in tradePairSnapshots)
                 {
-                    _tradePairToGrainIds.TryAdd(genPartOfTradePairGrainId(tradePair.ChainId, tradePair.Id),
+                    _tradePairToGrainIds.TryAdd(GenPartOfTradePairGrainId(tradePair.ChainId, tradePair.Id),
                         new HashSet<Tuple<string, DateTime>>());
-                    _tradePairToGrainIds[genPartOfTradePairGrainId(tradePair.ChainId, tradePair.Id)]
+                    _tradePairToGrainIds[GenPartOfTradePairGrainId(tradePair.ChainId, tradePair.Id)]
                         .Add(new Tuple<string, DateTime>(
-                            genTradePairGrainId(tradePair.ChainId, tradePair.Id, snapshot.Timestamp),
+                            GenTradePairGrainId(tradePair.ChainId, tradePair.Id, snapshot.Timestamp),
                             snapshot.Timestamp));
                     // for history data before add grain
                     var grain = await GetSnapShotGrain(tradePair.ChainId, tradePair.Id, snapshot.Timestamp);
-                    grain.AddOrUpdateAsync(snapshot);
+                    await grain.AddOrUpdateAsync(snapshot);
                 }
             }
         }
@@ -630,7 +630,7 @@ namespace AwakenServer.Trade
         public async Task<ITradePairSnapshotGrain> GetSnapShotGrain(string chainId, Guid tradePairId,
             DateTime snapshotTime)
         {
-            var partOfGrainId = genPartOfTradePairGrainId(chainId, tradePairId);
+            var partOfGrainId = GenPartOfTradePairGrainId(chainId, tradePairId);
             var grainId = GrainIdHelper.GenerateGrainId(chainId, tradePairId, snapshotTime);
             _tradePairToGrainIds.TryAdd(partOfGrainId, new HashSet<Tuple<string, DateTime>>());
             _tradePairToGrainIds[partOfGrainId].Add(new Tuple<string, DateTime>(grainId, snapshotTime));
@@ -641,12 +641,12 @@ namespace AwakenServer.Trade
             string chainId,
             Guid tradePairId, DateTime maxTime)
         {
-            if (!_tradePairToGrainIds.ContainsKey(genPartOfTradePairGrainId(chainId, tradePairId)))
+            if (!_tradePairToGrainIds.ContainsKey(GenPartOfTradePairGrainId(chainId, tradePairId)))
             {
                 return null;
             }
 
-            var grainList = _tradePairToGrainIds[genPartOfTradePairGrainId(chainId, tradePairId)].ToList();
+            var grainList = _tradePairToGrainIds[GenPartOfTradePairGrainId(chainId, tradePairId)].ToList();
             grainList.Sort(new StringDateTimeDescendingComparer());
             foreach (var grainId in grainList)
             {
@@ -668,12 +668,12 @@ namespace AwakenServer.Trade
             string chainId,
             Guid tradePairId)
         {
-            if (!_tradePairToGrainIds.ContainsKey(genPartOfTradePairGrainId(chainId, tradePairId)))
+            if (!_tradePairToGrainIds.ContainsKey(GenPartOfTradePairGrainId(chainId, tradePairId)))
             {
                 return null;
             }
 
-            var grainList = _tradePairToGrainIds[genPartOfTradePairGrainId(chainId, tradePairId)].ToList();
+            var grainList = _tradePairToGrainIds[GenPartOfTradePairGrainId(chainId, tradePairId)].ToList();
             grainList.Sort(new StringDateTimeDescendingComparer());
 
             if (grainList.IsNullOrEmpty())
@@ -690,12 +690,12 @@ namespace AwakenServer.Trade
             DateTime? timestampMin = null, DateTime? timestampMax = null)
         {
             List<Index.TradePairMarketDataSnapshot> resultList = new List<Index.TradePairMarketDataSnapshot>();
-            if (!_tradePairToGrainIds.ContainsKey(genPartOfTradePairGrainId(chainId, tradePairId)))
+            if (!_tradePairToGrainIds.ContainsKey(GenPartOfTradePairGrainId(chainId, tradePairId)))
             {
                 return resultList;
             }
 
-            var grainList = _tradePairToGrainIds[genPartOfTradePairGrainId(chainId, tradePairId)].ToList();
+            var grainList = _tradePairToGrainIds[GenPartOfTradePairGrainId(chainId, tradePairId)].ToList();
             grainList.Sort(new StringDateTimeDescendingComparer());
             foreach (var grainId in grainList)
             {

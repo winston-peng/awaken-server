@@ -7,6 +7,7 @@ using AwakenServer.Trade;
 using AwakenServer.Trade.Dtos;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Volo.Abp.BackgroundWorkers;
 using Volo.Abp.Threading;
 
@@ -18,10 +19,12 @@ public class TradePairEventSyncWorker : AsyncPeriodicBackgroundWorkerBase
     private readonly IGraphQLProvider _graphQlProvider;
     private readonly ILogger<TradePairEventSyncWorker> _logger;
     private readonly ITradePairAppService _tradePairAppService;
-
+    private readonly TradePairEventSyncOptions _option;
+    
     public TradePairEventSyncWorker(AbpAsyncTimer timer, IServiceScopeFactory serviceScopeFactory,
         IGraphQLProvider iGraphQlProvider, IChainAppService chainAppService,
-        ITradePairAppService tradePairAppService, ILogger<TradePairEventSyncWorker> logger)
+        ITradePairAppService tradePairAppService, ILogger<TradePairEventSyncWorker> logger,
+        IOptionsSnapshot<TradePairEventSyncOptions> tradePairOptions)
         : base(timer, serviceScopeFactory)
     {
         _graphQlProvider = iGraphQlProvider;
@@ -29,6 +32,7 @@ public class TradePairEventSyncWorker : AsyncPeriodicBackgroundWorkerBase
         _logger = logger;
         _tradePairAppService = tradePairAppService;
         timer.Period = WorkerOptions.TimePeriod;
+        _option = tradePairOptions.Value;
     }
 
     protected override async Task DoWorkAsync(PeriodicBackgroundWorkerContext workerContext)
@@ -36,7 +40,20 @@ public class TradePairEventSyncWorker : AsyncPeriodicBackgroundWorkerBase
         var chains = await _chainAppService.GetListAsync(new GetChainInput());
         foreach (var chain in chains.Items)
         {
+            
             var lastEndHeight = await _graphQlProvider.GetLastEndHeightAsync(chain.Name, QueryType.TradePair);
+            foreach (var option in _option.Chains)
+            {
+                if (option.ChainName != chain.Name)
+                {
+                    continue;
+                }
+
+                if (option.LastEndHeight > 0)
+                {
+                    lastEndHeight = option.LastEndHeight;
+                }
+            }
             _logger.LogInformation("trade first lastEndHeight: {lastEndHeight}", lastEndHeight);
             
             var result = await _graphQlProvider.GetTradePairInfoListAsync(new GetTradePairsInfoInput
@@ -59,7 +76,10 @@ public class TradePairEventSyncWorker : AsyncPeriodicBackgroundWorkerBase
                 await _tradePairAppService.SyncPairAsync(pair, chain);
             }
 
-            await _graphQlProvider.SetLastEndHeightAsync(chain.Name, QueryType.TradePair, blockHeight);
+            if (blockHeight > 0)
+            {
+                await _graphQlProvider.SetLastEndHeightAsync(chain.Name, QueryType.TradePair, blockHeight);
+            }
             _logger.LogInformation($"TradePair lastEndHeight: {blockHeight},:chainId:{chain.Name}");
         }
     }
