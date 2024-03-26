@@ -43,7 +43,7 @@ public class GraphQLProvider : IGraphQLProvider, ISingletonDependency
             Query =
                 @"query($id:String = null ,$chainId:String = null,$address:String = null,$token0Symbol:String = null,
             $token1Symbol:String = null,$tokenSymbol:String = null,$feeRate:Float!,$startBlockHeight:Long!,$endBlockHeight:Long!){
-            getTradePairInfoList(getTradePairInfoDto: {id:$id,chainId:$chainId,address:$address,token0Symbol:$token0Symbol,
+            tradePairInfoDtoList:getTradePairInfoList(getTradePairInfoDto: {id:$id,chainId:$chainId,address:$address,token0Symbol:$token0Symbol,
             token1Symbol:$token1Symbol,tokenSymbol:$tokenSymbol,feeRate:$feeRate,skipCount:0,maxResultCount:1000,
             startBlockHeight:$startBlockHeight,endBlockHeight:$endBlockHeight}){
             totalCount,
