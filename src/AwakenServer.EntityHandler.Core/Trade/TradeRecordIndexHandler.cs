@@ -49,7 +49,7 @@ namespace AwakenServer.EntityHandler.Trade
                 Math.Pow(10, 8);
 
             await _tradeRecordIndexRepository.AddOrUpdateAsync(index);
-
+            
             await _bus.Publish(new NewIndexEvent<TradeRecordIndexDto>
             {
                 Data = ObjectMapper.Map<TradeRecord, TradeRecordIndexDto>(index)
