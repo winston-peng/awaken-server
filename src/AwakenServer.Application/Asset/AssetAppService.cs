@@ -65,7 +65,8 @@ public class AssetAppService : ApplicationService, IAssetAppService
             return await GetAssetFromCacheOrAElfAsync(input.ChainId, input.Address);
         }
 
-        var showList = new List<UserTokenInfo>();
+        var list = new List<UserTokenInfo>();
+
         var symbolList = tokenList.Select(i => i.Symbol).ToList();
         var symbolPriceMap =
             (await _priceAppService.GetTokenPriceListAsync(symbolList)).Items.ToDictionary(i => i.Symbol,
@@ -73,69 +74,105 @@ public class AssetAppService : ApplicationService, IAssetAppService
         foreach (var userTokenDto in tokenList)
         {
             var userTokenInfo = ObjectMapper.Map<UserTokenDto, UserTokenInfo>(userTokenDto);
-            showList.Add(userTokenInfo);
+            list.Add(userTokenInfo);
 
-            var tokenDto = await _tokenAppService.GetAsync(new GetTokenInput
-            {
-                Symbol = userTokenInfo.Symbol
-            });
-            if (tokenDto == null)
-            {
-                var tokenInfo = await _aelfClientProvider.GetTokenInfoAsync(input.ChainId, null, userTokenInfo.Symbol);
-                if (tokenInfo == null)
-                {
-                    continue;
-                }
+            await SetUserTokenInfoAsync(userTokenInfo, symbolPriceMap.GetValueOrDefault(userTokenDto.Symbol));
+        }
 
-                await _tokenAppService.CreateAsync(new TokenCreateDto
-                {
-                    Symbol = userTokenInfo.Symbol,
-                    Address = tokenInfo.Address,
-                    Decimals = tokenInfo.Decimals,
-                    ChainId = input.ChainId
-                });
-                tokenDto = new TokenDto
-                {
-                    Decimals = tokenInfo.Decimals
-                };
+        await AddNftTokenInfoAsync(list, input.ChainId, input.Address);
+
+
+        return await FilterListAsync(list);
+    }
+
+    private async Task<UserAssetInfoDto> FilterListAsync(List<UserTokenInfo> list)
+    {
+        var showList = new List<UserTokenInfo>();
+        var hiddenList = new List<UserTokenInfo>();
+
+        foreach (var userTokenInfo in list)
+        {
+            if (_assetShowOptions.ShowList.Contains(userTokenInfo.Symbol))
+            {
+                showList.Add(userTokenInfo);
             }
-
-
-            userTokenInfo.Amount = userTokenInfo.Balance.ToDecimalsString(tokenDto.Decimals);
-            userTokenInfo.PriceInUsd = "0";
-            if (!userTokenInfo.Symbol.Contains("-"))
+            else
             {
-                userTokenInfo.PriceInUsd =
-                    ((long)(userTokenInfo.Balance * symbolPriceMap.GetValueOrDefault(userTokenDto.Symbol)))
-                    .ToDecimalsString(tokenDto.Decimals);
+                hiddenList.Add(userTokenInfo);
             }
         }
 
-
         showList = showList.Where(o => o.PriceInUsd != null).Where(o => o.Balance > 0)
-            .OrderByDescending(o => Double.Parse(o.PriceInUsd)).ToList();
-        foreach (var nftSymbol in _assetShowOptions.NftList.Where(w => !showList.Any(o => o.Symbol == w)).ToList())
-        {
-            var balanceOutput = await _aelfClientProvider.GetBalanceAsync(input.ChainId, input.Address,
-                _assetWhenNoTransactionOptions.ContractAddressOfGetBalance[input.ChainId], nftSymbol);
+            .OrderByDescending(o => Double.Parse(o.PriceInUsd)).ThenBy(o => o.Symbol).ToList();
 
-            if (balanceOutput != null)
+        hiddenList = hiddenList.Where(o => o.PriceInUsd != null).Where(o => o.Balance > 0)
+            .OrderByDescending(o => Double.Parse(o.PriceInUsd)).ThenBy(o => o.Symbol).ToList();
+
+        if (showList.Count < _assetShowOptions.ShowListLength)
+        {
+            var fillLen = _assetShowOptions.ShowListLength - showList.Count;
+
+            if (hiddenList.Count >= fillLen)
             {
-                var userTokenInfo = new UserTokenInfo()
-                {
-                    Balance = balanceOutput.Balance,
-                    Symbol = balanceOutput.Symbol,
-                    ChainId = input.ChainId,
-                    Address = input.Address
-                };
-                showList.Add(userTokenInfo);
+                showList.AddRange(hiddenList.GetRange(0, fillLen));
+                hiddenList = hiddenList.GetRange(fillLen, hiddenList.Count - fillLen);
             }
+            else
+            {
+                showList.AddRange(hiddenList);
+                hiddenList = new List<UserTokenInfo>();
+            }
+
+            showList = showList.Where(o => o.PriceInUsd != null).Where(o => o.Balance > 0)
+                .OrderByDescending(o => Double.Parse(o.PriceInUsd)).ThenBy(o => o.Symbol).ToList();
+        }
+
+        if (showList.Count > _assetShowOptions.ShowListLength)
+        {
+            hiddenList.InsertRange(0, showList.GetRange(_assetShowOptions.ShowListLength,
+                showList.Count - _assetShowOptions.ShowListLength));
+
+
+            showList.RemoveRange(_assetShowOptions.ShowListLength, showList.Count - _assetShowOptions.ShowListLength);
         }
 
         return new UserAssetInfoDto()
         {
-            Items = showList,
+            ShowList = showList,
+            HiddenList = hiddenList
         };
+    }
+
+    private async Task AddNftTokenInfoAsync(List<UserTokenInfo> list, string chainId, string address)
+    {
+        var userTokenInfosDic = list.ToDictionary(key => key.Symbol);
+        foreach (var nftSymbol in _assetShowOptions.NftList)
+        {
+            if (!userTokenInfosDic.ContainsKey(nftSymbol))
+            {
+                var balanceOutput = await _aelfClientProvider.GetBalanceAsync(chainId, address,
+                    _assetWhenNoTransactionOptions.ContractAddressOfGetBalance[chainId], nftSymbol);
+
+                if (balanceOutput.Balance == 0)
+                {
+                    continue;
+                }
+
+                _logger.LogInformation("get balance,token:{token},balance:{balance}", nftSymbol, balanceOutput.Balance);
+                if (balanceOutput != null)
+                {
+                    var userTokenInfo = new UserTokenInfo()
+                    {
+                        Balance = balanceOutput.Balance,
+                        Symbol = balanceOutput.Symbol,
+                        ChainId = chainId,
+                        Address = address,
+                    };
+                    await SetUserTokenInfoAsync(userTokenInfo, 0);
+                    list.Add(userTokenInfo);
+                }
+            }
+        }
     }
 
     private async Task<UserAssetInfoDto> GetAssetFromCacheOrAElfAsync(string chainId, string address)
@@ -149,28 +186,11 @@ public class AssetAppService : ApplicationService, IAssetAppService
         var userAsset = await _userAssetInfoDtoCache.GetAsync($"{userAssetInfoDtoPrefix}:{chainId}:{address}");
         if (userAsset != null)
         {
-            foreach (var userTokenInfo in userAsset.Items)
-            {
-                var decimals = await GetTokenDecimalAsync(userTokenInfo);
-                userTokenInfo.PriceInUsd =
-                    ((long)(userTokenInfo.Balance * symbolPriceMap.GetValueOrDefault(userTokenInfo.Symbol)))
-                    .ToDecimalsString(decimals);
-            }
-
-
-            await _userAssetInfoDtoCache.SetAsync($"{userAssetInfoDtoPrefix}:{chainId}:{address}", userAsset,
-                new DistributedCacheEntryOptions
-                {
-                    AbsoluteExpiration =
-                        DateTimeOffset.UtcNow.AddSeconds(_assetWhenNoTransactionOptions.ExpireDurationMinutes)
-                });
-
             return userAsset;
         }
 
 
-        var showList = new List<UserTokenInfo>();
-
+        var list = new List<UserTokenInfo>();
         foreach (var symbol in _assetWhenNoTransactionOptions.Symbols)
         {
             var balanceOutput = await _aelfClientProvider.GetBalanceAsync(chainId, address,
@@ -184,51 +204,17 @@ public class AssetAppService : ApplicationService, IAssetAppService
                     ChainId = chainId,
                     Address = address
                 };
-                if (_assetShowOptions.ShowList.Contains(userTokenInfo.Symbol))
-                {
-                    showList.Add(userTokenInfo);
-                }
+                list.Add(userTokenInfo);
 
-
-                var decimals = await GetTokenDecimalAsync(userTokenInfo);
-                userTokenInfo.Amount = userTokenInfo.Balance.ToDecimalsString(decimals);
-
-                userTokenInfo.PriceInUsd = "0";
-                if (!userTokenInfo.Symbol.Contains("-"))
-                {
-                    userTokenInfo.PriceInUsd =
-                        ((long)(userTokenInfo.Balance * symbolPriceMap.GetValueOrDefault(userTokenInfo.Symbol)))
-                        .ToDecimalsString(decimals);
-                }
+                await SetUserTokenInfoAsync(userTokenInfo, symbolPriceMap.GetValueOrDefault(userTokenInfo.Symbol));
             }
         }
 
-        showList = showList.Where(o => o.PriceInUsd != null).Where(o => o.Balance > 0)
-            .OrderByDescending(o => Double.Parse(o.PriceInUsd))
-            .ToList();
 
-        foreach (var nftSymbol in _assetShowOptions.NftList.Where(w => !showList.Any(o => o.Symbol == w)).ToList())
-        {
-            var balanceOutput = await _aelfClientProvider.GetBalanceAsync(chainId, address,
-                _assetWhenNoTransactionOptions.ContractAddressOfGetBalance[chainId], nftSymbol);
+        await AddNftTokenInfoAsync(list, chainId, address);
 
-            if (balanceOutput != null)
-            {
-                var userTokenInfo = new UserTokenInfo()
-                {
-                    Balance = balanceOutput.Balance,
-                    Symbol = balanceOutput.Symbol,
-                    ChainId = chainId,
-                    Address = address
-                };
-                showList.Add(userTokenInfo);
-            }
-        }
+        var result = await FilterListAsync(list);
 
-        var result = new UserAssetInfoDto()
-        {
-            Items = showList,
-        };
 
         await _userAssetInfoDtoCache.SetAsync($"{userAssetInfoDtoPrefix}:{chainId}:{address}", result,
             new DistributedCacheEntryOptions
@@ -239,11 +225,25 @@ public class AssetAppService : ApplicationService, IAssetAppService
         return result;
     }
 
-    public async Task<int> GetTokenDecimalAsync(UserTokenInfo userTokenInfo)
+
+    public async Task SetUserTokenInfoAsync(UserTokenInfo userTokenInfo, decimal priceInUsd)
+    {
+        var tokenDecimal = await GetTokenDecimalAsync(userTokenInfo.Symbol, userTokenInfo.ChainId);
+
+
+        userTokenInfo.Amount = userTokenInfo.Balance.ToDecimalsString(tokenDecimal);
+
+
+        userTokenInfo.PriceInUsd =
+            ((long)(userTokenInfo.Balance * priceInUsd))
+            .ToDecimalsString(tokenDecimal);
+    }
+
+    public async Task<int> GetTokenDecimalAsync(string symbol, string chainId)
     {
         var tokenDto = await _tokenAppService.GetAsync(new GetTokenInput
         {
-            Symbol = userTokenInfo.Symbol
+            Symbol = symbol
         });
 
         if (tokenDto != null)
@@ -253,18 +253,20 @@ public class AssetAppService : ApplicationService, IAssetAppService
 
 
         var tokenInfo =
-            await _aelfClientProvider.GetTokenInfoAsync(userTokenInfo.ChainId, null, userTokenInfo.Symbol);
-        if (tokenInfo == null || tokenInfo.Decimals == 0)
+            await _aelfClientProvider.GetTokenInfoAsync(chainId, null, symbol);
+        if (tokenInfo == null)
         {
+            _logger.LogInformation("GetTokenInfo is null:{token}", symbol);
             return 0;
         }
 
+
         await _tokenAppService.CreateAsync(new TokenCreateDto
         {
-            Symbol = userTokenInfo.Symbol,
+            Symbol = symbol,
             Address = tokenInfo.Address,
             Decimals = tokenInfo.Decimals,
-            ChainId = userTokenInfo.ChainId
+            ChainId = chainId
         });
 
 

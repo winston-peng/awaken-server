@@ -83,6 +83,7 @@ namespace AwakenServer.Trade.Handlers
                         kLine.Volume = token0Amount;
                     }
                     await grain.AddOrUpdateAsync(kLine);
+                    
                     await DistributedEventBus.PublishAsync(_objectMapper.Map<KLineGrainDto, KLineEto>(kLine));
                 }
             }

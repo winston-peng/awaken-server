@@ -3,9 +3,10 @@ using Volo.Abp.Application.Dtos;
 
 namespace AwakenServer.Asset;
 
-public class UserAssetInfoDto:PagedResultRequestDto
+public class UserAssetInfoDto
 {
-    public List<UserTokenInfo> Items { get; set; }
+    public List<UserTokenInfo> ShowList { get; set; }
+    public List<UserTokenInfo> HiddenList { get; set; }
 }
 
 public class UserTokenInfo : UserTokenDto
