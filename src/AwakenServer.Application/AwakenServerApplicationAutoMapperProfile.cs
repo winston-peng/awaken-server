@@ -67,6 +67,7 @@ namespace AwakenServer
             CreateMap<UserTradeSummaryGrainDto, UserTradeSummaryEto>();
             CreateMap<UserTradeSummaryEto, Trade.Index.UserTradeSummary>();
             CreateMap<Trade.TradePair, TradePairDto>();
+            CreateMap<Trade.TradePair, Trade.Index.TradePair>().ReverseMap();
             CreateMap<Trade.Index.TradePair, TradePairIndexDto>();
             CreateMap<Trade.Index.TradePair, TradePairDto>()
                 .ForMember(dest => dest.Token0Symbol, opt => opt.MapFrom(src => src.Token0.Symbol))
@@ -74,7 +75,8 @@ namespace AwakenServer
                 .ForMember(dest => dest.Token0Id, opt => opt.MapFrom(src => src.Token0.Id))
                 .ForMember(dest => dest.Token1Id, opt => opt.MapFrom(src => src.Token1.Id));
             CreateMap<TradePairEto, Trade.Index.TradePair>().ReverseMap();
-
+            CreateMap<TradePairInfoEto, TradePairInfoIndex>().ReverseMap();
+            
             CreateMap<Trade.TradePair, TradePairWithToken>();
             CreateMap<TradePairWithToken, TradePairWithTokenDto>();
 
@@ -92,7 +94,13 @@ namespace AwakenServer
             CreateMap<TradePairInfoIndex, Trade.TradePair>();
             CreateMap<TradePairCreateDto, TradePairInfoIndex>();
             CreateMap<TradePairCreateDto, Trade.Index.TradePair>();
+            CreateMap<TradePairCreateDto, TradePairGrainDto>();
+            CreateMap<TradePairGrainDto, TradePairIndexDto>();
+            CreateMap<Trade.Index.TradePair, TradePairGrainDto>();
+            CreateMap<TradePairGrainDto, TradePairInfoDto>().ReverseMap();
             CreateMap<TradePairDto, Trade.TradePair>();
+            CreateMap<TradePairGrainDto, TradePairDto>().ReverseMap();
+            CreateMap<TradePairGrainDto, TradePairEto>();
             CreateMap<GetTradePairByIdsInput, GetTradePairsInput>();
 
             CreateMap<LiquidityRecordCreateDto, Trade.LiquidityRecord>().Ignore(x => x.Id).ForMember(
@@ -123,7 +131,9 @@ namespace AwakenServer
             CreateMap<TradePairMarketDataSnapshot, AwakenServer.Trade.TradePairMarketDataSnapshot>();
             CreateMap<AwakenServer.Trade.TradePairMarketDataSnapshot, TradePairMarketDataSnapshotGrainDto>();
             CreateMap<TradePairMarketDataSnapshotGrainDto, TradePairMarketDataSnapshotEto>();
-
+            CreateMap<AwakenServer.Trade.Index.TradePairMarketDataSnapshot, TradePairMarketDataSnapshotGrainDto>().ReverseMap();
+            
+            
             //Favorite
             CreateMapForFavorite();
         }

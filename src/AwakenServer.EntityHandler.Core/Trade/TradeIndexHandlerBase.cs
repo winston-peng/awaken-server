@@ -26,7 +26,7 @@ namespace AwakenServer.EntityHandler.Trade
 
         protected async Task<TradePairWithToken> GetTradePariWithTokenAsync(Guid tradePairId)
         {
-            var pairDto = await TradePairAppService.GetFromGrainAsync(tradePairId);
+            var pairDto = await TradePairAppService.GetAsync(tradePairId);
             var pairWithToken = new TradePairWithToken();
             pairWithToken.Id = tradePairId;
             pairWithToken.Address = pairDto.Address;

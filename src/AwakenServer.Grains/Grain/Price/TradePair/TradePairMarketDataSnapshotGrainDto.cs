@@ -4,7 +4,6 @@ namespace AwakenServer.Grains.Grain.Price.TradePair;
 
 public class TradePairMarketDataSnapshotGrainDto : TradePairMarketDataBase
 {
-    public Guid Id { get; set; }
     public string ChainId { get; set; }
     public Guid TradePairId { get; set; }
     public string TotalSupply { get; set; } = "0";
@@ -21,3 +20,4 @@ public class TradePairMarketDataSnapshotGrainDto : TradePairMarketDataBase
     public int TradeAddressCount24h { get; set; }
     public DateTime Timestamp { get; set; }
 }
+

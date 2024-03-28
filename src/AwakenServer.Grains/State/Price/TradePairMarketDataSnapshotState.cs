@@ -10,6 +10,8 @@ public class TradePairMarketDataSnapshotState
     public double PriceUSD { get; set; }
     public double PriceHigh { get; set; }
     public double PriceLow { get; set; }
+    public double PriceHighUSD { get; set; }
+    public double PriceLowUSD { get; set; }
     public double TVL { get; set; }
     public double ValueLocked0 { get; set; }
     public double ValueLocked1 { get; set; }

@@ -1,4 +1,4 @@
-using AwakenServer.Trade.Index;
+using AwakenServer.Trade;
 
 namespace AwakenServer.Grains.State.Trade;
 

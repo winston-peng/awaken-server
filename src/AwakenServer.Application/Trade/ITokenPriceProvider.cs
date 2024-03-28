@@ -65,7 +65,7 @@ namespace AwakenServer.Trade
                     symbol, chainId);
                 return 0;
             }
-            
+
             return (double)price.Items[0].PriceInUsd;
         }
 
@@ -79,7 +79,8 @@ namespace AwakenServer.Trade
             await UpdateCacheAsync(chainId, tokenPrices);
         }
 
-        private async Task UpdatePriceAsync(string chainId, Dictionary<Guid,TokenPrice> tokenPrices, Guid token0, Guid token1, double price)
+        private async Task UpdatePriceAsync(string chainId, Dictionary<Guid, TokenPrice> tokenPrices, Guid token0,
+            Guid token1, double price)
         {
             if (tokenPrices.TryGetValue(token0, out var tokenPrice))
             {
@@ -93,7 +94,7 @@ namespace AwakenServer.Trade
                 var tokenInfo0 = await _tokenAppService.GetAsync(token0);
                 var chain = await _chainIndexRepository.GetAsync(chainId);
                 if (_stableCoinOptions.Coins[chain.Name]
-                    .FirstOrDefault(c => c.Address == tokenInfo0.Address && c.Symbol == tokenInfo0.Symbol) != null)
+                        .FirstOrDefault(c => c.Address == tokenInfo0.Address && c.Symbol == tokenInfo0.Symbol) != null)
                 {
                     tokenPrices[token0] = new TokenPrice
                     {
@@ -126,8 +127,8 @@ namespace AwakenServer.Trade
             mustQuery.Add(q => q.Term(t => t.Field(f => f.ChainId).Value(chainId)));
             QueryContainer Filter(QueryContainerDescriptor<TradePairInfoIndex> f) => f.Bool(b => b.Must(mustQuery));
             var tradePairInfo = await _tradePairInfoIndex.GetListAsync(Filter);
-            var pools = _objectMapper.Map<List<TradePairInfoIndex>,List<TradePair>>(tradePairInfo.Item2);
-            
+            var pools = _objectMapper.Map<List<TradePairInfoIndex>, List<TradePair>>(tradePairInfo.Item2);
+
             var chain = await _chainIndexRepository.GetAsync(chainId);
             var stableCoins = _stableCoinOptions.Coins[chain.Name];
             tokenPrices = new Dictionary<Guid, TokenPrice>();
@@ -185,7 +186,9 @@ namespace AwakenServer.Trade
 
                     foreach (var pool in pools)
                     {
-                        var marketData = await _tradePairMarketDataProvider.GetLatestTradePairMarketDataAsync(pool.ChainId,pool.Id);
+                        var marketData =
+                            await _tradePairMarketDataProvider.GetLatestTradePairMarketDataFromGrainAsync(pool.ChainId,
+                                pool.Id);
                         var price = marketData?.Price ?? 0;
                         if (pool.Token0Id == rootToken)
                         {
@@ -208,7 +211,7 @@ namespace AwakenServer.Trade
                             }
 
                             tokenPrices[pool.Token0Id] = new TokenPrice
-                                {Level = level, PriceToken = pool.Token1Id, Price = price};
+                                { Level = level, PriceToken = pool.Token1Id, Price = price };
                             newRootTokens.Add(pool.Token0Id);
                         }
                     }

@@ -1,15 +1,9 @@
-using System;
-using AwakenServer.Tokens;
+using AwakenServer.Trade.Dtos;
 
-namespace AwakenServer.Trade
+namespace AwakenServer.Trade.Dtos
 {
-    public class TradePair : TradePairBase
+    public class TradePairGrainDto : TradePairDto
     {
-        public Guid Token0Id { get; set; }
-        public Guid Token1Id { get; set; }
-        
-        public string Token0Symbol { get; set; }
-        public string Token1Symbol { get; set; }
         public string TotalSupply { get; set; }
         public double Price { get; set; }
         public double PriceUSD { get; set; }
@@ -29,14 +23,5 @@ namespace AwakenServer.Trade
         public int TradeCount24h { get; set; }
         public int TradeAddressCount24h { get; set; }
         public double FeePercent7d { get; set; }
-        
-        public TradePair()
-        {
-        }
-
-        public TradePair(Guid id)
-            : base(id)
-        {
-        }
     }
 }

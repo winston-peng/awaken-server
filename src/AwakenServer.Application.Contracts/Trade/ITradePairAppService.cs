@@ -13,7 +13,7 @@ namespace AwakenServer.Trade
     {
         Task<PagedResultDto<TradePairIndexDto>> GetListAsync(GetTradePairsInput input);
         Task<TradePairIndexDto> GetAsync(Guid id);
-        Task<TradePairIndexDto> GetFromGrainAsync(Guid id);
+        Task<TradePairGrainDto> GetFromGrainAsync(Guid id);
 
         Task<TradePairIndexDto> GetByAddressAsync(Guid id, [CanBeNull] string address);
 
