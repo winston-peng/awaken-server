@@ -141,10 +141,19 @@ namespace AwakenServer.Trade
                         .Add(new Tuple<string, DateTime>(
                             GenTradePairGrainId(tradePair.ChainId, tradePair.Id, snapshot.Timestamp),
                             snapshot.Timestamp));
+                    
                     // for history data before add grain
                     var grain = await GetSnapShotGrain(tradePair.ChainId, tradePair.Id, snapshot.Timestamp);
                     await grain.AddOrUpdateAsync(_objectMapper
                         .Map<Index.TradePairMarketDataSnapshot, TradePairMarketDataSnapshotGrainDto>(snapshot));
+                }
+                
+                // for history data before add grain
+                var tradePairGrain = _clusterClient.GetGrain<ITradePairGrain>(GrainIdHelper.GenerateGrainId(tradePair.Id));
+                var tradePairResult = await tradePairGrain.GetAsync();
+                if (!tradePairResult.Success)
+                {
+                    await tradePairGrain.AddOrUpdateAsync(_objectMapper.Map<Index.TradePair, TradePairGrainDto>(tradePair));
                 }
             }
         }
@@ -240,7 +249,8 @@ namespace AwakenServer.Trade
                 await GetLatestTradePairMarketDataFromGrainAsync(chainId, tradePairId, snapshotTime);
             var userTradeAddressCount = await _tradeRecordAppService.GetUserTradeAddressCountAsync(chainId,
                 tradePairId,
-                timestamp.AddDays(-1), timestamp);
+                timestamp.AddDays(-1), 
+                timestamp);
 
             var updateResult = await grain.UpdateTotalSupplyWithLiquidityAsync(new TradePairMarketDataSnapshotGrainDto
                 {
