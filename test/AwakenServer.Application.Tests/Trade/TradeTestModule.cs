@@ -128,7 +128,10 @@ namespace AwakenServer.Trade
 
             context.Services.AddSingleton<TestEnvironmentProvider>();
             
-            context.Services.AddSingleton<IBlockchainClientProvider, MockEthereumClientProvider>(); 
+            context.Services.AddSingleton<IBlockchainClientProvider, MockEthereumClientProvider>();
+            context.Services.AddSingleton<IBlockchainClientProvider, MockTDVVClientProvider>();
+            context.Services.AddSingleton<IBlockchainClientProvider, MockDefaultClientProvider>(); 
+
             context.Services.AddSingleton<ITradePairMarketDataProvider, TradePairMarketDataProvider>();
             context.Services.AddSingleton<ITradeRecordAppService, TradeRecordAppService>();
         }

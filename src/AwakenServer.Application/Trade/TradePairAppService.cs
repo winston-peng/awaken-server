@@ -280,7 +280,7 @@ namespace AwakenServer.Trade
             tradePairGrainDto.Token1Symbol = token1.Symbol;
             
             var grain = _clusterClient.GetGrain<ITradePairGrain>(GrainIdHelper.GenerateGrainId(tradePairInfo.Id));
-            await grain.AddOrUpdateAsync(tradePairGrainDto);
+            await grain.AddAsync(tradePairGrainDto);
             // await grain.AddOrUpdateInfoAsync(tradePairInfo);
             
             var index = ObjectMapper.Map<TradePairCreateDto, Index.TradePair>(input);
@@ -392,16 +392,10 @@ namespace AwakenServer.Trade
                 _logger.LogInformation("no need to update trade pair id:{id}", id);
                 return;
             }
-
-            var previous7DaysSnapshots =
-                await _tradePairMarketDataProvider.GetTradePairMarketDataListFromGrainAsync(pair.ChainId, pair.Id,
-                    snapshotTime.AddDays(-7));
+            
             var userTradeAddressCount = await _tradeRecordAppService.GetUserTradeAddressCountAsync(pair.ChainId, pair.Id, snapshotTime);
             
-            var priceUSD0 = await _tokenPriceProvider.GetTokenUSDPriceAsync(pair.ChainId, pair.Token0Symbol);
-            var priceUSD1 = await _tokenPriceProvider.GetTokenUSDPriceAsync(pair.ChainId, pair.Token1Symbol);
-            
-            var tradePairGrainDtoResult = await grain.AddOrUpdateFromUpdateAsync(snapshotTime, previous7DaysSnapshots, userTradeAddressCount, priceUSD0, priceUSD1);
+            var tradePairGrainDtoResult = await grain.UpdateAsync(snapshotTime, userTradeAddressCount);
             
             if (!tradePairGrainDtoResult.Success)
             {
@@ -486,7 +480,7 @@ namespace AwakenServer.Trade
 
             var grain = _clusterClient.GetGrain<ITradePairGrain>(GrainIdHelper.GenerateGrainId(pair.Id));
             
-            await grain.AddOrUpdateAsync(_objectMapper.Map<TradePairInfoDto, TradePairGrainDto>(pair));
+            await grain.AddAsync(_objectMapper.Map<TradePairInfoDto, TradePairGrainDto>(pair));
             
             _logger.LogInformation("create pair success Id:{pairId},chainId:{chainId},token0:{token0}," +
                                    "token1:{token1}", pair.Id, chain.Id, pair.Token0Symbol, pair.Token1Symbol);

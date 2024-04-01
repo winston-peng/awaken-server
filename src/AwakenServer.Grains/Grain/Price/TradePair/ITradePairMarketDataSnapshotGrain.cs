@@ -8,6 +8,7 @@ public interface ITradePairMarketDataSnapshotGrain : IGrainWithStringKey
     Task<GrainResultDto<TradePairMarketDataSnapshotGrainDto>> GetAsync();
     Task<GrainResultDto<TradePairMarketDataSnapshotGrainDto>> AddOrUpdateAsync(TradePairMarketDataSnapshotGrainDto dto);
 
+    
     Task<GrainResultDto<TradePairMarketDataSnapshotGrainDto>> UpdateTotalSupplyWithLiquidityAsync(
         TradePairMarketDataSnapshotGrainDto dto,
         TradePairMarketDataSnapshotGrainDto latestBeforeDto,
@@ -15,13 +16,13 @@ public interface ITradePairMarketDataSnapshotGrain : IGrainWithStringKey
         int userTradeAddressCount,
         string lpTokenCurrentSupply);
 
-    Task<GrainResultDto<TradePairMarketDataSnapshotGrainDto>> UpdateTotalSupplyAsync(BigDecimal lpTokenAmount, string lpTokenCurrentSupply,
-        DateTime snapshotTime);
+    Task<GrainResultDto<TradePairMarketDataSnapshotGrainDto>> UpdateTradeRecord(
+        TradePairMarketDataSnapshotGrainDto dto,
+        TradePairMarketDataSnapshotGrainDto latestBeforeDto);
 
-    Task<GrainResultDto<TradePairMarketDataSnapshotGrainDto>> UpdateTradeRecord(TradePairMarketDataSnapshotGrainDto dto,
-        TradePairMarketDataSnapshotGrainDto lastMarketData);
-
-    Task<GrainResultDto<TradePairMarketDataSnapshotGrainDto>> UpdateLiquidityWithSyncEvent(TradePairMarketDataSnapshotGrainDto dto,
-        TradePairMarketDataSnapshotGrainDto lastMarketData,
+    Task<GrainResultDto<TradePairMarketDataSnapshotGrainDto>> UpdateLiquidityWithSyncEvent(
+        TradePairMarketDataSnapshotGrainDto dto,
+        TradePairMarketDataSnapshotGrainDto latestBeforeDto,
         int userTradeAddressCount);
+    
 }

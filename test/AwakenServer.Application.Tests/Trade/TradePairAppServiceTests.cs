@@ -186,12 +186,11 @@ namespace AwakenServer.Trade
                 Token1Amount = "10000",
                 Timestamp = DateTimeHelper.ToUnixTimeMilliseconds(DateTime.UtcNow.AddDays(-2))
             };
+            
             await _tradePairAppService.UpdateLiquidityAsync(newLiquidity);
-
-
+            
             var snapshotTime =
-                _tradePairMarketDataProvider.GetSnapshotTime(
-                    DateTimeHelper.FromUnixTimeMilliseconds(newLiquidity.Timestamp));
+                _tradePairMarketDataProvider.GetSnapshotTime(DateTimeHelper.FromUnixTimeMilliseconds(newLiquidity.Timestamp));
             var marketDataSnapshot = await _tradePairSnapshotIndexRepository.GetAsync(q =>
                 q.Term(i => i.Field(f => f.TradePairId).Value(newLiquidity.TradePairId)) &&
                 q.Term(i => i.Field(f => f.Timestamp).Value(snapshotTime)));
@@ -218,6 +217,7 @@ namespace AwakenServer.Trade
                 Token1Amount = "22000",
                 Timestamp = DateTimeHelper.ToUnixTimeMilliseconds(DateTime.UtcNow)
             };
+            
             await _tradePairAppService.UpdateLiquidityAsync(newLiquidity2);
 
             snapshotTime =
@@ -249,6 +249,7 @@ namespace AwakenServer.Trade
                 Token1Amount = "12000",
                 Timestamp = DateTimeHelper.ToUnixTimeMilliseconds(DateTime.UtcNow.AddDays(-1))
             };
+            
             await _tradePairAppService.UpdateLiquidityAsync(newLiquidity3);
 
             snapshotTime =
@@ -458,8 +459,8 @@ namespace AwakenServer.Trade
                 PriceUSD = 1.5,
             };
 
-            var grain = await _tradePairMarketDataProvider.GetSnapShotGrain(snapshot.ChainId, snapshot.TradePairId,
-                _tradePairMarketDataProvider.GetSnapshotTime(snapshot.Timestamp));
+            var grain = _clusterClient.GetGrain<ITradePairMarketDataSnapshotGrain>(GrainIdHelper.GenerateGrainId(snapshot.ChainId, snapshot.TradePairId,
+                _tradePairMarketDataProvider.GetSnapshotTime(snapshot.Timestamp)));
             await grain.AddOrUpdateAsync(snapshot);
 
             var snapshot2 = new TradePairMarketDataSnapshotGrainDto()
@@ -478,8 +479,8 @@ namespace AwakenServer.Trade
                 PriceUSD = 2,
             };
 
-            var grain2 = await _tradePairMarketDataProvider.GetSnapShotGrain(snapshot2.ChainId, snapshot2.TradePairId,
-                _tradePairMarketDataProvider.GetSnapshotTime(snapshot2.Timestamp));
+            var grain2 = _clusterClient.GetGrain<ITradePairMarketDataSnapshotGrain>(GrainIdHelper.GenerateGrainId(snapshot.ChainId, snapshot.TradePairId,
+                _tradePairMarketDataProvider.GetSnapshotTime(snapshot.Timestamp)));
             await grain2.AddOrUpdateAsync(snapshot2);
 
             var snapshot3 = new TradePairMarketDataSnapshotGrainDto
@@ -497,8 +498,8 @@ namespace AwakenServer.Trade
                 TVL = 60000,
                 PriceUSD = 2,
             };
-            var grain3 = await _tradePairMarketDataProvider.GetSnapShotGrain(snapshot3.ChainId, snapshot3.TradePairId,
-                _tradePairMarketDataProvider.GetSnapshotTime(snapshot3.Timestamp));
+            var grain3 = _clusterClient.GetGrain<ITradePairMarketDataSnapshotGrain>(GrainIdHelper.GenerateGrainId(snapshot.ChainId, snapshot.TradePairId,
+                _tradePairMarketDataProvider.GetSnapshotTime(snapshot.Timestamp)));
             await grain3.AddOrUpdateAsync(snapshot3);
             
             var snapshot4 = new TradePairMarketDataSnapshotGrainDto()
@@ -516,8 +517,8 @@ namespace AwakenServer.Trade
                 TVL = 60000,
                 PriceUSD = 2,
             };
-            var grain4 = await _tradePairMarketDataProvider.GetSnapShotGrain(snapshot4.ChainId, snapshot4.TradePairId,
-                _tradePairMarketDataProvider.GetSnapshotTime(snapshot4.Timestamp));
+            var grain4 = _clusterClient.GetGrain<ITradePairMarketDataSnapshotGrain>(GrainIdHelper.GenerateGrainId(snapshot.ChainId, snapshot.TradePairId,
+                _tradePairMarketDataProvider.GetSnapshotTime(snapshot.Timestamp)));
             await grain4.AddOrUpdateAsync(snapshot4);
             
             await _tradePairAppService.UpdateTradePairAsync(TradePairEthUsdtId);
@@ -724,7 +725,7 @@ namespace AwakenServer.Trade
             };
             var grain = _clusterClient.GetGrain<ITradePairGrain>(
                 GrainIdHelper.GenerateGrainId(TradePairEthUsdtId));
-            await grain.AddOrUpdateAsync(_objectMapper.Map<Index.TradePair, TradePairGrainDto>(tradePairIndex));
+            await grain.AddAsync(_objectMapper.Map<Index.TradePair, TradePairGrainDto>(tradePairIndex));
             await _tradePairIndexRepository.UpdateAsync(tradePairIndex);
         }
 

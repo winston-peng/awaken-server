@@ -85,7 +85,6 @@ public class TradePairMarketDataSnapshotGrain : Grain<TradePairMarketDataSnapsho
             if (latestBeforeDto != null)
             {
                 totalSupply += BigDecimal.Parse(latestBeforeDto.TotalSupply);
-                State.TotalSupply += BigDecimal.Parse(latestBeforeDto.TotalSupply);
                 State.Price = latestBeforeDto.Price;
                 State.PriceUSD = latestBeforeDto.PriceUSD;
                 State.TVL = latestBeforeDto.TVL;
@@ -120,16 +119,16 @@ public class TradePairMarketDataSnapshotGrain : Grain<TradePairMarketDataSnapsho
 
     public async Task<GrainResultDto<TradePairMarketDataSnapshotGrainDto>> UpdateLiquidityWithSyncEvent(
         TradePairMarketDataSnapshotGrainDto dto,
-        TradePairMarketDataSnapshotGrainDto lastMarketData,
+        TradePairMarketDataSnapshotGrainDto latestBeforeDto,
         int userTradeAddressCount)
     {
         if (State.Id == Guid.Empty)
         {
             State = _objectMapper.Map<TradePairMarketDataSnapshotGrainDto, TradePairMarketDataSnapshotState>(dto);
 
-            if (lastMarketData != null)
+            if (latestBeforeDto != null)
             {
-                State.TotalSupply = lastMarketData.TotalSupply;
+                State.TotalSupply = latestBeforeDto.TotalSupply;
             }
 
             State.TradeAddressCount24h = userTradeAddressCount;
@@ -162,20 +161,20 @@ public class TradePairMarketDataSnapshotGrain : Grain<TradePairMarketDataSnapsho
 
     public async Task<GrainResultDto<TradePairMarketDataSnapshotGrainDto>> UpdateTradeRecord(
         TradePairMarketDataSnapshotGrainDto dto,
-        TradePairMarketDataSnapshotGrainDto lastMarketData)
+        TradePairMarketDataSnapshotGrainDto latestBeforeDto)
     {
         if (State.Id == Guid.Empty)
         {
             State = _objectMapper.Map<TradePairMarketDataSnapshotGrainDto, TradePairMarketDataSnapshotState>(dto);
 
-            if (lastMarketData != null)
+            if (latestBeforeDto != null)
             {
-                State.TotalSupply = lastMarketData.TotalSupply;
-                State.Price = lastMarketData.Price;
-                State.PriceUSD = lastMarketData.PriceUSD;
-                State.TVL = lastMarketData.TVL;
-                State.ValueLocked0 = lastMarketData.ValueLocked0;
-                State.ValueLocked1 = lastMarketData.ValueLocked1;
+                State.TotalSupply = latestBeforeDto.TotalSupply;
+                State.Price = latestBeforeDto.Price;
+                State.PriceUSD = latestBeforeDto.PriceUSD;
+                State.TVL = latestBeforeDto.TVL;
+                State.ValueLocked0 = latestBeforeDto.ValueLocked0;
+                State.ValueLocked1 = latestBeforeDto.ValueLocked1;
             }
         }
         else
@@ -195,30 +194,5 @@ public class TradePairMarketDataSnapshotGrain : Grain<TradePairMarketDataSnapsho
         };
     }
 
-
-    public async Task<GrainResultDto<TradePairMarketDataSnapshotGrainDto>> UpdateTotalSupplyAsync(
-        BigDecimal lpTokenAmount,
-        string lpTokenCurrentSupply,
-        DateTime snapshotTime)
-    {
-        if (State.Id != Guid.Empty && State.Timestamp > snapshotTime)
-        {
-            State.TotalSupply += lpTokenAmount;
-            if (!string.IsNullOrWhiteSpace(lpTokenCurrentSupply))
-            {
-                State.TotalSupply = lpTokenCurrentSupply;
-            }
-
-            _logger.LogInformation("UpdateTotalSupplyAsync: latest totalSupply:{supply}",
-                State.TotalSupply);
-        }
-
-        await WriteStateAsync();
-
-        return new GrainResultDto<TradePairMarketDataSnapshotGrainDto>()
-        {
-            Success = true,
-            Data = _objectMapper.Map<TradePairMarketDataSnapshotState, TradePairMarketDataSnapshotGrainDto>(State)
-        };
-    }
+    
 }

@@ -26,7 +26,7 @@ public class TradePairGrainTests : AwakenServerGrainTestBase
         result.Success.ShouldBe(false);
         
         //add
-        await grain.AddOrUpdateAsync(tradePair);
+        await grain.AddAsync(tradePair);
         
         //get
         result = await grain.GetAsync();
@@ -38,7 +38,7 @@ public class TradePairGrainTests : AwakenServerGrainTestBase
         //update
         tradePair.Price = 1.1;
         tradePair.TotalSupply = "22.2";
-        await grain.AddOrUpdateAsync(tradePair);
+        await grain.AddAsync(tradePair);
         result = await grain.GetAsync();
         result.Data.Price.ShouldBe(1.1);
         result.Data.TotalSupply.ShouldBe("22.2");

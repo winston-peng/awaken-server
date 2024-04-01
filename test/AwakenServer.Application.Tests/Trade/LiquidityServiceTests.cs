@@ -43,7 +43,7 @@ public class LiquidityServiceTests : TradeTestBase
 
         var inputMint = new LiquidityRecordDto()
         {
-            ChainId = "Ethereum",
+            ChainId = "tDVV",
             Pair = "0xPool006a6FaC8c710e53c4B2c2F96477119dA361",
             Address = "0x123456789",
             Timestamp = DateTimeHelper.ToUnixTimeMilliseconds(DateTime.UtcNow),

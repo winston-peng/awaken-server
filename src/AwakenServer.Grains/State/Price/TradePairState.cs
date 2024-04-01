@@ -6,9 +6,9 @@ namespace AwakenServer.Grains.State.Trade;
 public class TradePairState
 {
     public Guid Id { get; set; }
-
+    public HashSet<string> MarketDataSnapshots { get; set; } = new();
+    
     public virtual string ChainId { get; set; }
-
     public string Token0Symbol { get; set; }
     public string Token1Symbol { get; set; }
 
@@ -18,7 +18,6 @@ public class TradePairState
     public string Address { get; set; }
     public double FeeRate { get; set; }
     public bool IsTokenReversed { get; set; }
-
     public string TotalSupply { get; set; }
     public double Price { get; set; }
     public double PriceUSD { get; set; }

@@ -1,23 +1,35 @@
 using AwakenServer.Grains.Grain.Price.TradePair;
 using AwakenServer.Trade;
 using AwakenServer.Trade.Dtos;
+using Nethereum.Util;
 using Orleans;
 
 namespace AwakenServer.Grains.Grain.Price.TradePair;
 
 public interface ITradePairGrain : IGrainWithStringKey
 {
-    public Task<GrainResultDto<TradePairGrainDto>> AddOrUpdateAsync(TradePairGrainDto dto);
-    
-    public Task<GrainResultDto<TradePairGrainDto>> AddOrUpdateFromTradeAsync(TradePairMarketDataSnapshotGrainDto dto, 
-        List<TradePairMarketDataSnapshotGrainDto> previous7DaysSnapshotDtos,
-        TradePairMarketDataSnapshotGrainDto latestBeforeThisSnapshotDto);
-    
-    public Task<GrainResultDto<TradePairGrainDto>> AddOrUpdateFromUpdateAsync(DateTime timestamp, 
-        List<TradePairMarketDataSnapshotGrainDto> previous7DaysSnapshotDtos,
-        int userTradeAddressCount,
-        double priceUSD0,
-        double priceUSD1);
     
     public Task<GrainResultDto<TradePairGrainDto>> GetAsync();
+    
+    public Task<GrainResultDto<TradePairGrainDto>> AddAsync(TradePairGrainDto dto);
+    
+    public Task<GrainResultDto<TradePairGrainDto>> UpdateAsync(DateTime timestamp, int userTradeAddressCount);
+    
+    public Task<GrainResultDto<TradePairGrainDto>> UpdateFromSnapshotAsync(TradePairMarketDataSnapshotGrainDto dto);
+    
+    public Task<GrainResultDto<Tuple<TradePairGrainDto, TradePairMarketDataSnapshotGrainDto>>> UpdateTotalSupplyWithLiquidityEventAsync(TradePairMarketDataSnapshotGrainDto snapshotDto,
+        string lpTokenCurrentSupply,
+        int userTradeAddressCount,
+        BigDecimal lpTokenAmount);
+    
+    public Task<GrainResultDto<Tuple<TradePairGrainDto, TradePairMarketDataSnapshotGrainDto>>> UpdateTradeRecordAsync(TradePairMarketDataSnapshotGrainDto snapshotDto);
+    
+    public Task<GrainResultDto<Tuple<TradePairGrainDto, TradePairMarketDataSnapshotGrainDto>>> UpdateLiquidityWithSyncEventAsync(TradePairMarketDataSnapshotGrainDto snapshotDto,
+        int userTradeAddressCount);
+
+    public Task<GrainResultDto<Tuple<TradePairGrainDto, TradePairMarketDataSnapshotGrainDto>>> AddSnapshotAsync(TradePairMarketDataSnapshotGrainDto snapshotDto);
+    
+    public Task<TradePairMarketDataSnapshotGrainDto> GetLatestSnapshotAsync();
+
+
 }
