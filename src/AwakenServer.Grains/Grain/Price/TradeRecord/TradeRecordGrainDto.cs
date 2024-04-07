@@ -16,4 +16,12 @@ public class TradeRecordGrainDto
     public string Channel { get; set; }
     public string Sender { get; set; }
     public double Price { get; set; }
+    
+    public double TransactionFee { get; set; }
+
+    public double TotalPriceInUsd { get; set; }
+    public double TotalFee { get; set; }
+
+    public long BlockHeight { get; set; } 
+    public bool IsConfirmed { get; set; } 
 }

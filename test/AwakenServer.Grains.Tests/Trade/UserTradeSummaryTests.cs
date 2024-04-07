@@ -1,8 +1,8 @@
-using AwakenServer.Grains.Grain.Price.UserTradeSummary;
+using AwakenServer.Grains.Grain.Trade;
 using Shouldly;
 using Xunit;
 
-namespace AwakenServer.Grains.Tests.Price;
+namespace AwakenServer.Grains.Tests.Trade;
 
 [Collection(ClusterCollection.Name)]
 public class UserTradeSummaryTests : AwakenServerGrainTestBase

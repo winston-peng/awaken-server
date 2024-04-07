@@ -1,9 +1,10 @@
 using AwakenServer.Grains.Grain.Price.TradeRecord;
 using AwakenServer.Grains.State.Price;
 using Orleans;
+using Volo.Abp.EventBus.Local;
 using Volo.Abp.ObjectMapping;
 
-namespace AwakenServer.Grains.Grain.Price.TradePair;
+namespace AwakenServer.Grains.Grain.Price.TradeRecord;
 
 public class TradeRecordGrain : Grain<TradeRecordState>, ITradeRecordGrain
 {
@@ -26,9 +27,17 @@ public class TradeRecordGrain : Grain<TradeRecordState>, ITradeRecordGrain
         await base.OnDeactivateAsync();
     }
 
+    public async Task<bool> Exist()
+    {
+        return State.Id != Guid.Empty;
+    }
+
     public async Task<GrainResultDto<TradeRecordGrainDto>> InsertAsync(TradeRecordGrainDto dto)
     {
         State = _objectMapper.Map<TradeRecordGrainDto, TradeRecordState>(dto);
+        
+        
+        
         await WriteStateAsync();
 
         return new GrainResultDto<TradeRecordGrainDto>()

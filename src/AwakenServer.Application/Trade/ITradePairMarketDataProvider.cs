@@ -3,6 +3,7 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using AElf.Client.Proto;
 using AElf.Indexing.Elasticsearch;
 using AwakenServer.Chains;
 using AwakenServer.Comparers;
@@ -31,17 +32,8 @@ namespace AwakenServer.Trade
     {
         Task InitializeDataAsync();
 
-        Task UpdateTotalSupplyWithLiquidityEventAsync(string chainId, Guid tradePairId, string Token0Symbol,
-            string Token1Symbol, double FeeRate, DateTime timestamp, BigDecimal lpTokenAmount);
-
-        Task UpdateTradeRecordAsync(string chainId, Guid tradePairId, DateTime timestamp, double volume,
-            double tradeValue, int tradeCount = 1);
-
-        Task UpdateLiquidityWithSyncEventAsync(string chainId, Guid tradePairId, DateTime timestamp, double price,
-            double priceUSD,
-            double tvl, double valueLocked0, double valueLocked1);
-
-
+        Task AddOrUpdateSnapshotAsync(TradePairMarketDataSnapshotGrainDto dto);
+        
         Task<Index.TradePairMarketDataSnapshot> GetTradePairMarketDataIndexAsync(string chainId, Guid tradePairId,
             DateTime snapshotTime);
 
@@ -127,8 +119,8 @@ namespace AwakenServer.Trade
                             .Map<Index.TradePairMarketDataSnapshot, TradePairMarketDataSnapshotGrainDto>(snapshot));
                     }
                     
-                    await tradePairGrain.AddAsync(_objectMapper.Map<Index.TradePair, TradePairGrainDto>(tradePair));
-
+                    await tradePairGrain.AddOrUpdateAsync(_objectMapper.Map<Index.TradePair, TradePairGrainDto>(tradePair));
+                    _logger.LogInformation($"sync TradePairGrain grainId: {tradePairGrain.GetPrimaryKeyString()}, address: {tradePair.Address} from es to grain");
                 }
             }
         }
@@ -161,34 +153,15 @@ namespace AwakenServer.Trade
             }
         }
         
-        public async Task UpdateTotalSupplyWithLiquidityEventAsync(string chainId, Guid tradePairId,
-            string Token0Symbol, string Token1Symbol, double FeeRate, DateTime timestamp,
-            BigDecimal lpTokenAmount)
+        public async Task AddOrUpdateSnapshotAsync(TradePairMarketDataSnapshotGrainDto dto)
         {
-            _logger.LogInformation("UpdateTotalSupplyAsync: input supply:{supply}", lpTokenAmount);
+            _logger.LogInformation("UpdateTotalSupplyAsync: input supply:{supply}", dto.TotalSupply);
 
-            var snapshotTime = GetSnapshotTime(timestamp);
-            var lockName = $"{chainId}-{tradePairId}-{snapshotTime}";
+            var lockName = $"{dto.ChainId}-{dto.TradePairId}-{dto.Timestamp}";
             await using var handle = await _distributedLock.TryAcquireAsync(lockName);
             
-            var lpTokenCurrentSupply = await GetLpTokenInfoAsync(chainId, Token0Symbol, Token1Symbol, FeeRate);
-
-            var userTradeAddressCount = await _tradeRecordAppService.GetUserTradeAddressCountAsync(chainId,
-                tradePairId,
-                timestamp.AddDays(-1), 
-                timestamp);
-            
-            var grain = _clusterClient.GetGrain<ITradePairGrain>(GrainIdHelper.GenerateGrainId(tradePairId));
-            var result = await grain.UpdateTotalSupplyWithLiquidityEventAsync(new TradePairMarketDataSnapshotGrainDto
-            {
-                Id = Guid.NewGuid(),
-                ChainId = chainId,
-                TradePairId = tradePairId,
-                Timestamp = snapshotTime,
-            },
-            lpTokenCurrentSupply,
-            userTradeAddressCount,
-            lpTokenAmount);
+            var grain = _clusterClient.GetGrain<ITradePairGrain>(GrainIdHelper.GenerateGrainId(dto.TradePairId));
+            var result = await grain.AddOrUpdateSnapshotAsync(dto);
 
             _logger.LogInformation("UpdateTotalSupplyWithLiquidityEventAsync: distributedEventBus.PublishAsync TradePairEto: " + JsonConvert.SerializeObject(result.Data.Item1));
 
@@ -205,103 +178,7 @@ namespace AwakenServer.Trade
             ));
             
         }
-
-        public async Task UpdateTradeRecordAsync(string chainId, Guid tradePairId, DateTime timestamp, double volume,
-            double tradeValue, int tradeCount = 1)
-        {
-            _logger.LogInformation(
-                "UpdateTradeRecordAsync start.chainId:{chainId},tradePairId:{tradePairId},timestamp:{timestamp},volume:{volume},tradeValue:{tradeValue},tradeCount:{tradeCount}",
-                chainId, tradePairId, timestamp, volume, tradeValue, tradeCount);
-
-            var snapshotTime = GetSnapshotTime(timestamp);
-            var lockName = $"{chainId}-{tradePairId}-{snapshotTime}";
-            await using var handle = await _distributedLock.TryAcquireAsync(lockName);
-
-            var tradeAddressCount24H = await _tradeRecordAppService.GetUserTradeAddressCountAsync(chainId,
-                tradePairId,
-                GetSnapshotTime(timestamp).AddDays(-1), timestamp);
-            
-            var grain = _clusterClient.GetGrain<ITradePairGrain>(GrainIdHelper.GenerateGrainId(tradePairId));
-            var result = await grain.UpdateTradeRecordAsync(new TradePairMarketDataSnapshotGrainDto
-            {
-                Id = Guid.NewGuid(),
-                ChainId = chainId,
-                TradePairId = tradePairId,
-                Volume = volume,
-                TradeValue = tradeValue,
-                TradeCount = tradeCount,
-                TradeAddressCount24h = tradeAddressCount24H,
-                Timestamp = snapshotTime,
-            });
-
-            
-            _logger.LogInformation("UpdateTradeRecordAsync: distributedEventBus.PublishAsync TradePairEto: " + JsonConvert.SerializeObject(result.Data.Item1));
-
-            await _distributedEventBus.PublishAsync(new EntityCreatedEto<TradePairEto>(
-                _objectMapper.Map<TradePairGrainDto, TradePairEto>(
-                    result.Data.Item1)
-            ));
-            
-            _logger.LogInformation("UpdateTradeRecordAsync: distributedEventBus.PublishAsync TradePairMarketDataSnapshotEto: " + JsonConvert.SerializeObject(result.Data.Item2));
-            
-            await _distributedEventBus.PublishAsync(new EntityCreatedEto<TradePairMarketDataSnapshotEto>(
-                _objectMapper.Map<TradePairMarketDataSnapshotGrainDto, TradePairMarketDataSnapshotEto>(
-                    result.Data.Item2)
-            ));
-            
-        }
-
-        public async Task UpdateLiquidityWithSyncEventAsync(string chainId, Guid tradePairId, DateTime timestamp,
-            double price,
-            double priceUSD, double tvl,
-            double valueLocked0, double valueLocked1)
-        {
-            _logger.LogInformation(
-                "UpdateLiquidityAsync start.chainId:{chainId},tradePairId:{tradePairId},timestamp:{timestamp},price:{price},priceUSD:{priceUSD},tvl:{tvl}",
-                chainId, tradePairId, timestamp, price, priceUSD, tvl);
-
-            var snapshotTime = GetSnapshotTime(timestamp);
-            var lockName = $"{chainId}-{tradePairId}-{snapshotTime}";
-            await using var handle = await _distributedLock.TryAcquireAsync(lockName);
-
-            var userTradeAddressCount = await _tradeRecordAppService.GetUserTradeAddressCountAsync(chainId,
-                tradePairId,
-                timestamp.AddDays(-1), timestamp);
-            
-            var grain = _clusterClient.GetGrain<ITradePairGrain>(GrainIdHelper.GenerateGrainId(tradePairId));
-            var result = await grain.UpdateLiquidityWithSyncEventAsync(new TradePairMarketDataSnapshotGrainDto
-                {
-                    Id = Guid.NewGuid(),
-                    ChainId = chainId,
-                    TradePairId = tradePairId,
-                    Price = price,
-                    PriceHigh = price,
-                    PriceLow = price,
-                    PriceLowUSD = priceUSD,
-                    PriceHighUSD = priceUSD,
-                    PriceUSD = priceUSD,
-                    TVL = tvl,
-                    ValueLocked0 = valueLocked0,
-                    ValueLocked1 = valueLocked1,
-                    Timestamp = snapshotTime,
-                },
-                userTradeAddressCount);
-
-            
-            _logger.LogInformation("UpdateLiquidityWithSyncEventAsync: distributedEventBus.PublishAsync TradePairEto: " + JsonConvert.SerializeObject(result.Data.Item1));
-
-            await _distributedEventBus.PublishAsync(new EntityCreatedEto<TradePairEto>(
-                _objectMapper.Map<TradePairGrainDto, TradePairEto>(
-                    result.Data.Item1)
-            ));
-            
-            _logger.LogInformation("UpdateLiquidityWithSyncEventAsync: distributedEventBus.PublishAsync TradePairMarketDataSnapshotEto: " + JsonConvert.SerializeObject(result.Data.Item2));
-            
-            await _distributedEventBus.PublishAsync(new EntityCreatedEto<TradePairMarketDataSnapshotEto>(
-                _objectMapper.Map<TradePairMarketDataSnapshotGrainDto, TradePairMarketDataSnapshotEto>(
-                    result.Data.Item2)
-            ));
-        }
+        
 
         private async Task<Index.TradePairMarketDataSnapshot> GetLatestTradePairMarketDataIndexAsync(string chainId,
             Guid tradePairId, DateTime maxTime)

@@ -39,53 +39,20 @@ namespace AwakenServer.Trade.Handlers
                 
                 var id = GrainIdHelper.GenerateGrainId(eventData.ChainId, eventData.TradePairId, period);
                 var grain = _clusterClient.GetGrain<IKLineGrain>(id);
-                var kLineGrainResult = await grain.GetAsync();
-                if (!kLineGrainResult.Success)
+                var kLine = new KLineGrainDto
                 {
-                    var kLine = new KLineGrainDto
-                    {
-                        ChainId = eventData.ChainId,
-                        TradePairId = eventData.TradePairId,
-                        Open = eventData.Price,
-                        Close = eventData.Price,
-                        High = eventData.Price,
-                        Low = eventData.Price,
-                        Volume = token0Amount,
-                        Period = period,
-                        Timestamp = periodTimestamp
-                    };
-                    await grain.AddOrUpdateAsync(kLine);
-                    await DistributedEventBus.PublishAsync(_objectMapper.Map<KLineGrainDto, KLineEto>(kLine));
-                }
-                else
-                {
-                    var kLine = kLineGrainResult.Data;
-                    if (kLine.Timestamp == periodTimestamp)
-                    {
-                        kLine.Close = eventData.Price;
-                        if (kLine.High < eventData.Price)
-                        {
-                            kLine.High = eventData.Price;
-                        }
-                        if (kLine.Low > eventData.Price)
-                        {
-                            kLine.Low = eventData.Price;
-                        }
-                        kLine.Volume += token0Amount;
-                    }
-                    else
-                    {
-                        kLine.Timestamp = periodTimestamp;
-                        kLine.Open = eventData.Price;
-                        kLine.Close = eventData.Price;
-                        kLine.High = eventData.Price;
-                        kLine.Low = eventData.Price;
-                        kLine.Volume = token0Amount;
-                    }
-                    await grain.AddOrUpdateAsync(kLine);
-                    
-                    await DistributedEventBus.PublishAsync(_objectMapper.Map<KLineGrainDto, KLineEto>(kLine));
-                }
+                    ChainId = eventData.ChainId,
+                    TradePairId = eventData.TradePairId,
+                    Open = eventData.Price,
+                    Close = eventData.Price,
+                    High = eventData.Price,
+                    Low = eventData.Price,
+                    Volume = token0Amount,
+                    Period = period,
+                    Timestamp = periodTimestamp
+                };
+                await grain.AddOrUpdateAsync(kLine);
+                await DistributedEventBus.PublishAsync(_objectMapper.Map<KLineGrainDto, KLineEto>(kLine));
             }
         }
     }

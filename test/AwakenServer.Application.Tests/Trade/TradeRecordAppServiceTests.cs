@@ -1,9 +1,11 @@
 using System;
 using System.Collections.Generic;
+using System.Threading;
 using System.Threading.Tasks;
 using AElf.Indexing.Elasticsearch;
 using AwakenServer.Provider;
 using AwakenServer.Trade.Dtos;
+using Microsoft.AspNetCore.Routing.Matching;
 using Nest;
 using Shouldly;
 using Volo.Abp.EventBus.Local;
@@ -120,6 +122,91 @@ namespace AwakenServer.Trade
                 dto.BlockHeight = i;
                 await _tradeRecordAppService.CreateCacheAsync(tradePairId, dto);
             }
+        }
+        
+        [Fact]
+        public async Task RevertResultTest()
+        {
+            var chainId = "tDVV";
+            var blockHeight = 1L;
+            var address = "2Ck7Hg4LD3LMHiKpbbPJuyVXv1zbFLzG7tP6ZmWf3L2ajwtSnk";
+            var tradePairId = Guid.NewGuid();
+            await _tradeRecordAppService.CreateCacheAsync(tradePairId, new SwapRecordDto()
+            {
+                ChainId = chainId,
+                TransactionHash = "AAA",
+                Sender = address,
+                BlockHeight = blockHeight,
+            });
+            await _tradeRecordIndexRepository.AddAsync(new Index.TradeRecord()
+            {
+                Id = Guid.Parse("10000000-0000-0000-0000-000000000000"),
+                ChainId = chainId,
+                TransactionHash = "AAA",
+                Address = address,
+                BlockHeight = blockHeight
+            });
+            _graphQlProvider.AddSwapRecord(new SwapRecordDto()
+            {
+                ChainId = chainId,
+                TransactionHash = "AAA",
+                Sender = address,
+                BlockHeight = blockHeight,
+            });
+            
+            await _tradeRecordAppService.CreateCacheAsync(tradePairId, new SwapRecordDto()
+            {
+                ChainId = chainId,
+                TransactionHash = "BBB",
+                Sender = address,
+                BlockHeight = 2,
+            });
+            await _tradeRecordIndexRepository.AddAsync(new Index.TradeRecord()
+            {
+                Id = Guid.Parse("20000000-0000-0000-0000-000000000000"),
+                ChainId = chainId,
+                TransactionHash = "BBB",
+                Address = address,
+                BlockHeight = 2
+            });
+            
+            await _tradeRecordAppService.CreateCacheAsync(tradePairId, new SwapRecordDto()
+            {
+                ChainId = chainId,
+                TransactionHash = "CCC",
+                Sender = address,
+                BlockHeight = 3,
+            });
+            await _tradeRecordIndexRepository.AddAsync(new Index.TradeRecord()
+            {
+                Id = Guid.Parse("30000000-0000-0000-0000-000000000000"),
+                ChainId = chainId,
+                TransactionHash = "CCC",
+                Address = address,
+                BlockHeight = 3
+            });
+            
+            
+            await _tradeRecordAppService.RevertAsync(chainId);
+            
+            Thread.Sleep(3000);
+            
+            var trades = await _tradeRecordAppService.GetListAsync(new GetTradeRecordsInput
+            {
+                ChainId = "tDVV"
+            });
+            trades.TotalCount.ShouldBe(2);
+            
+            var Confirmed = await _tradeRecordAppService.GetRecordAsync("AAA");
+            Confirmed.ShouldNotBeNull();
+            Confirmed.TransactionHash.ShouldBe("AAA");
+            
+            var reverted = await _tradeRecordAppService.GetRecordAsync("BBB");
+            reverted.ShouldBeNull();
+            
+            var notConfirmed = await _tradeRecordAppService.GetRecordAsync("CCC");
+            notConfirmed.ShouldNotBeNull();
+            notConfirmed.TransactionHash.ShouldBe("CCC");
         }
 
         [Fact]

@@ -280,7 +280,7 @@ namespace AwakenServer.Trade
             tradePairGrainDto.Token1Symbol = token1.Symbol;
             
             var grain = _clusterClient.GetGrain<ITradePairGrain>(GrainIdHelper.GenerateGrainId(tradePairInfo.Id));
-            await grain.AddAsync(tradePairGrainDto);
+            await grain.AddOrUpdateAsync(tradePairGrainDto);
             // await grain.AddOrUpdateInfoAsync(tradePairInfo);
             
             var index = ObjectMapper.Map<TradePairCreateDto, Index.TradePair>(input);
@@ -329,9 +329,25 @@ namespace AwakenServer.Trade
                 tradePair.Id, tradePair.Token0Symbol, tradePair.Token1Symbol, tradePair.FeeRate,
                 price, priceUSD1 != 0 ? price * priceUSD1 : priceUSD0, tradePair.Token1Symbol, priceUSD1, tvl);
 
-            await _tradePairMarketDataProvider.UpdateLiquidityWithSyncEventAsync(tradePair.ChainId, tradePair.Id, timestamp, price,
-                priceUSD1 != 0 ? price * priceUSD1 : priceUSD0, tvl, double.Parse(input.Token0Amount),
-                double.Parse(input.Token1Amount));
+
+            var priceUSD = priceUSD1 != 0 ? price * priceUSD1 : priceUSD0;
+            
+            await _tradePairMarketDataProvider.AddOrUpdateSnapshotAsync(new TradePairMarketDataSnapshotGrainDto
+            {
+                Id = Guid.NewGuid(),
+                ChainId = tradePair.ChainId,
+                TradePairId = tradePair.Id,
+                Price = price,
+                PriceHigh = price,
+                PriceLow = price,
+                PriceLowUSD = priceUSD,
+                PriceHighUSD = priceUSD,
+                PriceUSD = priceUSD,
+                TVL = tvl,
+                ValueLocked0 = double.Parse(input.Token0Amount),
+                ValueLocked1 = double.Parse(input.Token1Amount),
+                Timestamp = _tradePairMarketDataProvider.GetSnapshotTime(timestamp),
+            });
         }
 
         public async Task UpdateLiquidityAsync(SyncRecordDto dto)
@@ -478,9 +494,12 @@ namespace AwakenServer.Trade
 
             if (token0 == null || token1 == null) return;
 
-            var grain = _clusterClient.GetGrain<ITradePairGrain>(GrainIdHelper.GenerateGrainId(pair.Id));
+            var grainDto = _objectMapper.Map<TradePairInfoDto, TradePairGrainDto>(pair);
+            grainDto.Token0 = token0;
+            grainDto.Token1 = token1;
             
-            await grain.AddAsync(_objectMapper.Map<TradePairInfoDto, TradePairGrainDto>(pair));
+            var grain = _clusterClient.GetGrain<ITradePairGrain>(GrainIdHelper.GenerateGrainId(pair.Id));
+            await grain.AddOrUpdateAsync(grainDto);
             
             _logger.LogInformation("create pair success Id:{pairId},chainId:{chainId},token0:{token0}," +
                                    "token1:{token1}", pair.Id, chain.Id, pair.Token0Symbol, pair.Token1Symbol);

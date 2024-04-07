@@ -21,7 +21,7 @@ public class TradePairGrain : Grain<TradePairState>, ITradePairGrain
     private readonly ILogger<TradePairGrain> _logger;
     private readonly ITokenPriceProvider _tokenPriceProvider;
     private readonly IClusterClient _clusterClient;
-    private readonly List<ITradePairMarketDataSnapshotGrain> _previous7DaysMarketDataSnapshots;
+    private readonly SortedSet<Tuple<DateTime,string>> _previous7DaysMarketDataSnapshots;
     
     public TradePairGrain(IObjectMapper objectMapper,
         ITokenPriceProvider tokenPriceProvider,
@@ -32,7 +32,12 @@ public class TradePairGrain : Grain<TradePairState>, ITradePairGrain
         _logger = logger;
         _tokenPriceProvider = tokenPriceProvider;
         _clusterClient = clusterClient;
-        _previous7DaysMarketDataSnapshots = new List<ITradePairMarketDataSnapshotGrain>();
+        _previous7DaysMarketDataSnapshots = new SortedSet<Tuple<DateTime,string>>(
+            Comparer<Tuple<DateTime,string>>.Create((grain1, grain2) =>
+            {
+                return grain2.Item1.CompareTo(grain1.Item1);
+            })
+        );
     }
 
     public override async Task OnActivateAsync()
@@ -47,40 +52,50 @@ public class TradePairGrain : Grain<TradePairState>, ITradePairGrain
         await WriteStateAsync();
         await base.OnDeactivateAsync();
     }
-    
+
     private async Task LoadPastWeekSnapshots()
     {
         DateTime now = DateTime.Now;
         DateTime pastWeek = now.AddDays(-7);
 
-        Dictionary<DateTime, ITradePairMarketDataSnapshotGrain> pastWeekSnapshots = new Dictionary<DateTime, ITradePairMarketDataSnapshotGrain>();
+        Dictionary<DateTime, ITradePairMarketDataSnapshotGrain> pastWeekSnapshots =
+            new Dictionary<DateTime, ITradePairMarketDataSnapshotGrain>();
 
-        foreach (var snapshotGuid in State.MarketDataSnapshots)
+        foreach (var snapshotId in State.MarketDataSnapshotGrainIds)
         {
-            ITradePairMarketDataSnapshotGrain snapshotGrain = _clusterClient.GetGrain<ITradePairMarketDataSnapshotGrain>(snapshotGuid);
+            ITradePairMarketDataSnapshotGrain snapshotGrain =
+                _clusterClient.GetGrain<ITradePairMarketDataSnapshotGrain>(snapshotId);
             var snapshotDataResult = await snapshotGrain.GetAsync();
             if (snapshotDataResult.Success)
             {
                 var snapshotData = snapshotDataResult.Data;
                 if (snapshotData.Timestamp >= pastWeek && snapshotData.Timestamp <= now)
                 {
-                    _previous7DaysMarketDataSnapshots.Add(snapshotGrain);
+                    _previous7DaysMarketDataSnapshots.Add(new Tuple<DateTime, string>(snapshotData.Timestamp, snapshotGrain.GetPrimaryKeyString()));
                 }
             }
         }
+    }
+
+    public async Task RemoveHistorySnapshotCacheAsync()
+    {
+        DateTime currentDate = DateTime.Now;
+        DateTime oneWeekAgo = currentDate.AddDays(-7);
+        
+        _previous7DaysMarketDataSnapshots.RemoveWhere(item => item.Item1 < oneWeekAgo);
     }
     
     public async Task<GrainResultDto<TradePairGrainDto>> GetAsync()
     {
         if (State.Id == Guid.Empty)
         {
-            return new GrainResultDto<TradePairGrainDto>()
+            return new GrainResultDto<TradePairGrainDto>
             {
                 Success = false
             };
         }
 
-        return new GrainResultDto<TradePairGrainDto>()
+        return new GrainResultDto<TradePairGrainDto>
         {
             Success = true,
             Data = _objectMapper.Map<TradePairState, TradePairGrainDto>(State)
@@ -89,91 +104,80 @@ public class TradePairGrain : Grain<TradePairState>, ITradePairGrain
 
     public async Task<TradePairMarketDataSnapshotGrainDto> GetLatestBeforeSnapshotAsync(DateTime maxTime)
     {
-        
-        List<TradePairMarketDataSnapshotGrainDto> sortedSnapshots = new List<TradePairMarketDataSnapshotGrainDto>();
-        foreach(var grain in _previous7DaysMarketDataSnapshots)
+        foreach (var snapshot in _previous7DaysMarketDataSnapshots)
         {
-            var result = await grain.GetAsync();
-            if (result.Success)
+            if (maxTime >= snapshot.Item1)
             {
-                sortedSnapshots.Add(result.Data);
+                var grain = _clusterClient.GetGrain<ITradePairMarketDataSnapshotGrain>(snapshot.Item2);
+                var result = await grain.GetAsync();
+                if (result.Success)
+                {
+                    return result.Data;
+                }
+                else
+                {
+                    _logger.LogError($"trade pair {State.Id} contains empty snapshot grain");
+                }
             }
         }
-
-        sortedSnapshots.Sort((dto1, dto2) => dto2.Timestamp.CompareTo(dto1.Timestamp));
-        
-        foreach (var snapshot in sortedSnapshots)
-        {
-            if (maxTime > snapshot.Timestamp)
-            {
-                return snapshot;
-            }
-        }
-
         return null;
     }
-    
+
     public async Task<TradePairMarketDataSnapshotGrainDto> GetLatestSnapshotAsync()
     {
-        
         if (_previous7DaysMarketDataSnapshots.IsNullOrEmpty())
         {
             return null;
         }
         
-        
-        List<TradePairMarketDataSnapshotGrainDto> sortedSnapshots = new List<TradePairMarketDataSnapshotGrainDto>();
-        foreach(var grain in _previous7DaysMarketDataSnapshots)
+        foreach (var snapshot in _previous7DaysMarketDataSnapshots)
         {
+            var grain = _clusterClient.GetGrain<ITradePairMarketDataSnapshotGrain>(snapshot.Item2);
             var result = await grain.GetAsync();
             if (result.Success)
             {
-                sortedSnapshots.Add(result.Data);
+                return result.Data;
             }
         }
 
-        sortedSnapshots.Sort((dto1, dto2) => dto2.Timestamp.CompareTo(dto1.Timestamp));
-
-        return sortedSnapshots.FirstOrDefault();
+        return null;
     }
 
     public async Task<List<TradePairMarketDataSnapshotGrainDto>> GetPrevious7DaysSnapshotsDtoAsync()
     {
-        
         List<TradePairMarketDataSnapshotGrainDto> sortedSnapshots = new List<TradePairMarketDataSnapshotGrainDto>();
-        foreach(var grain in _previous7DaysMarketDataSnapshots)
+        foreach (var snapshot in _previous7DaysMarketDataSnapshots)
         {
+            var grain = _clusterClient.GetGrain<ITradePairMarketDataSnapshotGrain>(snapshot.Item2);
             var result = await grain.GetAsync();
             if (result.Success)
             {
                 sortedSnapshots.Add(result.Data);
             }
         }
-
-        sortedSnapshots.Sort((dto1, dto2) => dto2.Timestamp.CompareTo(dto1.Timestamp));
         
         return sortedSnapshots;
     }
-    
-    
+
+
     public async Task<GrainResultDto<Tuple<TradePairGrainDto, TradePairMarketDataSnapshotGrainDto>>> AddSnapshotAsync(
         TradePairMarketDataSnapshotGrainDto snapshotDto)
     {
         var snapshotGrain = _clusterClient.GetGrain<ITradePairMarketDataSnapshotGrain>(
             GrainIdHelper.GenerateGrainId(snapshotDto.ChainId, snapshotDto.TradePairId, snapshotDto.Timestamp));
         
+        var updateSnapshotResult = await snapshotGrain.AddAsync(snapshotDto);
+
         // add snapshot
-        if (!State.MarketDataSnapshots.Contains(snapshotGrain.GetPrimaryKeyString()))
+        if (!State.MarketDataSnapshotGrainIds.Contains(snapshotGrain.GetPrimaryKeyString()))
         {
-            _previous7DaysMarketDataSnapshots.Add(snapshotGrain);
-            State.MarketDataSnapshots.Add(snapshotGrain.GetPrimaryKeyString());
+            _previous7DaysMarketDataSnapshots.Add(new Tuple<DateTime, string>(snapshotDto.Timestamp, snapshotGrain.GetPrimaryKeyString()));
+            State.MarketDataSnapshotGrainIds.Add(snapshotGrain.GetPrimaryKeyString());
         }
-        
-        var updateSnapshotResult = await snapshotGrain.AddOrUpdateAsync(snapshotDto);
         
         // update trade pair
         var updateTradePairResult = await UpdateFromSnapshotAsync(updateSnapshotResult.Data);
-        
+
         return new GrainResultDto<Tuple<TradePairGrainDto, TradePairMarketDataSnapshotGrainDto>>
         {
             Success = true,
@@ -184,105 +188,43 @@ public class TradePairGrain : Grain<TradePairState>, ITradePairGrain
     }
 
 
-    public async Task<GrainResultDto<Tuple<TradePairGrainDto, TradePairMarketDataSnapshotGrainDto>>> UpdateTotalSupplyWithLiquidityEventAsync(
-        TradePairMarketDataSnapshotGrainDto snapshotDto,
-        string lpTokenCurrentSupply,
-        int userTradeAddressCount,
-        BigDecimal lpTokenAmount)
+    public async Task<GrainResultDto<Tuple<TradePairGrainDto, TradePairMarketDataSnapshotGrainDto>>>
+        AddOrUpdateSnapshotAsync(TradePairMarketDataSnapshotGrainDto snapshotDto)
     {
-        _logger.LogInformation($"AddSnapshot lp token {snapshotDto.TradePairId}, totalSupply: {snapshotDto.TotalSupply}");
-        
+        _logger.LogInformation(
+            $"AddSnapshot lp token {snapshotDto.TradePairId}, totalSupply: {snapshotDto.TotalSupply}");
+
         var snapshotGrain = _clusterClient.GetGrain<ITradePairMarketDataSnapshotGrain>(
             GrainIdHelper.GenerateGrainId(snapshotDto.ChainId, snapshotDto.TradePairId, snapshotDto.Timestamp));
         
-        // add snapshot
-        if (!State.MarketDataSnapshots.Contains(snapshotGrain.GetPrimaryKeyString()))
-        {
-            _previous7DaysMarketDataSnapshots.Add(snapshotGrain);
-            State.MarketDataSnapshots.Add(snapshotGrain.GetPrimaryKeyString());
-        }
-        
         // update snapshot grain
         var latestBeforeDto = await GetLatestBeforeSnapshotAsync(snapshotDto.Timestamp);
-        
-        var updateSnapshotResult = await snapshotGrain.UpdateTotalSupplyWithLiquidityAsync(snapshotDto,
-            latestBeforeDto,
-            lpTokenAmount, 
-            userTradeAddressCount, 
-            lpTokenCurrentSupply);
+        var updateSnapshotResult = await snapshotGrain.UpdateAsync(snapshotDto, latestBeforeDto);
+
+        // add snapshot
+        if (!State.MarketDataSnapshotGrainIds.Contains(snapshotGrain.GetPrimaryKeyString()))
+        {
+            _previous7DaysMarketDataSnapshots.Add(new Tuple<DateTime, string>(snapshotDto.Timestamp, snapshotGrain.GetPrimaryKeyString()));
+            State.MarketDataSnapshotGrainIds.Add(snapshotGrain.GetPrimaryKeyString());
+        }
         
         // nie:The current snapshot is not up-to-date. The latest snapshot needs to update TotalSupply 
         var latestSnapshot = await GetLatestSnapshotAsync();
         if (latestSnapshot != null && snapshotDto.Timestamp < latestSnapshot.Timestamp)
         {
-            return await UpdateTotalSupplyWithLiquidityEventAsync(latestSnapshot,
-                lpTokenCurrentSupply,
-                userTradeAddressCount,
-                lpTokenAmount);
+            var updateLatestResult =  await AddOrUpdateSnapshotAsync(latestSnapshot);
+            // update the latest snapshot BUT return current snapshot result and the latest trade pair
+            return new GrainResultDto<Tuple<TradePairGrainDto, TradePairMarketDataSnapshotGrainDto>>
+            {
+                Success = true,
+                Data = new Tuple<TradePairGrainDto, TradePairMarketDataSnapshotGrainDto>(
+                    updateLatestResult.Data.Item1,
+                    updateSnapshotResult.Data)
+            };
         }
-        
+
         // update trade pair
         var updateTradePairResult = await UpdateFromSnapshotAsync(updateSnapshotResult.Data);
-        
-        return new GrainResultDto<Tuple<TradePairGrainDto, TradePairMarketDataSnapshotGrainDto>>
-        {
-            Success = true,
-            Data = new Tuple<TradePairGrainDto, TradePairMarketDataSnapshotGrainDto>(
-                updateTradePairResult.Data,
-                updateSnapshotResult.Data)
-        };
-        
-    }
-
-    public async Task<GrainResultDto<Tuple<TradePairGrainDto, TradePairMarketDataSnapshotGrainDto>>> UpdateTradeRecordAsync(
-        TradePairMarketDataSnapshotGrainDto snapshotDto)
-    {
-        var snapshotGrain = _clusterClient.GetGrain<ITradePairMarketDataSnapshotGrain>(
-            GrainIdHelper.GenerateGrainId(snapshotDto.ChainId, snapshotDto.TradePairId, snapshotDto.Timestamp));
-        
-        // add snapshot
-        if (!State.MarketDataSnapshots.Contains(snapshotGrain.GetPrimaryKeyString()))
-        {
-            _previous7DaysMarketDataSnapshots.Add(snapshotGrain);
-            State.MarketDataSnapshots.Add(snapshotGrain.GetPrimaryKeyString());
-        }
-        
-        var latestBeforeDto = await GetLatestBeforeSnapshotAsync(snapshotDto.Timestamp);
-
-        var updateSnapshotResult = await snapshotGrain.UpdateTradeRecord(snapshotDto, latestBeforeDto);
-        
-        var updateTradePairResult = await UpdateFromSnapshotAsync(updateSnapshotResult.Data);
-        
-        return new GrainResultDto<Tuple<TradePairGrainDto, TradePairMarketDataSnapshotGrainDto>>
-        {
-            Success = true,
-            Data = new Tuple<TradePairGrainDto, TradePairMarketDataSnapshotGrainDto>(
-                updateTradePairResult.Data,
-                updateSnapshotResult.Data)
-        };
-    }
-
-
-    public async Task<GrainResultDto<Tuple<TradePairGrainDto, TradePairMarketDataSnapshotGrainDto>>> UpdateLiquidityWithSyncEventAsync(
-        TradePairMarketDataSnapshotGrainDto snapshotDto,
-        int userTradeAddressCount)
-    {
-        var snapshotGrain = _clusterClient.GetGrain<ITradePairMarketDataSnapshotGrain>(
-            GrainIdHelper.GenerateGrainId(snapshotDto.ChainId, snapshotDto.TradePairId, snapshotDto.Timestamp));
-        
-        // add snapshot
-        if (!State.MarketDataSnapshots.Contains(snapshotGrain.GetPrimaryKeyString()))
-        {
-            _previous7DaysMarketDataSnapshots.Add(snapshotGrain);
-            State.MarketDataSnapshots.Add(snapshotGrain.GetPrimaryKeyString());
-        }
-        
-        var lastMarketData = await GetLatestBeforeSnapshotAsync(snapshotDto.Timestamp);
-
-        var updateSnapshotResult = await snapshotGrain.UpdateLiquidityWithSyncEvent(snapshotDto, lastMarketData, userTradeAddressCount);
-        
-        var updateTradePairResult = await UpdateFromSnapshotAsync(updateSnapshotResult.Data);
-        
         return new GrainResultDto<Tuple<TradePairGrainDto, TradePairMarketDataSnapshotGrainDto>>
         {
             Success = true,
@@ -338,8 +280,8 @@ public class TradePairGrain : Grain<TradePairState>, ITradePairGrain
             }
         }
         
-        var priceUSD0 = await _tokenPriceProvider.GetPriceAsync(State.Token0Symbol);
-        var priceUSD1 = await _tokenPriceProvider.GetPriceAsync(State.Token1Symbol);
+        var priceUSD0 = await _tokenPriceProvider.GetPriceAsync(State.Token0.Symbol);
+        var priceUSD1 = await _tokenPriceProvider.GetPriceAsync(State.Token1.Symbol);
         
         State.PriceUSD = priceUSD1 != 0 ? State.Price * (double)priceUSD1 : (double)priceUSD0;
         State.PricePercentChange24h = lastDayPriceUSD == 0
@@ -371,7 +313,7 @@ public class TradePairGrain : Grain<TradePairState>, ITradePairGrain
 
         _logger.LogInformation(
             "updatePairTimer token:{token0Symbol}-{token1Symbol},fee:{fee}-price:{price}-priceUSD:{priceUSD},token1:{token1}-priceUSD1:{priceUSD1}",
-            State.Token0Symbol, State.Token1Symbol, State.FeeRate, State.Price, State.PriceUSD, State.Token1Symbol,
+            State.Token0.Symbol, State.Token1.Symbol, State.FeeRate, State.Price, State.PriceUSD, State.Token1.Symbol,
             priceUSD1);
 
         await WriteStateAsync();
@@ -503,7 +445,7 @@ public class TradePairGrain : Grain<TradePairState>, ITradePairGrain
         };
     }
 
-    public async Task<GrainResultDto<TradePairGrainDto>> AddAsync(TradePairGrainDto dto)
+    public async Task<GrainResultDto<TradePairGrainDto>> AddOrUpdateAsync(TradePairGrainDto dto)
     {
         State = _objectMapper.Map<TradePairGrainDto, TradePairState>(dto);
         await WriteStateAsync();

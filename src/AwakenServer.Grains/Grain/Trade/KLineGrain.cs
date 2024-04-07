@@ -18,10 +18,40 @@ public class KLineGrain : Grain<KLineState>, IKLineGrain
     {
         var result = new GrainResultDto<KLineGrainDto>();
         kLineGrainDto.GrainId = this.GetPrimaryKeyString();
-        _objectMapper.Map(kLineGrainDto, State);
+        
+        if (State.GrainId == null)
+        {
+            _objectMapper.Map(kLineGrainDto, State);
+        }
+        else
+        {
+            if (State.Timestamp == kLineGrainDto.Timestamp)
+            {
+                State.Close = kLineGrainDto.Close;
+                if (State.High < kLineGrainDto.High)
+                {
+                    State.High = kLineGrainDto.High;
+                }
+                if (State.Low > kLineGrainDto.Low)
+                {
+                    State.Low = kLineGrainDto.Low;
+                }
+                State.Volume += kLineGrainDto.Volume;
+            }
+            else
+            {
+                State.Timestamp = kLineGrainDto.Timestamp;
+                State.Open = kLineGrainDto.Open;
+                State.Close = kLineGrainDto.Close;
+                State.High = kLineGrainDto.High;
+                State.Low = kLineGrainDto.Low;
+                State.Volume = kLineGrainDto.Volume;
+            }
+        }
+        
         await WriteStateAsync();
         result.Success = true;
-        result.Data = kLineGrainDto;
+        result.Data = _objectMapper.Map<KLineState, KLineGrainDto>(State);
         return result;
     }
 

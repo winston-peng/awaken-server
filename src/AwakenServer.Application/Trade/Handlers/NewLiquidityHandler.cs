@@ -2,6 +2,7 @@ using System;
 using System.Threading.Tasks;
 using AElf.Client.MultiToken;
 using AwakenServer.Chains;
+using AwakenServer.Grains.Grain.Price.TradePair;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Nethereum.Util;
@@ -31,20 +32,23 @@ namespace AwakenServer.Trade.Handlers
             var lpAmount = BigDecimal.Parse(eventData.LpTokenAmount);
             lpAmount = eventData.Type == LiquidityType.Mint ? lpAmount : -lpAmount;
             
-            var tradePairIndexDto = await _tradePairAppService.GetAsync(eventData.TradePairId);
+            var tradePairIndexDto = await _tradePairAppService.GetFromGrainAsync(eventData.TradePairId);
 
             if (tradePairIndexDto == null)
             {
                 _logger.LogError($"NewLiquidityHandler can not find trade pair: {eventData.TradePairId}");
                 return;
             }
-            
-            await _tradePairMarketDataProvider.UpdateTotalSupplyWithLiquidityEventAsync(eventData.ChainId, 
-                eventData.TradePairId, 
-                tradePairIndexDto.Token0.Symbol, 
-                tradePairIndexDto.Token1.Symbol, 
-                tradePairIndexDto.FeeRate, 
-                eventData.Timestamp, lpAmount);
+
+            await _tradePairMarketDataProvider.AddOrUpdateSnapshotAsync(
+                new TradePairMarketDataSnapshotGrainDto
+                {
+                    Id = Guid.NewGuid(),
+                    ChainId = eventData.ChainId,
+                    TradePairId = eventData.TradePairId,
+                    Timestamp = _tradePairMarketDataProvider.GetSnapshotTime(eventData.Timestamp),
+                    TotalSupply = lpAmount.ToNormalizeString(),
+                });
         }
     }
 }

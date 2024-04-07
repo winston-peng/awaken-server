@@ -8,7 +8,6 @@ using AwakenServer.Grains.Grain.Tokens;
 using AwakenServer.Grains.Grain.Favorite;
 using AwakenServer.Grains.Grain.Price.TradePair;
 using AwakenServer.Grains.Grain.Price.TradeRecord;
-using AwakenServer.Grains.Grain.Price.UserTradeSummary;
 using AwakenServer.Grains.Grain.Trade;
 using AwakenServer.Grains.State.Tokens;
 using AwakenServer.Tokens;
@@ -108,6 +107,7 @@ namespace AwakenServer
                 opt => opt.MapFrom(source => DateTimeHelper.FromUnixTimeMilliseconds(source.Timestamp)));
             CreateMap<Trade.LiquidityRecord, NewLiquidityRecordEvent>();
             CreateMap<LiquidityRecordEto, Trade.Index.LiquidityRecord>();
+            CreateMap<LiquidityRecordDto, UserLiquidityGrainDto>();
             CreateMap<Trade.Index.LiquidityRecord, LiquidityRecordIndexDto>().ForMember(
                 destination => destination.Timestamp,
                 opt => opt.MapFrom(source => DateTimeHelper.ToUnixTimeMilliseconds(source.Timestamp)));

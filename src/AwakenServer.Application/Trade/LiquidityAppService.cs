@@ -53,6 +53,43 @@ namespace AwakenServer.Trade
             _logger = logger;
         }
 
+        public async Task InitializeDataAsync()
+        {
+            int skipCount = 0;
+            int maxResultCount = 1000;
+            while (true)
+            {
+                var queryResult = await _graphQlProvider.QueryUserLiquidityAsync(new GetUserLiquidityInput
+                {
+                    SkipCount = skipCount,
+                    MaxResultCount = maxResultCount
+                });
+                foreach (var dto in queryResult.Data)
+                {
+                    var tradePair = await _tradePairAppService.GetTradePairAsync(dto.ChainId, dto.Pair);
+                    if (tradePair == null)
+                    {
+                        _logger.LogError("tradePair not existed,chainId:{chainId},address:{address}", dto.ChainId,
+                            dto.Pair);
+                        continue;
+                    }
+            
+                    var userLiquidityGrainDto = ObjectMapper.Map<UserLiquidityDto, UserLiquidityGrainDto>(dto);
+                    userLiquidityGrainDto.TradePair = tradePair;
+            
+                    var userLiquidityGrain = _clusterClient.GetGrain<IUserLiquidityGrain>(
+                        GrainIdHelper.GenerateGrainId(dto.ChainId, dto.Address));
+                    userLiquidityGrain.AddOrUpdateAsync(userLiquidityGrainDto);
+                    _logger.LogInformation($"sync UserLiquidityGrain grainId: {userLiquidityGrain.GetPrimaryKeyString()}, TradePair.Address: {tradePair.Address}, LpTokenAmount: {userLiquidityGrainDto.LpTokenAmount} from es to grain");
+                }
+                
+                if (queryResult.Data.Count < maxResultCount)
+                    break;
+
+                skipCount += maxResultCount;
+            }
+        }
+        
         public async Task<PagedResultDto<LiquidityRecordIndexDto>> GetRecordsAsync(GetLiquidityRecordsInput input)
         {
             var qlQueryInput = new GetLiquidityRecordIndexInput();
@@ -151,6 +188,34 @@ namespace AwakenServer.Trade
 
         public async Task<PagedResultDto<UserLiquidityIndexDto>> GetUserLiquidityAsync(GetUserLiquidityInput input)
         {
+            var grain = _clusterClient.GetGrain<IUserLiquidityGrain>(
+                GrainIdHelper.GenerateGrainId(input.ChainId, input.Address));
+            var result = await grain.GetAsync();
+            if (!result.Success)
+            {
+                return await GetUserLiquidityFromGraphQLAsync(input);
+            }
+
+            var dataList = result.Data.Select(dto => new UserLiquidityIndexDto
+            {
+                TradePair = dto.TradePair,
+                Address = dto.Address,
+                AssetUSD = dto.AssetUSD,
+                LpTokenAmount = dto.LpTokenAmount.ToDecimalsString(8),
+                Token0Amount = dto.Token0Amount,
+                Token1Amount = dto.Token1Amount
+            }).ToList();
+            
+            dataList = SortingUserLiquidity(input.Sorting, dataList);
+            return new PagedResultDto<UserLiquidityIndexDto>
+            {
+                Items = dataList,
+                TotalCount = dataList.Count
+            };
+        }
+
+        public async Task<PagedResultDto<UserLiquidityIndexDto>> GetUserLiquidityFromGraphQLAsync(GetUserLiquidityInput input)
+        {
             var dataList = new List<UserLiquidityIndexDto>();
 
             var queryResult = await _graphQlProvider.QueryUserLiquidityAsync(input);
@@ -210,7 +275,25 @@ namespace AwakenServer.Trade
             };
         }
 
+        
         public async Task<UserAssetDto> GetUserAssetAsync(GetUserAssertInput input)
+        {
+            var grain = _clusterClient.GetGrain<IUserLiquidityGrain>(
+                GrainIdHelper.GenerateGrainId(input.ChainId, input.Address));
+            var result = await grain.GetAssetAsync();
+            if (!result.Success)
+            {
+                return await GetUserAssetFromGraphQLAsync(input);
+            }
+
+            return new UserAssetDto
+            {
+                AssetUSD = result.Data.AssetUSD,
+                AssetBTC = result.Data.AssetBTC
+            };
+        }
+
+        public async Task<UserAssetDto> GetUserAssetFromGraphQLAsync(GetUserAssertInput input)
         {
             var getUserLiquidityInput = new GetUserLiquidityInput();
             ObjectMapper.Map(input, getUserLiquidityInput);
@@ -270,6 +353,13 @@ namespace AwakenServer.Trade
                     input.Pair);
                 throw new Exception("tradePair not existed");
             }
+            
+            var dto = ObjectMapper.Map<LiquidityRecordDto, UserLiquidityGrainDto>(input);
+            dto.TradePair = tradePair;
+            
+            var userLiquidityGrain = _clusterClient.GetGrain<IUserLiquidityGrain>(
+                GrainIdHelper.GenerateGrainId(input.ChainId, input.Address));
+            userLiquidityGrain.AddOrUpdateAsync(dto);
             
             var liquidityEvent = new NewLiquidityRecordEvent
             {

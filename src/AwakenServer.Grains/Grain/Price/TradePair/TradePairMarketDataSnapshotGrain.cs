@@ -50,7 +50,7 @@ public class TradePairMarketDataSnapshotGrain : Grain<TradePairMarketDataSnapsho
         };
     }
 
-    public async Task<GrainResultDto<TradePairMarketDataSnapshotGrainDto>> AddOrUpdateAsync(
+    public async Task<GrainResultDto<TradePairMarketDataSnapshotGrainDto>> AddAsync(
         TradePairMarketDataSnapshotGrainDto dto)
     {
         if (dto.Id == Guid.Empty)
@@ -69,41 +69,84 @@ public class TradePairMarketDataSnapshotGrain : Grain<TradePairMarketDataSnapsho
     }
 
 
-    public async Task<GrainResultDto<TradePairMarketDataSnapshotGrainDto>> UpdateTotalSupplyWithLiquidityAsync(
+    public async Task<GrainResultDto<TradePairMarketDataSnapshotGrainDto>> UpdateAsync(
         TradePairMarketDataSnapshotGrainDto dto,
-        TradePairMarketDataSnapshotGrainDto latestBeforeDto,
-        BigDecimal lpTokenAmount,
-        int userTradeAddressCount,
-        string lpTokenCurrentSupply)
+        TradePairMarketDataSnapshotGrainDto latestBeforeDto)
     {
-        var totalSupply = lpTokenAmount;
-
-        if (State.Id == Guid.Empty)
+        if (dto.Id == Guid.Empty)
         {
-            State = _objectMapper.Map<TradePairMarketDataSnapshotGrainDto, TradePairMarketDataSnapshotState>(dto);
+            dto.Id = Guid.NewGuid();
+        }
 
-            if (latestBeforeDto != null)
+        if (latestBeforeDto != null)
+        {
+            // latestBeforeDto.TradeAddressCount24h = await _tradeRecordAppService.GetUserTradeAddressCountAsync(chainId,
+            //     eventData.TradePairId,
+            //     eventData.Timestamp.AddDays(-1), 
+            //     eventData.Timestamp),
+
+            if (dto.TotalSupply != "0")
             {
-                totalSupply += BigDecimal.Parse(latestBeforeDto.TotalSupply);
-                State.Price = latestBeforeDto.Price;
-                State.PriceUSD = latestBeforeDto.PriceUSD;
-                State.TVL = latestBeforeDto.TVL;
-                State.ValueLocked0 = latestBeforeDto.ValueLocked0;
-                State.ValueLocked1 = latestBeforeDto.ValueLocked1;
+                var totalSupply = BigDecimal.Parse(latestBeforeDto.TotalSupply) + BigDecimal.Parse(dto.TotalSupply);
+                latestBeforeDto.TotalSupply = totalSupply.ToNormalizeString();
             }
 
-            State.TotalSupply = totalSupply.ToNormalizeString();
-            State.TradeAddressCount24h = userTradeAddressCount;
+            if (dto.Volume > 0)
+            {
+                latestBeforeDto.Volume += dto.Volume;
+            }
+
+            if (dto.TradeValue > 0)
+            {
+                latestBeforeDto.TradeValue += dto.TradeValue;
+            }
+
+            if (dto.TradeCount > 0)
+            {
+                latestBeforeDto.TradeCount += dto.TradeCount;
+            }
+
+            if (dto.Price > 0)
+            {
+                latestBeforeDto.Price = dto.Price;
+                latestBeforeDto.PriceHigh = Math.Max(latestBeforeDto.PriceHigh, dto.Price);
+                latestBeforeDto.PriceLow = latestBeforeDto.PriceLow == 0
+                    ? dto.Price
+                    : Math.Min(latestBeforeDto.PriceLow, dto.Price);
+            }
+
+            if (dto.PriceUSD > 0)
+            {
+                latestBeforeDto.PriceUSD = dto.PriceUSD;
+                latestBeforeDto.PriceHighUSD = Math.Max(latestBeforeDto.PriceHighUSD, dto.PriceUSD);
+                latestBeforeDto.PriceLowUSD = latestBeforeDto.PriceLowUSD == 0
+                    ? dto.Price
+                    : Math.Min(latestBeforeDto.PriceLowUSD, dto.PriceUSD);
+            }
+
+            if (dto.TVL > 0)
+            {
+                latestBeforeDto.TVL = dto.TVL;
+            }
+
+            if (dto.ValueLocked0 > 0)
+            {
+                latestBeforeDto.ValueLocked0 = dto.ValueLocked0;
+            }
+
+            if (dto.ValueLocked1 > 0)
+            {
+                latestBeforeDto.ValueLocked1 = dto.ValueLocked1;
+            }
+
+            State =
+                _objectMapper.Map<TradePairMarketDataSnapshotGrainDto, TradePairMarketDataSnapshotState>(
+                    latestBeforeDto);
+            State.Timestamp = dto.Timestamp;
         }
         else
         {
-            totalSupply += BigDecimal.Parse(State.TotalSupply);
-            State.TotalSupply = totalSupply.ToNormalizeString();
-        }
-
-        if (!string.IsNullOrWhiteSpace(lpTokenCurrentSupply))
-        {
-            State.TotalSupply = lpTokenCurrentSupply;
+            State = _objectMapper.Map<TradePairMarketDataSnapshotGrainDto, TradePairMarketDataSnapshotState>(dto);
         }
 
         _logger.LogInformation("UpdateTotalSupplyAsync: totalSupply:{supply}", State.TotalSupply);
@@ -193,6 +236,4 @@ public class TradePairMarketDataSnapshotGrain : Grain<TradePairMarketDataSnapsho
             Data = _objectMapper.Map<TradePairMarketDataSnapshotState, TradePairMarketDataSnapshotGrainDto>(State)
         };
     }
-
-    
 }

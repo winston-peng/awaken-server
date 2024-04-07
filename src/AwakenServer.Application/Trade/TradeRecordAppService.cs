@@ -7,7 +7,6 @@ using AwakenServer.CMS;
 using AwakenServer.Grains;
 using AwakenServer.Grains.Grain.Price.TradePair;
 using AwakenServer.Grains.Grain.Price.TradeRecord;
-using AwakenServer.Grains.Grain.Price.UserTradeSummary;
 using AwakenServer.Grains.Grain.Trade;
 using AwakenServer.Provider;
 using AwakenServer.Trade.Dtos;
@@ -85,7 +84,7 @@ namespace AwakenServer.Trade
             _bus = bus;
         }
 
-        public async Task<TradeRecordIndexDto> GetRecord(string transactionId)
+        public async Task<TradeRecordIndexDto> GetRecordAsync(string transactionId)
         {
             var mustQuery = new List<Func<QueryContainerDescriptor<Index.TradeRecord>, QueryContainer>>();
             mustQuery.Add(q => q.Term(i => i.Field(f => f.TransactionHash).Value(transactionId)));
@@ -207,7 +206,7 @@ namespace AwakenServer.Trade
             var tradeRecord = ObjectMapper.Map<TradeRecordCreateDto, TradeRecord>(input);
             tradeRecord.Price = double.Parse(tradeRecord.Token1Amount) / double.Parse(tradeRecord.Token0Amount);
             tradeRecord.Id = Guid.NewGuid();
-            var tradeRecordGrain = _clusterClient.GetGrain<ITradeRecordGrain>(tradeRecord.Id);
+            var tradeRecordGrain = _clusterClient.GetGrain<ITradeRecordGrain>(tradeRecord.TransactionHash);
             await tradeRecordGrain.InsertAsync(ObjectMapper.Map<TradeRecord, TradeRecordGrainDto>(tradeRecord));
             await _distributedEventBus.PublishAsync(new EntityCreatedEto<TradeRecordEto>(
                 ObjectMapper.Map<TradeRecord, TradeRecordEto>(tradeRecord)
@@ -247,9 +246,8 @@ namespace AwakenServer.Trade
 
         public async Task<bool> CreateAsync(SwapRecordDto dto)
         {
-            var grain = _clusterClient.GetGrain<ITransactionHashGrain>(
-                GrainIdHelper.GenerateGrainId(dto.ChainId, dto.TransactionHash));
-            if (await grain.ExistTransactionHashAsync(dto.TransactionHash))
+            var tradeRecordGrain = _clusterClient.GetGrain<ITradeRecordGrain>(GrainIdHelper.GenerateGrainId(dto.ChainId, dto.TransactionHash));
+            if (await tradeRecordGrain.Exist())
             {
                 _logger.LogInformation("swap event transactionHash existed: {transactionHash}", dto.TransactionHash);
                 return false;
@@ -290,8 +288,36 @@ namespace AwakenServer.Trade
                 "blockHeight: {blockHeight}, totalFee: {totalFee}", dto.ChainId, pair.Id, dto.Sender,
                 dto.TransactionHash, dto.Timestamp,
                 record.Side, dto.Channel, record.Token0Amount, record.Token1Amount, dto.BlockHeight, dto.TotalFee);
-            await CreateAsync(record);
-            await grain.AddTransactionHashAsync(dto.TransactionHash);
+            
+            
+            var tradeRecord = ObjectMapper.Map<TradeRecordCreateDto, TradeRecord>(record);
+            tradeRecord.Price = double.Parse(tradeRecord.Token1Amount) / double.Parse(tradeRecord.Token0Amount);
+            tradeRecord.Id = Guid.NewGuid();
+            
+            // write grain 
+            await tradeRecordGrain.InsertAsync(ObjectMapper.Map<TradeRecord, TradeRecordGrainDto>(tradeRecord));
+            
+            // write es by publish event : TradeRecord
+            await _distributedEventBus.PublishAsync(new EntityCreatedEto<TradeRecordEto>(
+                ObjectMapper.Map<TradeRecord, TradeRecordEto>(tradeRecord)
+            ));
+            
+            // write es : UserTradeSummary
+            await _distributedEventBus.PublishAsync(
+                _objectMapper.Map<UserTradeSummaryGrainDto, UserTradeSummaryEto>(new UserTradeSummaryGrainDto
+                {
+                    Id = Guid.NewGuid(),
+                    ChainId = record.ChainId,
+                    TradePairId = record.TradePairId,
+                    Address = record.Address,
+                    LatestTradeTime = tradeRecord.Timestamp
+                })
+            );
+            
+            // update kLine and trade pair by publish event : NewTradeRecordEvent, Handler: KLineHandler and kNewTradeRecordHandler
+            await _localEventBus.PublishAsync(ObjectMapper.Map<TradeRecord, NewTradeRecordEvent>(tradeRecord));
+            
+            // add unconfirmed data to cache for revert
             await CreateCacheAsync(pair.Id, dto);
             return true;
         }
@@ -307,7 +333,7 @@ namespace AwakenServer.Trade
                 return;
             }
 
-            if (await GetRecord(dto.TransactionHash) != null)
+            if (await GetRecordAsync(dto.TransactionHash) != null)
             {
                 _logger.LogInformation("FixTrade  record continue,blockHeight:{1}", dto.BlockHeight);
                 return;
@@ -345,7 +371,7 @@ namespace AwakenServer.Trade
             var tradeRecord = ObjectMapper.Map<TradeRecordCreateDto, TradeRecord>(record);
             tradeRecord.Price = double.Parse(tradeRecord.Token1Amount) / double.Parse(tradeRecord.Token0Amount);
             tradeRecord.Id = Guid.NewGuid();
-            var tradeRecordGrain = _clusterClient.GetGrain<ITradeRecordGrain>(tradeRecord.Id);
+            var tradeRecordGrain = _clusterClient.GetGrain<ITradeRecordGrain>(tradeRecord.TransactionHash);
             await tradeRecordGrain.InsertAsync(ObjectMapper.Map<TradeRecord, TradeRecordGrainDto>(tradeRecord));
             await _distributedEventBus.PublishAsync(new EntityCreatedEto<TradeRecordEto>(
                 ObjectMapper.Map<TradeRecord, TradeRecordEto>(tradeRecord)
@@ -668,7 +694,7 @@ namespace AwakenServer.Trade
             {
                 var endBlockHeight = minBlockHeight + _tradeRecordOptions.BlockHeightLimit > confirmedHeight
                     ? confirmedHeight
-                    : minBlockHeight + _tradeRecordOptions.QueryOnceLimit;
+                    : minBlockHeight + _tradeRecordOptions.BlockHeightLimit;
                 var dtoList = await _graphQlProvider.GetSwapRecordsAsync(chainId, minBlockHeight, endBlockHeight);
                 var records = dtoList.Select(t => t.TransactionHash).ToList();
                 txnHashs.AddRange(records);

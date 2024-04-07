@@ -26,7 +26,7 @@ public class TradePairMarketDataSnapshotTests : AwakenServerGrainTestBase
         result.Success.ShouldBeFalse();
         
         //add
-        result = await grain.AddOrUpdateAsync(dto);
+        result = await grain.AddAsync(dto);
         result.Success.ShouldBeTrue();
         result.Data.ChainId.ShouldBe(dto.ChainId);
         result.Data.TradePairId.ShouldBe(dto.TradePairId);
@@ -43,7 +43,7 @@ public class TradePairMarketDataSnapshotTests : AwakenServerGrainTestBase
         //update
         dto = result.Data;
         dto.TotalSupply = "22.2";
-        await grain.AddOrUpdateAsync(dto);
+        await grain.AddAsync(dto);
         result = await grain.GetAsync();
         result.Data.Id.ShouldBe(dto.Id);
         result.Data.TotalSupply.ShouldBe("22.2");

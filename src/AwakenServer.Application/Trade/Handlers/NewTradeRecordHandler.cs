@@ -1,4 +1,6 @@
+using System;
 using System.Threading.Tasks;
+using AwakenServer.Grains.Grain.Price.TradePair;
 using Orleans;
 using Volo.Abp.DependencyInjection;
 using Volo.Abp.EventBus;
@@ -19,9 +21,17 @@ namespace AwakenServer.Trade.Handlers
 
         public async Task HandleEventAsync(NewTradeRecordEvent eventData)
         {
-            
-            await _tradePairMarketDataProvider.UpdateTradeRecordAsync(eventData.ChainId, eventData.TradePairId,
-                eventData.Timestamp, double.Parse(eventData.Token0Amount), double.Parse(eventData.Token1Amount));
+
+            await _tradePairMarketDataProvider.AddOrUpdateSnapshotAsync(new TradePairMarketDataSnapshotGrainDto
+            {
+                Id = Guid.NewGuid(),
+                ChainId = eventData.ChainId,
+                TradePairId = eventData.TradePairId,
+                Volume = double.Parse(eventData.Token0Amount),
+                TradeValue = double.Parse(eventData.Token1Amount),
+                TradeCount = 1,
+                Timestamp = _tradePairMarketDataProvider.GetSnapshotTime(eventData.Timestamp),
+            });
         }
     }
 }

@@ -2,7 +2,7 @@ using AwakenServer.Grains.State.Price;
 using Orleans;
 using Volo.Abp.ObjectMapping;
 
-namespace AwakenServer.Grains.Grain.Price.UserTradeSummary;
+namespace AwakenServer.Grains.Grain.Trade;
 
 public class UserTradeSummaryGrain : Grain<UserTradeSummaryState>, IUserTradeSummaryGrain
 {

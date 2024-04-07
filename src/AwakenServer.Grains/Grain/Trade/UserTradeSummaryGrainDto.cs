@@ -1,4 +1,4 @@
-namespace AwakenServer.Grains.Grain.Price.UserTradeSummary;
+namespace AwakenServer.Grains.Grain.Trade;
 
 public class UserTradeSummaryGrainDto
 {
