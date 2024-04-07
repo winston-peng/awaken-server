@@ -15,7 +15,6 @@ public class TradeRecordEventSwapWorker : AsyncPeriodicBackgroundWorkerBase
     private readonly IGraphQLProvider _graphQlProvider;
     private readonly ITradeRecordAppService _tradeRecordAppService;
     private readonly ILogger<TradeRecordEventSwapWorker> _logger;
-    private bool executed = false;
 
     public TradeRecordEventSwapWorker(AbpAsyncTimer timer, IServiceScopeFactory serviceScopeFactory,
         IChainAppService chainAppService, IGraphQLProvider iGraphQlProvider,
@@ -31,13 +30,7 @@ public class TradeRecordEventSwapWorker : AsyncPeriodicBackgroundWorkerBase
 
     protected override async Task DoWorkAsync(PeriodicBackgroundWorkerContext workerContext)
     {
-        if (!executed)
-        {
-            await UpdateTransaction();
-            executed = true;
-        }
-
-
+        
         _logger.LogInformation("swap TradeRecordEventSwapWorker start");
         var chains = await _chainAppService.GetListAsync(new GetChainInput());
         foreach (var chain in chains.Items)
@@ -56,21 +49,5 @@ public class TradeRecordEventSwapWorker : AsyncPeriodicBackgroundWorkerBase
             }
         }
     }
-
-    protected async Task UpdateTransaction()
-    {
-        var endHeight = await _graphQlProvider.GetLastEndHeightAsync("tDVV", QueryType.TradeRecord);
-        long curHeight = 189607411;
-
-        for (long i = curHeight; i <= endHeight;)
-        {
-            var queryList = await _graphQlProvider.GetSwapRecordsAsync("tDVV", i, 0);
-
-            foreach (var queryDto in queryList)
-            {
-                await _tradeRecordAppService.FillRecord(queryDto);
-                i = queryDto.BlockHeight;
-            }
-        }
-    }
+    
 }
