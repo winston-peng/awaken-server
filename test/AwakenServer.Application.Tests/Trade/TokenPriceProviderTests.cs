@@ -128,10 +128,12 @@ namespace AwakenServer.Trade
         [Fact]
         public async Task InitPriceTest()
         {
-            await _tradePairMarketDataProvider.AddOrUpdateSnapshotAsync(new TradePairMarketDataSnapshotGrainDto
+            await _tradePairMarketDataProvider.AddOrUpdateSnapshotAsync(TradePairEthUsdtId, async grain =>
+            {
+                return await grain.AddOrUpdateSnapshotAsync(new TradePairMarketDataSnapshotGrainDto
                 {
                     ChainId = ChainId,
-                    TradePairId =TradePairEthUsdtId,
+                    TradePairId = TradePairEthUsdtId,
                     Timestamp = DateTime.UtcNow,
                     Price = 10,
                     PriceUSD = 10,
@@ -140,6 +142,7 @@ namespace AwakenServer.Trade
                     ValueLocked1 = 1000
                     
                 });
+            });
 
             var price = await _tokenPriceProvider.GetTokenUSDPriceAsync(ChainId, TokenEthSymbol);
             price.ShouldBe(0);
@@ -159,7 +162,9 @@ namespace AwakenServer.Trade
                 Token1Id = TokenEthId
             });
             
-            await _tradePairMarketDataProvider.AddOrUpdateSnapshotAsync(new TradePairMarketDataSnapshotGrainDto
+            await _tradePairMarketDataProvider.AddOrUpdateSnapshotAsync(pair.Id, async grain =>
+            {
+                return await grain.AddOrUpdateSnapshotAsync(new TradePairMarketDataSnapshotGrainDto
                 {
                     ChainId = ChainId,
                     TradePairId =pair.Id,
@@ -171,6 +176,7 @@ namespace AwakenServer.Trade
                     ValueLocked1 = 1000
                     
                 });
+            });
 
             var price = await _tokenPriceProvider.GetTokenUSDPriceAsync(ChainId, TokenEthSymbol);
             price.ShouldBe(0);

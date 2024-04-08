@@ -51,8 +51,11 @@ namespace AwakenServer.Trade.Handlers
                     Period = period,
                     Timestamp = periodTimestamp
                 };
-                await grain.AddOrUpdateAsync(kLine);
-                await DistributedEventBus.PublishAsync(_objectMapper.Map<KLineGrainDto, KLineEto>(kLine));
+                var result = await grain.AddOrUpdateAsync(kLine);
+                if (result.Success)
+                {
+                    await DistributedEventBus.PublishAsync(_objectMapper.Map<KLineGrainDto, KLineEto>(result.Data));
+                }
             }
         }
     }

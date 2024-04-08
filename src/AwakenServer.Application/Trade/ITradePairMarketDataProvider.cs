@@ -8,6 +8,7 @@ using AElf.Indexing.Elasticsearch;
 using AwakenServer.Chains;
 using AwakenServer.Comparers;
 using AwakenServer.Grains;
+using AwakenServer.Grains.Grain;
 using AwakenServer.Grains.Grain.Price.TradePair;
 using AwakenServer.Grains.Grain.Trade;
 using AwakenServer.Trade.Dtos;
@@ -28,11 +29,14 @@ using JsonConvert = Newtonsoft.Json.JsonConvert;
 
 namespace AwakenServer.Trade
 {
+    public delegate Task<GrainResultDto<TradePairMarketDataSnapshotUpdateResult>> TradePairMethodDelegate(ITradePairGrain grain);
+    
     public interface ITradePairMarketDataProvider
     {
         Task InitializeDataAsync();
-
-        Task AddOrUpdateSnapshotAsync(TradePairMarketDataSnapshotGrainDto dto);
+        
+        Task AddOrUpdateSnapshotAsync(Guid tradePairId, 
+            TradePairMethodDelegate methodDelegate);
         
         Task<Index.TradePairMarketDataSnapshot> GetTradePairMarketDataIndexAsync(string chainId, Guid tradePairId,
             DateTime snapshotTime);
@@ -115,7 +119,7 @@ namespace AwakenServer.Trade
                     var tradePairSnapshots = await GetIndexListAsync(tradePair.ChainId, tradePair.Id, now.AddDays(-7), now);
                     foreach (var snapshot in tradePairSnapshots)
                     {
-                        await tradePairGrain.AddSnapshotAsync(_objectMapper
+                        await tradePairGrain.AddOrUpdateSnapshotAsync(_objectMapper
                             .Map<Index.TradePairMarketDataSnapshot, TradePairMarketDataSnapshotGrainDto>(snapshot));
                     }
                     
@@ -153,30 +157,30 @@ namespace AwakenServer.Trade
             }
         }
         
-        public async Task AddOrUpdateSnapshotAsync(TradePairMarketDataSnapshotGrainDto dto)
+        public async Task AddOrUpdateSnapshotAsync(Guid tradePairId, TradePairMethodDelegate methodDelegate)
         {
-            _logger.LogInformation("UpdateTotalSupplyAsync: input supply:{supply}", dto.TotalSupply);
-
-            var lockName = $"{dto.ChainId}-{dto.TradePairId}-{dto.Timestamp}";
-            await using var handle = await _distributedLock.TryAcquireAsync(lockName);
+            var grain = _clusterClient.GetGrain<ITradePairGrain>(GrainIdHelper.GenerateGrainId(tradePairId));
+            if (!(await grain.GetAsync()).Success)
+            {
+                _logger.LogInformation($"trade pair: {tradePairId} not exist");
+                return;
+            }
             
-            var grain = _clusterClient.GetGrain<ITradePairGrain>(GrainIdHelper.GenerateGrainId(dto.TradePairId));
-            var result = await grain.AddOrUpdateSnapshotAsync(dto);
+            var result = await methodDelegate(grain);
 
-            _logger.LogInformation("UpdateTotalSupplyWithLiquidityEventAsync: distributedEventBus.PublishAsync TradePairEto: " + JsonConvert.SerializeObject(result.Data.Item1));
+            _logger.LogInformation("AddOrUpdateSnapshotAsync: distributedEventBus.PublishAsync TradePairEto: " + JsonConvert.SerializeObject(result.Data.TradePairDto));
 
             await _distributedEventBus.PublishAsync(new EntityCreatedEto<TradePairEto>(
                 _objectMapper.Map<TradePairGrainDto, TradePairEto>(
-                    result.Data.Item1)
+                    result.Data.TradePairDto)
             ));
             
-            _logger.LogInformation("UpdateTotalSupplyWithLiquidityEventAsync: distributedEventBus.PublishAsync TradePairMarketDataSnapshotEto: " + JsonConvert.SerializeObject(result.Data.Item2));
+            _logger.LogInformation("AddOrUpdateSnapshotAsync: distributedEventBus.PublishAsync TradePairMarketDataSnapshotEto: " + JsonConvert.SerializeObject(result.Data.SnapshotDto));
             
             await _distributedEventBus.PublishAsync(new EntityCreatedEto<TradePairMarketDataSnapshotEto>(
                 _objectMapper.Map<TradePairMarketDataSnapshotGrainDto, TradePairMarketDataSnapshotEto>(
-                    result.Data.Item2)
+                    result.Data.SnapshotDto)
             ));
-            
         }
         
 

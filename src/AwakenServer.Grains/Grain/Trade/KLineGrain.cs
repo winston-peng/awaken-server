@@ -17,10 +17,10 @@ public class KLineGrain : Grain<KLineState>, IKLineGrain
     public async Task<GrainResultDto<KLineGrainDto>> AddOrUpdateAsync(KLineGrainDto kLineGrainDto)
     {
         var result = new GrainResultDto<KLineGrainDto>();
-        kLineGrainDto.GrainId = this.GetPrimaryKeyString();
         
         if (State.GrainId == null)
         {
+            kLineGrainDto.GrainId = this.GetPrimaryKeyString();
             _objectMapper.Map(kLineGrainDto, State);
         }
         else

@@ -50,103 +50,124 @@ public class TradePairMarketDataSnapshotGrain : Grain<TradePairMarketDataSnapsho
         };
     }
 
-    public async Task<GrainResultDto<TradePairMarketDataSnapshotGrainDto>> AddAsync(
-        TradePairMarketDataSnapshotGrainDto dto)
+    public bool IsInitialSnapshotInTimeRange(TradePairMarketDataSnapshotGrainDto dto,
+        TradePairMarketDataSnapshotGrainDto latestBeforeDto)
     {
-        if (dto.Id == Guid.Empty)
-        {
-            dto.Id = Guid.NewGuid();
-        }
+        return latestBeforeDto.Timestamp != dto.Timestamp;
+    }
 
-        State = _objectMapper.Map<TradePairMarketDataSnapshotGrainDto, TradePairMarketDataSnapshotState>(dto);
+    public async Task<GrainResultDto<TradePairMarketDataSnapshotGrainDto>> AccumulateTotalSupplyAsync(BigDecimal supply)
+    {
+        State.TotalSupply = (BigDecimal.Parse(State.TotalSupply) + supply).ToNormalizeString();
+        
         await WriteStateAsync();
 
         return new GrainResultDto<TradePairMarketDataSnapshotGrainDto>()
         {
             Success = true,
-            Data = dto
+            Data = _objectMapper.Map<TradePairMarketDataSnapshotState, TradePairMarketDataSnapshotGrainDto>(State)
         };
     }
-
-
-    public async Task<GrainResultDto<TradePairMarketDataSnapshotGrainDto>> UpdateAsync(
-        TradePairMarketDataSnapshotGrainDto dto,
-        TradePairMarketDataSnapshotGrainDto latestBeforeDto)
+    public async Task<GrainResultDto<TradePairMarketDataSnapshotGrainDto>> AddOrUpdateAsync(
+        TradePairMarketDataSnapshotGrainDto updateDto,
+        TradePairMarketDataSnapshotGrainDto dto)
     {
-        if (dto.Id == Guid.Empty)
+        if (updateDto.Id == Guid.Empty)
         {
-            dto.Id = Guid.NewGuid();
+            updateDto.Id = Guid.NewGuid();
         }
 
-        if (latestBeforeDto != null)
+        if (dto != null)
         {
             // latestBeforeDto.TradeAddressCount24h = await _tradeRecordAppService.GetUserTradeAddressCountAsync(chainId,
             //     eventData.TradePairId,
             //     eventData.Timestamp.AddDays(-1), 
             //     eventData.Timestamp),
-
-            if (dto.TotalSupply != "0")
+            
+            bool initialSnapshot = IsInitialSnapshotInTimeRange(updateDto, dto);
+            
+            dto.Timestamp = updateDto.Timestamp;
+            
+            if (updateDto.TotalSupply != "0")
             {
-                var totalSupply = BigDecimal.Parse(latestBeforeDto.TotalSupply) + BigDecimal.Parse(dto.TotalSupply);
-                latestBeforeDto.TotalSupply = totalSupply.ToNormalizeString();
+                dto.TotalSupply = (BigDecimal.Parse(dto.TotalSupply) + BigDecimal.Parse(updateDto.TotalSupply)).ToNormalizeString();
             }
 
-            if (dto.Volume > 0)
+            if (updateDto.Volume > 0)
             {
-                latestBeforeDto.Volume += dto.Volume;
+                if (initialSnapshot)
+                {
+                    dto.Volume = updateDto.Volume;
+                }
+                else
+                {
+                    dto.Volume += updateDto.Volume;
+                }
             }
 
-            if (dto.TradeValue > 0)
+            if (updateDto.TradeValue > 0)
             {
-                latestBeforeDto.TradeValue += dto.TradeValue;
+                if (initialSnapshot)
+                {
+                    dto.TradeValue = updateDto.TradeValue;
+                }
+                else
+                {
+                    dto.TradeValue += updateDto.TradeValue;
+                }
             }
 
-            if (dto.TradeCount > 0)
+            if (updateDto.TradeCount > 0)
             {
-                latestBeforeDto.TradeCount += dto.TradeCount;
+                if (initialSnapshot)
+                {
+                    dto.TradeCount = updateDto.TradeCount;
+                }
+                else
+                {
+                    dto.TradeCount += updateDto.TradeCount;
+                }
             }
 
-            if (dto.Price > 0)
+            if (updateDto.Price > 0)
             {
-                latestBeforeDto.Price = dto.Price;
-                latestBeforeDto.PriceHigh = Math.Max(latestBeforeDto.PriceHigh, dto.Price);
-                latestBeforeDto.PriceLow = latestBeforeDto.PriceLow == 0
-                    ? dto.Price
-                    : Math.Min(latestBeforeDto.PriceLow, dto.Price);
+                dto.Price = updateDto.Price;
+                dto.PriceHigh = Math.Max(dto.PriceHigh, updateDto.Price);
+                dto.PriceLow = dto.PriceLow == 0
+                    ? updateDto.Price
+                    : Math.Min(dto.PriceLow, updateDto.Price);
             }
 
-            if (dto.PriceUSD > 0)
+            if (updateDto.PriceUSD > 0)
             {
-                latestBeforeDto.PriceUSD = dto.PriceUSD;
-                latestBeforeDto.PriceHighUSD = Math.Max(latestBeforeDto.PriceHighUSD, dto.PriceUSD);
-                latestBeforeDto.PriceLowUSD = latestBeforeDto.PriceLowUSD == 0
-                    ? dto.Price
-                    : Math.Min(latestBeforeDto.PriceLowUSD, dto.PriceUSD);
+                dto.PriceUSD = updateDto.PriceUSD;
+                dto.PriceHighUSD = Math.Max(dto.PriceHighUSD, updateDto.PriceUSD);
+                dto.PriceLowUSD = dto.PriceLowUSD == 0
+                    ? updateDto.Price
+                    : Math.Min(dto.PriceLowUSD, updateDto.PriceUSD);
             }
 
-            if (dto.TVL > 0)
+            if (updateDto.TVL > 0)
             {
-                latestBeforeDto.TVL = dto.TVL;
+                dto.TVL = updateDto.TVL;
             }
 
-            if (dto.ValueLocked0 > 0)
+            if (updateDto.ValueLocked0 > 0)
             {
-                latestBeforeDto.ValueLocked0 = dto.ValueLocked0;
+                dto.ValueLocked0 = updateDto.ValueLocked0;
             }
 
-            if (dto.ValueLocked1 > 0)
+            if (updateDto.ValueLocked1 > 0)
             {
-                latestBeforeDto.ValueLocked1 = dto.ValueLocked1;
+                dto.ValueLocked1 = updateDto.ValueLocked1;
             }
 
             State =
-                _objectMapper.Map<TradePairMarketDataSnapshotGrainDto, TradePairMarketDataSnapshotState>(
-                    latestBeforeDto);
-            State.Timestamp = dto.Timestamp;
+                _objectMapper.Map<TradePairMarketDataSnapshotGrainDto, TradePairMarketDataSnapshotState>(dto);
         }
         else
         {
-            State = _objectMapper.Map<TradePairMarketDataSnapshotGrainDto, TradePairMarketDataSnapshotState>(dto);
+            State = _objectMapper.Map<TradePairMarketDataSnapshotGrainDto, TradePairMarketDataSnapshotState>(updateDto);
         }
 
         _logger.LogInformation("UpdateTotalSupplyAsync: totalSupply:{supply}", State.TotalSupply);

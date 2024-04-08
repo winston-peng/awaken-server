@@ -52,36 +52,45 @@ public class TradePairMarketDataProviderTests : TradeTestBase
     public async Task UpdateTotalSupplyTest()
     {
         // new snapshot
-        await _tradePairMarketDataProvider.AddOrUpdateSnapshotAsync(new TradePairMarketDataSnapshotGrainDto
+        await _tradePairMarketDataProvider.AddOrUpdateSnapshotAsync(TradePairEthUsdtId, async grain =>
         {
-            ChainId = ChainId,
-            TradePairId = TradePairEthUsdtId,
-            Timestamp = DateTime.Now.AddHours(-2),
-            TotalSupply = "10"
+            return await grain.AddOrUpdateSnapshotAsync(new TradePairMarketDataSnapshotGrainDto
+            {
+                ChainId = ChainId,
+                TradePairId = TradePairEthUsdtId,
+                Timestamp = DateTime.Now.AddHours(-2),
+                TotalSupply = "10"
+            });
         });
 
         var pair = await _tradePairAppService.GetAsync(TradePairEthUsdtId);
         pair.TotalSupply.ShouldBe("10");
         
         // new snapshot but exist lastMarketData
-        await _tradePairMarketDataProvider.AddOrUpdateSnapshotAsync(new TradePairMarketDataSnapshotGrainDto
+        await _tradePairMarketDataProvider.AddOrUpdateSnapshotAsync(TradePairEthUsdtId, async grain =>
         {
-            ChainId = ChainId,
-            TradePairId = TradePairEthUsdtId,
-            Timestamp = DateTime.Now.AddHours(-1),
-            TotalSupply = "20"
+            return await grain.AddOrUpdateSnapshotAsync(new TradePairMarketDataSnapshotGrainDto
+            {
+                ChainId = ChainId,
+                TradePairId = TradePairEthUsdtId,
+                Timestamp = DateTime.Now.AddHours(-1),
+                TotalSupply = "20"
+            });
         });
 
         pair = await _tradePairAppService.GetAsync(TradePairEthUsdtId);
         pair.TotalSupply.ShouldBe("30");
 
         // merge
-        await _tradePairMarketDataProvider.AddOrUpdateSnapshotAsync(new TradePairMarketDataSnapshotGrainDto
+        await _tradePairMarketDataProvider.AddOrUpdateSnapshotAsync(TradePairEthUsdtId, async grain =>
         {
-            ChainId = ChainId,
-            TradePairId = TradePairEthUsdtId,
-            Timestamp = DateTime.Now.AddHours(-1),
-            TotalSupply = "30"
+            return await grain.AddOrUpdateSnapshotAsync(new TradePairMarketDataSnapshotGrainDto
+            {
+                ChainId = ChainId,
+                TradePairId = TradePairEthUsdtId,
+                Timestamp = DateTime.Now.AddHours(-1),
+                TotalSupply = "30"
+            });
         });
 
         pair = await _tradePairAppService.GetAsync(TradePairEthUsdtId);

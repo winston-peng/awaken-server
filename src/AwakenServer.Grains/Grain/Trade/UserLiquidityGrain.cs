@@ -73,6 +73,7 @@ public class UserLiquidityGrain : Grain<UserLiquidityState>, IUserLiquidityGrain
     
     public async Task<GrainResultDto<List<UserLiquidityGrainDto>>> GetAsync()
     {
+        State.TradePairLiquidities ??= new Dictionary<string, Liquidity>();
         var dataList = new List<UserLiquidityGrainDto>();
         foreach (var liquidity in State.TradePairLiquidities)
         {

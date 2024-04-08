@@ -4,6 +4,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using AwakenServer.Chains;
 using AwakenServer.Grains;
+using AwakenServer.Grains.Grain.Price.TradePair;
 using AwakenServer.Grains.Grain.Trade;
 using AwakenServer.Provider;
 using AwakenServer.Trade.Dtos;

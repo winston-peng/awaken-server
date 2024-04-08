@@ -276,8 +276,8 @@ namespace AwakenServer.Trade
             tradePairInfo.Token1Symbol = token1.Symbol;
             
             var tradePairGrainDto = _objectMapper.Map<TradePairCreateDto, TradePairGrainDto>(input);
-            tradePairGrainDto.Token0Symbol = token0.Symbol;
-            tradePairGrainDto.Token1Symbol = token1.Symbol;
+            tradePairGrainDto.Token0 = token0;
+            tradePairGrainDto.Token1 = token1;
             
             var grain = _clusterClient.GetGrain<ITradePairGrain>(GrainIdHelper.GenerateGrainId(tradePairInfo.Id));
             await grain.AddOrUpdateAsync(tradePairGrainDto);
@@ -299,54 +299,9 @@ namespace AwakenServer.Trade
 
         public async Task UpdateLiquidityAsync(LiquidityUpdateDto input)
         {
-            var grain = _clusterClient.GetGrain<ITradePairGrain>(
-                GrainIdHelper.GenerateGrainId(input.TradePairId));
-
-            var result = await grain.GetAsync();
-            if (result == null || !result.Success)
+            await _tradePairMarketDataProvider.AddOrUpdateSnapshotAsync(input.TradePairId, async grain =>
             {
-                _logger.LogError("UpdateLiquidityAsync:can not find trade pair id: {tradePairId},chainId: {chainId}",
-                    input.TradePairId, input.ChainId);
-                return;
-            }
-
-            var tradePair = result.Data;
-            
-            var timestamp = DateTimeHelper.FromUnixTimeMilliseconds(input.Timestamp);
-            var price = double.Parse(input.Token1Amount) / double.Parse(input.Token0Amount);
-
-            if (string.IsNullOrEmpty(tradePair.Token0Symbol) || string.IsNullOrEmpty(tradePair.Token1Symbol))
-            {
-                _logger.LogError($"UpdateLiquidityAsync: Token Symbol in tradePair: {tradePair.Id} is empty");
-                return;
-            }
-            
-            var priceUSD0 = await _tokenPriceProvider.GetTokenUSDPriceAsync(tradePair.ChainId, tradePair.Token0Symbol);
-            var priceUSD1 = await _tokenPriceProvider.GetTokenUSDPriceAsync(tradePair.ChainId, tradePair.Token1Symbol);
-            var tvl = priceUSD0 * double.Parse(input.Token0Amount) + priceUSD1 * double.Parse(input.Token1Amount);
-            _logger.LogInformation(
-                "pair:id:{id},{token0Symbol}-{token1Symbol},fee:{fee},price:{price}-priceUSD:{priceUSD},token1:{token1}-priceUSD1:{priceUSD1},tvl:{tvl}",
-                tradePair.Id, tradePair.Token0Symbol, tradePair.Token1Symbol, tradePair.FeeRate,
-                price, priceUSD1 != 0 ? price * priceUSD1 : priceUSD0, tradePair.Token1Symbol, priceUSD1, tvl);
-
-
-            var priceUSD = priceUSD1 != 0 ? price * priceUSD1 : priceUSD0;
-            
-            await _tradePairMarketDataProvider.AddOrUpdateSnapshotAsync(new TradePairMarketDataSnapshotGrainDto
-            {
-                Id = Guid.NewGuid(),
-                ChainId = tradePair.ChainId,
-                TradePairId = tradePair.Id,
-                Price = price,
-                PriceHigh = price,
-                PriceLow = price,
-                PriceLowUSD = priceUSD,
-                PriceHighUSD = priceUSD,
-                PriceUSD = priceUSD,
-                TVL = tvl,
-                ValueLocked0 = double.Parse(input.Token0Amount),
-                ValueLocked1 = double.Parse(input.Token1Amount),
-                Timestamp = _tradePairMarketDataProvider.GetSnapshotTime(timestamp),
+                return await grain.UpdateLiquidityAsync(_objectMapper.Map<LiquidityUpdateDto, LiquidityUpdateGrainDto>(input));
             });
         }
 

@@ -43,7 +43,7 @@ public class LiquidityServiceTests : TradeTestBase
 
         var inputMint = new LiquidityRecordDto()
         {
-            ChainId = "tDVV",
+            ChainId = ChainName,
             Pair = "0xPool006a6FaC8c710e53c4B2c2F96477119dA361",
             Address = "0x123456789",
             Timestamp = DateTimeHelper.ToUnixTimeMilliseconds(DateTime.UtcNow),
@@ -91,7 +91,7 @@ public class LiquidityServiceTests : TradeTestBase
     {
         var liquidityRecord = new LiquidityRecordDto()
         {
-            ChainId = "Ethereum",
+            ChainId = ChainName,
             Pair = "0xPool006a6FaC8c710e53c4B2c2F96477119dA361",
             Address = "0x123456789",
             Timestamp = DateTimeHelper.ToUnixTimeMilliseconds(DateTime.UtcNow),
@@ -121,12 +121,21 @@ public class LiquidityServiceTests : TradeTestBase
     {
         var liquidityDto = new UserLiquidityDto()
         {
-            ChainId = "Ethereum",
+            ChainId = ChainName,
             Pair = "0xPool006a6FaC8c710e53c4B2c2F96477119dA361",
             Address = "BBB",
             LpTokenAmount = 50000,
         };
         _graphQlProvider.AddUserLiquidity(liquidityDto);
+        
+        await _liquidityAppService.CreateAsync(new LiquidityRecordDto
+        {
+            ChainId = ChainName,
+            Pair = "0xPool006a6FaC8c710e53c4B2c2F96477119dA361",
+            Address = "BBB",
+            LpTokenAmount = 50000,
+        });
+        
         var records = await _liquidityAppService.GetUserLiquidityAsync(new GetUserLiquidityInput()
         {
             ChainId = ChainName,
@@ -151,7 +160,7 @@ public class LiquidityServiceTests : TradeTestBase
     {
         var recordDto1 = new LiquidityRecordDto()
         {
-            ChainId = "Ethereum",
+            ChainId = ChainName,
             Pair = "0xPool006a6FaC8c710e53c4B2c2F96477119dA361",
             Address = "BBB",
             To = "CCC",
@@ -183,7 +192,7 @@ public class LiquidityServiceTests : TradeTestBase
         
         var recordDto2 = new LiquidityRecordDto()
         {
-            ChainId = "Ethereum",
+            ChainId = ChainName,
             Pair = "0xPool006a6FaC8c710e53c4B2c2F96477119dA361",
             Address = "BBB",
             To = "CCC",

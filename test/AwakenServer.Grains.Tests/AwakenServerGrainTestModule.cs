@@ -110,7 +110,7 @@ public class AwakenServerGrainTestModule : AbpModule
             FeeRate = 0.5
         }));
 
-        AsyncHelper.RunSync(async () => grain.AddSnapshotAsync(new TradePairMarketDataSnapshotGrainDto()
+        AsyncHelper.RunSync(async () => grain.AddOrUpdateSnapshotAsync(new TradePairMarketDataSnapshotGrainDto()
         {
             Id = Guid.NewGuid(),
             ChainId = environmentProvider.EthChainId,
@@ -119,6 +119,14 @@ public class AwakenServerGrainTestModule : AbpModule
             TotalSupply = "100000",
         }));
 
-
+        AsyncHelper.RunSync(async () => grain.UpdateLiquidityAsync(new LiquidityUpdateGrainDto()
+        {
+            ChainId = environmentProvider.EthChainId,
+            TradePairId = environmentProvider.TradePairEthUsdtId,
+            Timestamp = DateTime.Now.Microsecond,
+            Token0Amount = "100",
+            Token1Amount = "1000"
+        }));
+        
     }
 }
