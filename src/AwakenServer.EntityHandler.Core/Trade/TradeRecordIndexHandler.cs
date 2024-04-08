@@ -18,7 +18,7 @@ namespace AwakenServer.EntityHandler.Trade
     public class TradeRecordIndexHandler : TradeIndexHandlerBase,
         IDistributedEventHandler<EntityCreatedEto<TradeRecordEto>>,
         IDistributedEventHandler<EntityDeletedEto<TradeRecordEto>>
-        
+
     {
         private readonly INESTRepository<TradeRecord, Guid> _tradeRecordIndexRepository;
         private readonly IPriceAppService _priceAppService;
@@ -49,7 +49,7 @@ namespace AwakenServer.EntityHandler.Trade
                 Math.Pow(10, 8);
 
             await _tradeRecordIndexRepository.AddOrUpdateAsync(index);
-            
+
             await _bus.Publish(new NewIndexEvent<TradeRecordIndexDto>
             {
                 Data = ObjectMapper.Map<TradeRecord, TradeRecordIndexDto>(index)
@@ -58,10 +58,9 @@ namespace AwakenServer.EntityHandler.Trade
             _logger.LogInformation(
                 $"publish TradeRecordIndexDto address:{index.Address} tradePairId:{index.TradePair.Id} chainId:{index.ChainId} txId:{index.TransactionHash}");
         }
-        
+
         public async Task HandleEventAsync(EntityDeletedEto<TradeRecordEto> eventData)
         {
-            
         }
 
         private async Task<double> GetHistoryPriceInUsdAsync(TradeRecord index)
@@ -77,12 +76,23 @@ namespace AwakenServer.EntityHandler.Trade
                             DateTime = index.Timestamp
                         }
                     });
-                if (list.Items.Count >= 1)
+                if (list.Items != null && list.Items.Count >= 1 &&
+                    double.Parse(list.Items[0].PriceInUsd.ToString()) > 0)
                 {
                     _logger.LogInformation("{token1Symbol}, time: {time}, get history price: {price}",
                         index.TradePair.Token1.Symbol, index.Timestamp, list.Items[0].PriceInUsd.ToString());
-                    return index.Price * double.Parse(index.Token1Amount) *
+                    return index.Price * double.Parse(index.Token0Amount) *
                            double.Parse(list.Items[0].PriceInUsd.ToString());
+                }
+
+                if (index.TradePair.Token0.Symbol == "USDT")
+                {
+                    return double.Parse(index.Token0Amount);
+                }
+
+                if (index.TradePair.Token1.Symbol == "USDT")
+                {
+                    return double.Parse(index.Token1Amount);
                 }
             }
             catch (Exception ex)
