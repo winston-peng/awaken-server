@@ -563,13 +563,13 @@ namespace AwakenServer.Trade
                 .OrderByDescending(s => s.Timestamp).ToList();
             var lastDayVolume24h = lastDaySnapshot.Sum(snapshot => snapshot.Volume);
             var lastDayTvl = 0d;
-            var lastDayPriceUSD = 0d;
+            var lastDayPrice = 0d;
 
             if (lastDaySnapshot.Count > 0)
             {
                 var snapshot = lastDaySnapshot.First();
                 lastDayTvl = snapshot.TVL;
-                lastDayPriceUSD = snapshot.PriceUSD;
+                lastDayPrice = snapshot.Price;
             }
             else
             {
@@ -578,7 +578,7 @@ namespace AwakenServer.Trade
                 if (snapshot != null && snapshot.Result != null)
                 {
                     lastDayTvl = snapshot.Result.TVL;
-                    lastDayPriceUSD = snapshot.Result.PriceUSD;
+                    lastDayPrice = snapshot.Result.Price;
                 }
             }
 
@@ -599,12 +599,12 @@ namespace AwakenServer.Trade
             existIndex.PriceLow24h = priceLow24h;
             existIndex.PriceHigh24hUSD = priceHigh24hUSD;
             existIndex.PriceLow24hUSD = priceLow24hUSD;
-            existIndex.PriceChange24h = lastDayPriceUSD == 0
+            existIndex.PriceChange24h = lastDayPrice == 0
                 ? 0
-                : existIndex.PriceUSD - lastDayPriceUSD;
-            existIndex.PricePercentChange24h = lastDayPriceUSD == 0
+                : existIndex.Price - lastDayPrice;
+            existIndex.PricePercentChange24h = lastDayPrice == 0
                 ? 0
-                : (existIndex.PriceUSD - lastDayPriceUSD) * 100 / lastDayPriceUSD;
+                : (existIndex.Price - lastDayPrice) * 100 / lastDayPrice;
             existIndex.VolumePercentChange24h = lastDayVolume24h == 0
                 ? 0
                 : (existIndex.Volume24h - lastDayVolume24h) * 100 / lastDayVolume24h;
