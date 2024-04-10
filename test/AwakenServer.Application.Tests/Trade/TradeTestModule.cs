@@ -20,13 +20,13 @@ namespace AwakenServer.Trade
         public override void ConfigureServices(ServiceConfigurationContext context)
         {
             context.Services.AddSingleton<IPriceAppService, MockPriceAppService>();
-            context.Services.Configure<TradeRecordOptions>(o =>
+            context.Services.Configure<TradeRecordRevertOptions>(o =>
             {
                 o.QueryOnceLimit = 1000;
                 o.BlockHeightLimit = 100;
                 o.RetryLimit = 2;
                 o.TransactionHashExpirationTime = 360;
-                o.RevertTimePeriod = 75000;
+                o.TimePeriod = 75000;
             });
 
             context.Services.Configure<AssetWhenNoTransactionOptions>(o =>
@@ -190,7 +190,8 @@ namespace AwakenServer.Trade
                     FeeRate = 0.5
                 }));
             environmentProvider.TradePairEthUsdtId = tradePairEthUsdt.Id;
-
+            environmentProvider.TradePairEthUsdtAddress = tradePairEthUsdt.Address;
+            
             var tradePairBtcEth = AsyncHelper.RunSync(async () => await tradePairService.CreateAsync(
                 new TradePairCreateDto
                 {

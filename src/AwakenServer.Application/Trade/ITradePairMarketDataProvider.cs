@@ -66,7 +66,7 @@ namespace AwakenServer.Trade
         private readonly IObjectMapper _objectMapper;
         private readonly IBus _bus;
         private readonly ILogger<TradePairMarketDataProvider> _logger;
-        private readonly TradeRecordOptions _tradeRecordOptions;
+        private readonly TradeRecordRevertOptions _tradeRecordRevertOptions;
         private readonly IAbpDistributedLock _distributedLock;
         private readonly IClusterClient _clusterClient;
         private readonly IAElfClientProvider _blockchainClientProvider;
@@ -85,7 +85,7 @@ namespace AwakenServer.Trade
             IObjectMapper objectMapper,
             IAbpDistributedLock distributedLock,
             ILogger<TradePairMarketDataProvider> logger,
-            IOptionsSnapshot<TradeRecordOptions> tradeRecordOptions,
+            IOptionsSnapshot<TradeRecordRevertOptions> tradeRecordOptions,
             IClusterClient clusterClient,
             IAElfClientProvider blockchainClientProvider, IOptions<ContractsTokenOptions> contractsTokenOptions)
         {
@@ -97,7 +97,7 @@ namespace AwakenServer.Trade
             _bus = bus;
             _distributedLock = distributedLock;
             _logger = logger;
-            _tradeRecordOptions = tradeRecordOptions.Value;
+            _tradeRecordRevertOptions = tradeRecordOptions.Value;
             _clusterClient = clusterClient;
             _blockchainClientProvider = blockchainClientProvider;
             _contractsTokenOptions = contractsTokenOptions.Value;

@@ -97,12 +97,13 @@ public class AwakenServerGrainTestModule : AbpModule
         
         environmentProvider.TradePairEthUsdtId = Guid.NewGuid();
         var grain = clusterClient.GetGrain<ITradePairGrain>(GrainIdHelper.GenerateGrainId(environmentProvider.TradePairEthUsdtId));
-        
+
+        environmentProvider.TradePairEthUsdtAddress = "0xPool006a6FaC8c710e53c4B2c2F96477119dA361";
         AsyncHelper.RunSync(async () => await grain.AddOrUpdateAsync(new TradePairGrainDto()
         {
             Id = environmentProvider.TradePairEthUsdtId,
             ChainId = chain.Data.Name,
-            Address = "0xPool006a6FaC8c710e53c4B2c2F96477119dA361",
+            Address = environmentProvider.TradePairEthUsdtAddress,
             Token0 = token0,
             Token1 = token1,
             Token0Id = environmentProvider.TokenEthId,
@@ -119,13 +120,15 @@ public class AwakenServerGrainTestModule : AbpModule
             TotalSupply = "100000",
         }));
 
-        AsyncHelper.RunSync(async () => grain.UpdateLiquidityAsync(new LiquidityUpdateGrainDto()
+        AsyncHelper.RunSync(async () => grain.UpdateLiquidityAsync(new SyncRecordGrainDto()
         {
             ChainId = environmentProvider.EthChainId,
-            TradePairId = environmentProvider.TradePairEthUsdtId,
+            PairAddress = environmentProvider.TradePairEthUsdtAddress,
+            SymbolA = "ETH",
+            SymbolB = "USDT",
+            ReserveA = 100,
+            ReserveB = 1000,
             Timestamp = DateTime.Now.Microsecond,
-            Token0Amount = "100",
-            Token1Amount = "1000"
         }));
         
     }

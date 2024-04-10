@@ -202,9 +202,34 @@ namespace AwakenServer.Trade
                 return new ListResultDto<TradePairIndexDto>();
             }
 
+            
             var inputDto = ObjectMapper.Map<GetTradePairByIdsInput, GetTradePairsInput>(input);
 
             return await GetPairListAsync(inputDto, input.Ids);
+        }
+        
+        public async Task<ListResultDto<TradePairIndexDto>> GetByIdsFromGrainAsync(GetTradePairByIdsInput input)
+        {
+            var items = new List<TradePairIndexDto>();
+            foreach (var id in input.Ids)
+            {
+                var grain = _clusterClient.GetGrain<ITradePairGrain>(GrainIdHelper.GenerateGrainId(id));
+            
+                var tradePairResult = await grain.GetAsync();
+                if (!tradePairResult.Success)
+                {
+                    _logger.LogError($"grain id {id} does not exist");
+                    continue;
+                }
+            
+                items.Add(_objectMapper.Map<TradePairGrainDto, TradePairIndexDto>(tradePairResult.Data));
+            }
+            
+            return new PagedResultDto<TradePairIndexDto>
+            {
+                Items = items,
+                TotalCount = items.Count
+            };
         }
 
         public async Task<TokenListDto> GetTokenListAsync(GetTokenListInput input)
@@ -297,37 +322,13 @@ namespace AwakenServer.Trade
             return ObjectMapper.Map<TradePairInfoIndex, TradePairDto>(tradePairInfo);
         }
 
-        public async Task UpdateLiquidityAsync(LiquidityUpdateDto input)
-        {
-            await _tradePairMarketDataProvider.AddOrUpdateSnapshotAsync(input.TradePairId, async grain =>
-            {
-                return await grain.UpdateLiquidityAsync(_objectMapper.Map<LiquidityUpdateDto, LiquidityUpdateGrainDto>(input));
-            });
-        }
-
+        
         public async Task UpdateLiquidityAsync(SyncRecordDto dto)
         {
             var pair = await GetAsync(dto.ChainId, dto.PairAddress);
-            var isReversed = pair.Token0.Symbol == dto.SymbolB;
-            var token0Amount = isReversed
-                ? dto.ReserveB.ToDecimalsString(pair.Token0.Decimals)
-                : dto.ReserveA.ToDecimalsString(pair.Token0.Decimals);
-            var token1Amount = isReversed
-                ? dto.ReserveA.ToDecimalsString(pair.Token1.Decimals)
-                : dto.ReserveB.ToDecimalsString(pair.Token1.Decimals);
-
-            _logger.LogInformation(
-                "SyncEvent, input chainId: {chainId}, isReversed: {isReversed}, token0Amount: {token0Amount}, " +
-                "token1Amount: {token1Amount}, tradePairId: {tradePairId}, timestamp: {timestamp}, blockHeight: {blockHeight}",
-                dto.ChainId,
-                isReversed, token0Amount, token1Amount, pair.Id, dto.Timestamp, dto.BlockHeight);
-            await UpdateLiquidityAsync(new LiquidityUpdateDto
+            await _tradePairMarketDataProvider.AddOrUpdateSnapshotAsync(pair.Id, async grain =>
             {
-                ChainId = dto.ChainId,
-                TradePairId = pair.Id,
-                Token0Amount = token0Amount,
-                Token1Amount = token1Amount,
-                Timestamp = dto.Timestamp
+                return await grain.UpdateLiquidityAsync(_objectMapper.Map<SyncRecordDto, SyncRecordGrainDto>(dto));
             });
         }
 

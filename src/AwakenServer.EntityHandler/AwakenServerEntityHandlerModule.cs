@@ -54,12 +54,10 @@ public class AwakenServerEntityHandlerModule : AbpModule
 
         Configure<ApiOptions>(configuration.GetSection("Api"));
 
-        Configure<TradeRecordOptions>(configuration.GetSection("TradeRecord"));
+        Configure<WorkerSettings>(configuration.GetSection("WorkerSettings"));
         
-        Configure<TradePairEventSyncOptions>(configuration.GetSection("TradePairEventSync"));
+        Configure<TradeRecordRevertOptions>(configuration.GetSection("WorkerSettings:TradeRecordRevert"));
         
-        Configure<SwapEventSyncOptions>(configuration.GetSection("SwapEventSync"));
-
         context.Services.AddMassTransit(x =>
         {
             x.UsingRabbitMq((ctx, cfg) =>

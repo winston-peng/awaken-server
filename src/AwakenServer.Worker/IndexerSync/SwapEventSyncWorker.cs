@@ -16,7 +16,7 @@ public class TradeRecordEventSwapWorker : AsyncPeriodicBackgroundWorkerBase
     private readonly IChainAppService _chainAppService;
     private readonly IGraphQLProvider _graphQlProvider;
     private readonly ITradeRecordAppService _tradeRecordAppService;
-    private readonly SwapEventSyncOptions _option;
+    private readonly SwapSettings _setting;
     
     private readonly ILogger<TradeRecordEventSwapWorker> _logger;
     private bool executed = false;
@@ -24,15 +24,15 @@ public class TradeRecordEventSwapWorker : AsyncPeriodicBackgroundWorkerBase
     public TradeRecordEventSwapWorker(AbpAsyncTimer timer, IServiceScopeFactory serviceScopeFactory,
         IChainAppService chainAppService, IGraphQLProvider iGraphQlProvider,
         ITradeRecordAppService tradeRecordAppService, ILogger<TradeRecordEventSwapWorker> logger,
-        IOptionsSnapshot<SwapEventSyncOptions> swapEventSyncOptions)
+        IOptionsSnapshot<WorkerSettings> workerSettings)
         : base(timer, serviceScopeFactory)
     {
         _graphQlProvider = iGraphQlProvider;
         _chainAppService = chainAppService;
         _tradeRecordAppService = tradeRecordAppService;
         _logger = logger;
-        timer.Period = WorkerOptions.TimePeriod;
-        _option = swapEventSyncOptions.Value;
+        _setting = workerSettings.Value.SwapEvent;
+        timer.Period = _setting.TimePeriod;
     }
 
     protected override async Task DoWorkAsync(PeriodicBackgroundWorkerContext workerContext)
@@ -49,28 +49,27 @@ public class TradeRecordEventSwapWorker : AsyncPeriodicBackgroundWorkerBase
         var chains = await _chainAppService.GetListAsync(new GetChainInput());
         foreach (var chain in chains.Items)
         {
-            var lastEndHeight = await _graphQlProvider.GetLastEndHeightAsync(chain.Name, QueryType.TradeRecord);
-            foreach (var option in _option.Chains)
+            if (_setting.ResetBlockHeightFlag)
             {
-                if (option.ChainName != chain.Name)
+                await _graphQlProvider.SetLastEndHeightAsync(chain.Name, QueryType.TradeRecord, _setting.ResetBlockHeight);
+                _logger.LogInformation($"swap reset block height: {_setting.ResetBlockHeight}");
+            }
+            
+            var lastEndHeight = await _graphQlProvider.GetLastEndHeightAsync(chain.Name, QueryType.TradeRecord);
+            _logger.LogInformation("swap first lastEndHeight: {lastEndHeight}", lastEndHeight);
+            
+            if (lastEndHeight < 0) continue;
+            
+            var queryList = await _graphQlProvider.GetSwapRecordsAsync(chain.Name, lastEndHeight + 1, 0);
+            _logger.LogInformation("swap queryList count: {count}", queryList.Count);
+            
+            foreach (var queryDto in queryList)
+            {
+                if (!await _tradeRecordAppService.CreateAsync(queryDto))
                 {
                     continue;
                 }
-
-                if (option.LastEndHeight > 0)
-                {
-                    lastEndHeight = option.LastEndHeight;
-                }
-            }
-
-            _logger.LogInformation("swap first lastEndHeight: {lastEndHeight}", lastEndHeight);
-
-            if (lastEndHeight < 0) continue;
-            var queryList = await _graphQlProvider.GetSwapRecordsAsync(chain.Name, lastEndHeight + 1, 0);
-            _logger.LogInformation("swap queryList count: {count}", queryList.Count);
-            foreach (var queryDto in queryList)
-            {
-                if (!await _tradeRecordAppService.CreateAsync(queryDto)) continue;
+                
                 await _graphQlProvider.SetLastEndHeightAsync(chain.Name, QueryType.TradeRecord, queryDto.BlockHeight);
                 _logger.LogInformation("swap success lastEndHeight: {BlockHeight}", queryDto.BlockHeight);
             }

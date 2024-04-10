@@ -235,15 +235,29 @@ public class TradePairGrain : Grain<TradePairState>, ITradePairGrain
     }
 
     public async Task<GrainResultDto<TradePairMarketDataSnapshotUpdateResult>>
-        UpdateLiquidityAsync(LiquidityUpdateGrainDto dto)
+        UpdateLiquidityAsync(SyncRecordGrainDto dto)
     {
+        var isReversed = State.Token0.Symbol == dto.SymbolB;
+        var token0Amount = isReversed
+            ? dto.ReserveB.ToDecimalsString(State.Token0.Decimals)
+            : dto.ReserveA.ToDecimalsString(State.Token0.Decimals);
+        var token1Amount = isReversed
+            ? dto.ReserveA.ToDecimalsString(State.Token1.Decimals)
+            : dto.ReserveB.ToDecimalsString(State.Token1.Decimals);
+        
+        _logger.LogInformation(
+            "SyncEvent, input chainId: {chainId}, isReversed: {isReversed}, token0Amount: {token0Amount}, " +
+            "token1Amount: {token1Amount}, tradePairId: {tradePairId}, timestamp: {timestamp}, blockHeight: {blockHeight}",
+            dto.ChainId,
+            isReversed, token0Amount, token1Amount, State.Id, dto.Timestamp, dto.BlockHeight);
+        
         var timestamp = DateTimeHelper.FromUnixTimeMilliseconds(dto.Timestamp);
-        var price = double.Parse(dto.Token1Amount) / double.Parse(dto.Token0Amount);
+        var price = double.Parse(token1Amount) / double.Parse(token0Amount);
 
         var priceUSD0 = (double)await _tokenPriceProvider.GetPriceAsync(State.Token0.Symbol);
         var priceUSD1 = (double)await _tokenPriceProvider.GetPriceAsync(State.Token1.Symbol);
-        var tvl = priceUSD0 * double.Parse(dto.Token0Amount) +
-                  priceUSD1 * double.Parse(dto.Token1Amount);
+        var tvl = priceUSD0 * double.Parse(token0Amount) +
+                  priceUSD1 * double.Parse(token1Amount);
         
         var priceUSD = priceUSD1 != 0 ? price * priceUSD1 : priceUSD0;
 
@@ -259,8 +273,8 @@ public class TradePairGrain : Grain<TradePairState>, ITradePairGrain
             PriceHighUSD = priceUSD,
             PriceUSD = priceUSD,
             TVL = tvl,
-            ValueLocked0 = double.Parse(dto.Token0Amount),
-            ValueLocked1 = double.Parse(dto.Token1Amount),
+            ValueLocked0 = double.Parse(token0Amount),
+            ValueLocked1 = double.Parse(token1Amount),
             Timestamp = GetSnapshotTime(timestamp),
         });
     }

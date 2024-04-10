@@ -6,6 +6,7 @@ using AwakenServer.Provider;
 using AwakenServer.Trade;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Volo.Abp.BackgroundWorkers;
 using Volo.Abp.Threading;
 
@@ -17,17 +18,20 @@ public class SyncEventSyncWorker : AsyncPeriodicBackgroundWorkerBase
     private readonly IGraphQLProvider _graphQlProvider;
     private readonly ITradePairAppService _tradePairAppService;
     private readonly ILogger<SyncEventSyncWorker> _logger;
+    private readonly SyncSettings _setting;
 
     public SyncEventSyncWorker(AbpAsyncTimer timer, IServiceScopeFactory serviceScopeFactory,
         IChainAppService chainAppService, IGraphQLProvider iGraphQlProvider,
-        ITradePairAppService tradePairAppService, ILogger<SyncEventSyncWorker> logger)
+        ITradePairAppService tradePairAppService, ILogger<SyncEventSyncWorker> logger,
+        IOptionsSnapshot<WorkerSettings> workerSettings)
         : base(timer, serviceScopeFactory)
     {
         _graphQlProvider = iGraphQlProvider;
         _chainAppService = chainAppService;
         _tradePairAppService = tradePairAppService;
         _logger = logger;
-        timer.Period = WorkerOptions.TimePeriod;
+        _setting = workerSettings.Value.SyncEvent;
+        timer.Period = _setting.TimePeriod;
     }
 
     protected override async Task DoWorkAsync(PeriodicBackgroundWorkerContext workerContext)
@@ -35,9 +39,15 @@ public class SyncEventSyncWorker : AsyncPeriodicBackgroundWorkerBase
         var chains = await _chainAppService.GetListAsync(new GetChainInput());
         foreach (var chain in chains.Items)
         {
+            if (_setting.ResetBlockHeightFlag)
+            {
+                await _graphQlProvider.SetLastEndHeightAsync(chain.Name, QueryType.Sync, _setting.ResetBlockHeight);
+                _logger.LogInformation($"sync reset block height: {_setting.ResetBlockHeight}");
+            }
+            
             var lastEndHeight = await _graphQlProvider.GetLastEndHeightAsync(chain.Name, QueryType.Sync);
 
-            var queryList = await _graphQlProvider.GetSyncRecordsAsync(chain.Name, lastEndHeight + 1, lastEndHeight + WorkerOptions.QueryBlockHeightLimit);
+            var queryList = await _graphQlProvider.GetSyncRecordsAsync(chain.Name, lastEndHeight + 1, 0);
             _logger.LogInformation("sync queryList count: {count} ,chainId:{chainId}", queryList.Count, chain.Name);
             try
             {

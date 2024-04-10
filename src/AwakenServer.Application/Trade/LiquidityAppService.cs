@@ -331,10 +331,6 @@ namespace AwakenServer.Trade
             };
         }
 
-        public async Task CreateAsync(LiquidityRecordCreateDto input)
-        {
-        }
-
         public async Task CreateAsync(LiquidityRecordDto input)
         {
             var grain = _clusterClient.GetGrain<ITransactionHashGrain>(

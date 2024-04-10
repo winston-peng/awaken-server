@@ -9,6 +9,7 @@ namespace AwakenServer
         public string AElfChainId { get; set; }
         public string AElfChainName { get; set; }
         public Guid TradePairEthUsdtId { get; set; }
+        public string TradePairEthUsdtAddress { get; set; }
         public Guid TradePairBtcEthId { get; set; }
         public Guid TradePariElfUsdtId { get; set; }
         public Guid TokenUsdtId { get; set; }

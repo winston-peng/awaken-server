@@ -9,6 +9,9 @@ public class AwakenServerGrainTestBase : AwakenServerTestBase<AwakenServerGrainT
     protected string ChainId { get; }
     protected string ChainName { get; }
     protected Guid TradePairEthUsdtId { get; }
+    
+    protected string TradePairEthUsdtAddress { get; set; }
+
     protected Guid TokenUsdtId { get; }
     protected string TokenUsdtSymbol { get; }
     protected Guid TokenEthId { get; }
@@ -22,6 +25,7 @@ public class AwakenServerGrainTestBase : AwakenServerTestBase<AwakenServerGrainT
         ChainId = environmentProvider.EthChainId;
         ChainName = environmentProvider.EthChainName;
         TradePairEthUsdtId = environmentProvider.TradePairEthUsdtId;
+        TradePairEthUsdtAddress = environmentProvider.TradePairEthUsdtAddress;
         TokenUsdtId = environmentProvider.TokenUsdtId;
         TokenUsdtSymbol = environmentProvider.TokenUsdtSymbol;
         TokenEthId = environmentProvider.TokenEthId;

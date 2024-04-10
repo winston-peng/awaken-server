@@ -3,6 +3,7 @@ using AwakenServer.Chains;
 using AwakenServer.Trade;
 using AwakenServer.Trade.Dtos;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 using Volo.Abp.BackgroundWorkers;
 using Volo.Abp.Threading;
 
@@ -12,14 +13,17 @@ namespace AwakenServer.Worker
     {
         private readonly IChainAppService _chainAppService;
         private readonly ITradePairAppService _tradePairAppService;
+        private readonly TradePairUpdateSettings _setting;
 
         public TradePairUpdateWorker(AbpAsyncTimer timer, IServiceScopeFactory serviceScopeFactory,
-            ITradePairAppService tradePairAppService, IChainAppService chainAppService)
+            ITradePairAppService tradePairAppService, IChainAppService chainAppService,
+            IOptionsSnapshot<WorkerSettings> workerSettings)
             : base(timer, serviceScopeFactory)
         {
             _tradePairAppService = tradePairAppService;
             _chainAppService = chainAppService;
-            timer.Period = WorkerOptions.PairUpdatePeriod;
+            _setting = workerSettings.Value.TradePairUpdate;
+            timer.Period = _setting.TimePeriod;
         }
 
         protected override async Task DoWorkAsync(PeriodicBackgroundWorkerContext workerContext)

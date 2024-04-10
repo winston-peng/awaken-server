@@ -3,6 +3,7 @@ using AwakenServer.Chains;
 using AwakenServer.Trade;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Volo.Abp.BackgroundWorkers;
 using Volo.Abp.Threading;
 
@@ -13,18 +14,21 @@ public class TradeRecordRevertWorker : AsyncPeriodicBackgroundWorkerBase
     private readonly IChainAppService _chainAppService;
     private readonly ITradeRecordAppService _tradeRecordAppService;
     private readonly ILogger<TradeRecordRevertWorker> _logger;
+    private readonly TradeRecordRevertSettings _setting;
 
     public TradeRecordRevertWorker(AbpAsyncTimer timer, 
         IServiceScopeFactory serviceScopeFactory,
         IChainAppService chainAppService,
         ITradeRecordAppService tradeRecordAppService, 
-        ILogger<TradeRecordRevertWorker> logger)
+        ILogger<TradeRecordRevertWorker> logger,
+        IOptionsSnapshot<WorkerSettings> workerSettings)
         : base(timer, serviceScopeFactory)
     {
         _chainAppService = chainAppService;
         _tradeRecordAppService = tradeRecordAppService;
         _logger = logger;
-        timer.Period = WorkerOptions.RevertTimePeriod;
+        _setting = workerSettings.Value.TradeRecordRevert;
+        timer.Period = _setting.TimePeriod;
     }
 
     protected override async Task DoWorkAsync(PeriodicBackgroundWorkerContext workerContext)
