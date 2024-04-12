@@ -8,6 +8,7 @@ using AwakenServer.Trade.Dtos;
 using Microsoft.Extensions.Logging;
 using Volo.Abp.ObjectMapping;
 using Orleans;
+using JsonConvert = Newtonsoft.Json.JsonConvert;
 
 namespace AwakenServer.Grains.Grain.Trade;
 
@@ -84,6 +85,10 @@ public class UserLiquidityGrain : Grain<UserLiquidityState>, IUserLiquidityGrain
                 TradePair = liquidity.Value.TradePair
             };
 
+            _logger.LogInformation(
+                $"UserLiquidityGrain: {this.GetPrimaryKeyString()}, " +
+                $"user tradePair liquidity: {JsonConvert.SerializeObject(liquidity.Value)}");
+            
             var tradePairGrain = _clusterClient.GetGrain<ITradePairGrain>(GrainIdHelper.GenerateGrainId(liquidity.Value.TradePair.Id));
             var pairResult = await tradePairGrain.GetAsync();
             var pair = pairResult.Data;
@@ -91,20 +96,15 @@ public class UserLiquidityGrain : Grain<UserLiquidityState>, IUserLiquidityGrain
             {
                 continue;
             }
-
-            grainDto.LpTokenAmount = liquidity.Value.LpTokenAmount;
-
+            
+            _logger.LogInformation(
+                $"UserLiquidityGrain: {this.GetPrimaryKeyString()}, " +
+                $"get tradePair from TradePairGrain: {JsonConvert.SerializeObject(pair)}");
+            
             var prop = pair.TotalSupply == null || pair.TotalSupply == "0"
                 ? 0
                 : liquidity.Value.LpTokenAmount / double.Parse(pair.TotalSupply);
             
-            _logger.LogInformation(
-                $"User liquidity GetAsync " +
-                $"token0:{pair.Token0Symbol} decimal:{pair.Token0.Decimals}, " +
-                $"token1:{pair.Token1Symbol} decimal:{pair.Token1.Decimals}, " +
-                $"token0 amount:{pair.ValueLocked0}, token1 amount:{pair.ValueLocked1}");
-
-
             grainDto.Token0Amount = pair.Token0.Decimals == 0
                 ? Math.Floor(prop / Math.Pow(10, 8) * pair.ValueLocked0).ToString()
                 : ((long)(prop * pair.ValueLocked0)).ToDecimalsString(8);
@@ -129,6 +129,10 @@ public class UserLiquidityGrain : Grain<UserLiquidityState>, IUserLiquidityGrain
         double asset = 0;
         foreach (var liquidity in State.TradePairLiquidities)
         {
+            _logger.LogInformation(
+                $"UserLiquidityGrain: {this.GetPrimaryKeyString()}, " +
+                $"user tradePair liquidity: {JsonConvert.SerializeObject(liquidity.Value)}");
+            
             var tradePairGrain = _clusterClient.GetGrain<ITradePairGrain>(GrainIdHelper.GenerateGrainId(liquidity.Value.TradePair.Id));
             var pairResult = await tradePairGrain.GetAsync();
             var pair = pairResult.Data;
@@ -136,6 +140,10 @@ public class UserLiquidityGrain : Grain<UserLiquidityState>, IUserLiquidityGrain
             {
                 continue;
             }
+            
+            _logger.LogInformation(
+                $"UserLiquidityGrain: {this.GetPrimaryKeyString()}, " +
+                $"get tradePair from TradePairGrain: {JsonConvert.SerializeObject(pair)}");
 
             var totalSupply = double.Parse(pair.TotalSupply);
             asset += pair.TVL * double.Parse(liquidity.Value.LpTokenAmount.ToDecimalsString(8)) / totalSupply;
@@ -143,7 +151,7 @@ public class UserLiquidityGrain : Grain<UserLiquidityState>, IUserLiquidityGrain
 
         var btcPrice = (double)_tokenPriceProvider.GetPriceAsync(BTCSymbol).Result;
         
-        _logger.LogInformation($"User liquidity GetAssetAsync asset:{asset}, btcPrice:{btcPrice}");
+        _logger.LogInformation($"UserLiquidityGrain GetAssetAsync asset: {asset}, btcPrice: {btcPrice}");
         
         return new GrainResultDto<UserAssetGrainDto>
         {

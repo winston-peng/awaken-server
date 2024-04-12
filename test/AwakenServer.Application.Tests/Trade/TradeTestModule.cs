@@ -5,6 +5,7 @@ using AwakenServer.CMS;
 using AwakenServer.Price;
 using AwakenServer.Tokens;
 using AwakenServer.Trade.Dtos;
+using AwakenServer.Worker;
 using Microsoft.Extensions.DependencyInjection;
 using Volo.Abp;
 using Volo.Abp.Modularity;
@@ -20,7 +21,7 @@ namespace AwakenServer.Trade
         public override void ConfigureServices(ServiceConfigurationContext context)
         {
             context.Services.AddSingleton<IPriceAppService, MockPriceAppService>();
-            context.Services.Configure<TradeRecordRevertOptions>(o =>
+            context.Services.Configure<TradeRecordRevertWorkerSettings>(o =>
             {
                 o.QueryOnceLimit = 1000;
                 o.BlockHeightLimit = 100;

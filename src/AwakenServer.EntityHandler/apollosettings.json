@@ -1,0 +1,12 @@
+{
+  "apollo": {
+    "AppId": "Awaken_Test4",   
+    "ConfigServer": [
+      "http://localhost:8080"     
+    ],
+    "Namespaces": [
+      "TEST1.appsettings.json"
+    ],
+    "Env": "DEV"                  
+  }
+}

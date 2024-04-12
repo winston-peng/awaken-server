@@ -10,7 +10,6 @@ public class UserLiquidityGrainDto
     public string Address { get; set; }
     public long LpTokenAmount { get; set; }
     public LiquidityType Type { get; set; }
-    
     public double AssetUSD { get; set; }
     public string Token0Amount { get; set; }
     public string Token1Amount { get; set; }

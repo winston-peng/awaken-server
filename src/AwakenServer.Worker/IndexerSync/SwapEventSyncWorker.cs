@@ -11,12 +11,12 @@ using Volo.Abp.Threading;
 
 namespace AwakenServer.Worker;
 
-public class TradeRecordEventSwapWorker : AsyncPeriodicBackgroundWorkerBase
+public class TradeRecordEventSwapWorker : AwakenServerWorkerBase
 {
     private readonly IChainAppService _chainAppService;
     private readonly IGraphQLProvider _graphQlProvider;
     private readonly ITradeRecordAppService _tradeRecordAppService;
-    private readonly SwapSettings _setting;
+    private readonly SwapWorkerSettings _workerSetting;
     
     private readonly ILogger<TradeRecordEventSwapWorker> _logger;
     private bool executed = false;
@@ -25,34 +25,39 @@ public class TradeRecordEventSwapWorker : AsyncPeriodicBackgroundWorkerBase
         IChainAppService chainAppService, IGraphQLProvider iGraphQlProvider,
         ITradeRecordAppService tradeRecordAppService, ILogger<TradeRecordEventSwapWorker> logger,
         IOptionsSnapshot<WorkerSettings> workerSettings)
-        : base(timer, serviceScopeFactory)
+        : base(timer, serviceScopeFactory, workerSettings.Value.SwapEvent)
     {
         _graphQlProvider = iGraphQlProvider;
         _chainAppService = chainAppService;
         _tradeRecordAppService = tradeRecordAppService;
         _logger = logger;
-        _setting = workerSettings.Value.SwapEvent;
-        timer.Period = _setting.TimePeriod;
+        _workerSetting = workerSettings.Value.SwapEvent;
     }
 
     protected override async Task DoWorkAsync(PeriodicBackgroundWorkerContext workerContext)
     {
+        PreDoWork(workerContext);
+        
+        _logger.LogInformation($"TradeRecordEventSwapWorker.DoWorkAsync Start with config: " +
+                               $"TimePeriod: {_workerSetting.TimePeriod}, " +
+                               $"ResetBlockHeightFlag: {_workerSetting.ResetBlockHeightFlag}, " +
+                               $"ResetBlockHeight:{_workerSetting.ResetBlockHeight}");
+        
         if (!executed)
         {
             _logger.LogInformation("FixTrade start");
             await UpdateTransaction();
             executed = true;
         }
-
-
+        
         _logger.LogInformation("swap TradeRecordEventSwapWorker start");
         var chains = await _chainAppService.GetListAsync(new GetChainInput());
         foreach (var chain in chains.Items)
         {
-            if (_setting.ResetBlockHeightFlag)
+            if (_workerSetting.ResetBlockHeightFlag)
             {
-                await _graphQlProvider.SetLastEndHeightAsync(chain.Name, QueryType.TradeRecord, _setting.ResetBlockHeight);
-                _logger.LogInformation($"swap reset block height: {_setting.ResetBlockHeight}");
+                await _graphQlProvider.SetLastEndHeightAsync(chain.Name, QueryType.TradeRecord, _workerSetting.ResetBlockHeight);
+                _logger.LogInformation($"swap reset block height: {_workerSetting.ResetBlockHeight}");
             }
             
             var lastEndHeight = await _graphQlProvider.GetLastEndHeightAsync(chain.Name, QueryType.TradeRecord);
@@ -60,7 +65,7 @@ public class TradeRecordEventSwapWorker : AsyncPeriodicBackgroundWorkerBase
             
             if (lastEndHeight < 0) continue;
             
-            var queryList = await _graphQlProvider.GetSwapRecordsAsync(chain.Name, lastEndHeight + 1, 0);
+            var queryList = await _graphQlProvider.GetSwapRecordsAsync(chain.Name, lastEndHeight + _workerSetting.QueryStartBlockHeightOffset, 0);
             _logger.LogInformation("swap queryList count: {count}", queryList.Count);
             
             foreach (var queryDto in queryList)

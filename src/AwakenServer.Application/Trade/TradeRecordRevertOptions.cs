@@ -3,18 +3,6 @@ using System.Collections.Generic;
 
 namespace AwakenServer.Trade
 {
-    public class TradeRecordRevertOptions
-    {
-        public int QueryOnceLimit { get; set; } = 1000;
-        public int BlockHeightLimit { get; set; } = 100;
-        public int RetryLimit { get; set; } = 2;
-        public int TransactionHashExpirationTime { get; set; } = 360;
-        public int TimePeriod { get; set; } = 75000;
-
-        public int BatchFlushTimePeriod { get; set; } = 3;
-        public int BatchFlushCount { get; set; } = 10;
-    }
-
     public class BlockHeightSetDto
     {
         public const int DefaultNextNodeIndex = -1;

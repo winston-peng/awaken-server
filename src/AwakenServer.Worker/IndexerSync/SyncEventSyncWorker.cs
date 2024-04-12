@@ -12,42 +12,48 @@ using Volo.Abp.Threading;
 
 namespace AwakenServer.Worker.IndexerSync;
 
-public class SyncEventSyncWorker : AsyncPeriodicBackgroundWorkerBase
+public class SyncEventSyncWorker : AwakenServerWorkerBase
 {
     private readonly IChainAppService _chainAppService;
     private readonly IGraphQLProvider _graphQlProvider;
     private readonly ITradePairAppService _tradePairAppService;
     private readonly ILogger<SyncEventSyncWorker> _logger;
-    private readonly SyncSettings _setting;
+    private readonly SyncWorkerSettings _workerSetting;
 
     public SyncEventSyncWorker(AbpAsyncTimer timer, IServiceScopeFactory serviceScopeFactory,
         IChainAppService chainAppService, IGraphQLProvider iGraphQlProvider,
         ITradePairAppService tradePairAppService, ILogger<SyncEventSyncWorker> logger,
         IOptionsSnapshot<WorkerSettings> workerSettings)
-        : base(timer, serviceScopeFactory)
+        : base(timer, serviceScopeFactory, workerSettings.Value.SyncEvent)
     {
         _graphQlProvider = iGraphQlProvider;
         _chainAppService = chainAppService;
         _tradePairAppService = tradePairAppService;
         _logger = logger;
-        _setting = workerSettings.Value.SyncEvent;
-        timer.Period = _setting.TimePeriod;
+        _workerSetting = workerSettings.Value.SyncEvent;
     }
 
     protected override async Task DoWorkAsync(PeriodicBackgroundWorkerContext workerContext)
     {
+        PreDoWork(workerContext);
+        
+        _logger.LogInformation($"SyncEventSyncWorker.DoWorkAsync Start with config: " +
+                               $"TimePeriod: {_workerSetting.TimePeriod}, " +
+                               $"ResetBlockHeightFlag: {_workerSetting.ResetBlockHeightFlag}, " +
+                               $"ResetBlockHeight:{_workerSetting.ResetBlockHeight}");
+        
         var chains = await _chainAppService.GetListAsync(new GetChainInput());
         foreach (var chain in chains.Items)
         {
-            if (_setting.ResetBlockHeightFlag)
+            if (_workerSetting.ResetBlockHeightFlag)
             {
-                await _graphQlProvider.SetLastEndHeightAsync(chain.Name, QueryType.Sync, _setting.ResetBlockHeight);
-                _logger.LogInformation($"sync reset block height: {_setting.ResetBlockHeight}");
+                await _graphQlProvider.SetLastEndHeightAsync(chain.Name, QueryType.Sync, _workerSetting.ResetBlockHeight);
+                _logger.LogInformation($"sync reset block height: {_workerSetting.ResetBlockHeight}");
             }
             
             var lastEndHeight = await _graphQlProvider.GetLastEndHeightAsync(chain.Name, QueryType.Sync);
 
-            var queryList = await _graphQlProvider.GetSyncRecordsAsync(chain.Name, lastEndHeight + 1, 0);
+            var queryList = await _graphQlProvider.GetSyncRecordsAsync(chain.Name, lastEndHeight + _workerSetting.QueryStartBlockHeightOffset, 0);
             _logger.LogInformation("sync queryList count: {count} ,chainId:{chainId}", queryList.Count, chain.Name);
             try
             {

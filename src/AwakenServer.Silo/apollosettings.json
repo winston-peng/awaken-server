@@ -1,0 +1,13 @@
+{
+  "apollo": {
+    "AppId": "CAServerService_test1",    
+    "ConfigServer": [
+      "http://192.168.66.144:8080",      
+      "http://192.168.66.235:8080"
+    ],
+    "Namespaces": [
+      "silo.appsettings.json"           
+    ],
+    "Env": "DEV"
+  }
+}

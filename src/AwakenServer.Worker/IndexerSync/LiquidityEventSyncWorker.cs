@@ -14,43 +14,49 @@ namespace AwakenServer.Worker.IndexerSync;
 /**
  * sync swap-indexer to awaken-server
  */
-public class LiquidityEventSyncWorker : AsyncPeriodicBackgroundWorkerBase
+public class LiquidityEventSyncWorker : AwakenServerWorkerBase
 {
     private readonly IChainAppService _chainAppService;
     private readonly IGraphQLProvider _graphQlProvider;
     private readonly ILiquidityAppService _liquidityService;
     private readonly ILogger<LiquidityEventSyncWorker> _logger;
-    private readonly LiquiditySettings _setting;
+    private readonly LiquidityWorkerSettings _workerSetting;
 
     public LiquidityEventSyncWorker(AbpAsyncTimer timer, IServiceScopeFactory serviceScopeFactory,
         IChainAppService chainAppService, IGraphQLProvider iGraphQlProvider, ILiquidityAppService liquidityService,
         ILogger<LiquidityEventSyncWorker> logger,
         IOptionsSnapshot<WorkerSettings> workerSettings)
-        : base(timer, serviceScopeFactory)
+        : base(timer, serviceScopeFactory, workerSettings.Value.LiquidityEvent)
     {
         _graphQlProvider = iGraphQlProvider;
         _chainAppService = chainAppService;
         _liquidityService = liquidityService;
         _logger = logger;
-        _setting = workerSettings.Value.LiquidityEvent;
-        timer.Period = _setting.TimePeriod;
+        _workerSetting = workerSettings.Value.LiquidityEvent;
     }
 
     protected override async Task DoWorkAsync(PeriodicBackgroundWorkerContext workerContext)
     {
+        PreDoWork(workerContext);
+        
+        _logger.LogInformation($"LiquidityEventSyncWorker.DoWorkAsync: Start with config: " +
+                               $"TimePeriod: {_workerSetting.TimePeriod}, " +
+                               $"ResetBlockHeightFlag: {_workerSetting.ResetBlockHeightFlag}, " +
+                               $"ResetBlockHeight:{_workerSetting.ResetBlockHeight}");
+        
         var chains = await _chainAppService.GetListAsync(new GetChainInput());
         foreach (var chain in chains.Items)
         {
-            if (_setting.ResetBlockHeightFlag)
+            if (_workerSetting.ResetBlockHeightFlag)
             {
                 await _graphQlProvider.SetLastEndHeightAsync(chain.Name, QueryType.Liquidity,
-                    _setting.ResetBlockHeight);
-                _logger.LogInformation($"liquidity event sync, reset block height: {_setting.ResetBlockHeight}");
+                    _workerSetting.ResetBlockHeight);
+                _logger.LogInformation($"liquidity event sync, reset block height: {_workerSetting.ResetBlockHeight}");
             }
 
             var lastEndHeight = await _graphQlProvider.GetLastEndHeightAsync(chain.Name, QueryType.Liquidity);
 
-            var queryList = await _graphQlProvider.GetLiquidRecordsAsync(chain.Name, lastEndHeight + 1, 0);
+            var queryList = await _graphQlProvider.GetLiquidRecordsAsync(chain.Name, lastEndHeight + _workerSetting.QueryStartBlockHeightOffset, 0);
             _logger.LogInformation(
                 "liquidity event sync, queryList count: {count}, lastEndHeight: {lastEndHeight}",
                 queryList.Count, lastEndHeight);
