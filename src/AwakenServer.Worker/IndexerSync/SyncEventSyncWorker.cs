@@ -48,19 +48,13 @@ public class SyncEventSyncWorker : AwakenServerWorkerBase
             _logger.LogInformation("sync queryList count: {count} ,chainId:{chainId}", queryList.Count, chain.Name);
             try
             {
-                long blockHeight = -1;
                 foreach (var queryDto in queryList)
                 {
                     await _tradePairAppService.UpdateLiquidityAsync(queryDto);
-                    blockHeight = Math.Max(blockHeight, queryDto.BlockHeight);
+                    await _graphQlProvider.SetLastEndHeightAsync(chain.Name, QueryType.Sync, queryDto.BlockHeight);
                 }
-
-                if (blockHeight > 0)
-                {
-                    await _graphQlProvider.SetLastEndHeightAsync(chain.Name, QueryType.Sync, blockHeight);
-                    _logger.LogInformation("sync lastEndHeight: {BlockHeight},:chainId:{chainId}", blockHeight,
-                        chain.Name);
-                }
+                
+                _logger.LogInformation($"sync lastEndHeight: {await _graphQlProvider.GetLastEndHeightAsync(chain.Name, QueryType.Sync)}, chainId:{chain.Name}");
             }
             catch (Exception e)
             {

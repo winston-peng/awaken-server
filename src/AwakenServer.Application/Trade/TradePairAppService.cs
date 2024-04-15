@@ -352,11 +352,19 @@ namespace AwakenServer.Trade
         
         public async Task UpdateLiquidityAsync(SyncRecordDto dto)
         {
+            var grain = _clusterClient.GetGrain<ISyncRecordsGrain>(GrainIdHelper.GenerateGrainId(dto.ChainId, dto.BlockHeight));
+            if (await grain.ExistAsync(dto.PairAddress + "-" + dto.Timestamp))
+            {
+                return;
+            }
+            
             var pair = await GetAsync(dto.ChainId, dto.PairAddress);
             await _tradePairMarketDataProvider.AddOrUpdateSnapshotAsync(pair.Id, async grain =>
             {
                 return await grain.UpdateLiquidityAsync(_objectMapper.Map<SyncRecordDto, SyncRecordGrainDto>(dto));
             });
+            
+            await grain.AddSyncRecordAsync(dto.PairAddress + "-" + dto.Timestamp);
         }
 
         public async Task CreateTradePairIndexAsync(TradePairInfoDto input, TokenDto token0, TokenDto token1,

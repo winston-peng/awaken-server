@@ -8,7 +8,6 @@ namespace AwakenServer.Trade
 {
     public interface ILiquidityAppService : IApplicationService
     {
-        Task InitializeDataAsync();
         
         Task<PagedResultDto<LiquidityRecordIndexDto>> GetRecordsAsync(GetLiquidityRecordsInput input);
         

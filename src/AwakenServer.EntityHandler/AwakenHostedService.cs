@@ -27,11 +27,6 @@ namespace AwakenServer.EntityHandler
             await _application.InitializeAsync(_serviceProvider);
             var chainDataInitializer = _serviceProvider.GetRequiredService<ChainInitializeService>();
             await chainDataInitializer.InitializeDataAsync();
-            
-            var tradePairMarketDataProvider = _serviceProvider.GetRequiredService<ITradePairMarketDataProvider>();
-            await tradePairMarketDataProvider.InitializeDataAsync();
-            var liquidityAppService = _serviceProvider.GetRequiredService<ILiquidityAppService>();
-            await liquidityAppService.InitializeDataAsync();
         }
 
         public Task StopAsync(CancellationToken cancellationToken)

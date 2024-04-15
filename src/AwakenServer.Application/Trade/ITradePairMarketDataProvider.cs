@@ -33,8 +33,6 @@ namespace AwakenServer.Trade
     
     public interface ITradePairMarketDataProvider
     {
-        Task InitializeDataAsync();
-        
         Task AddOrUpdateSnapshotAsync(Guid tradePairId, 
             TradePairMethodDelegate methodDelegate);
         
@@ -99,33 +97,7 @@ namespace AwakenServer.Trade
             _blockchainClientProvider = blockchainClientProvider;
             _contractsTokenOptions = contractsTokenOptions.Value;
         }
-
         
-        public async Task InitializeDataAsync()
-        {
-            var tradePairList = await _tradePairIndexRepository.GetListAsync();
-            var now = DateTime.Now;
-            foreach (var tradePair in tradePairList.Item2)
-            {
-                // for history data before add grain
-                var tradePairGrain = _clusterClient.GetGrain<ITradePairGrain>(GrainIdHelper.GenerateGrainId(tradePair.Id));
-                var tradePairResult = await tradePairGrain.GetAsync();
-                if (!tradePairResult.Success)
-                {
-                    
-                    var tradePairSnapshots = await GetIndexListAsync(tradePair.ChainId, tradePair.Id, now.AddDays(-7), now);
-                    foreach (var snapshot in tradePairSnapshots)
-                    {
-                        await tradePairGrain.AddOrUpdateSnapshotAsync(_objectMapper
-                            .Map<Index.TradePairMarketDataSnapshot, TradePairMarketDataSnapshotGrainDto>(snapshot));
-                    }
-                    
-                    await tradePairGrain.AddOrUpdateAsync(_objectMapper.Map<Index.TradePair, TradePairGrainDto>(tradePair));
-                    _logger.LogInformation($"sync TradePairGrain grainId: {tradePairGrain.GetPrimaryKeyString()}, address: {tradePair.Address} from es to grain");
-                }
-            }
-        }
-
         private async Task<string> GetLpTokenInfoAsync(string chainId, string Token0Symbol, string Token1Symbol,
             double FeeRate)
         {
@@ -165,14 +137,14 @@ namespace AwakenServer.Trade
             
             var result = await methodDelegate(grain);
             
-            _logger.LogInformation($"from {methodDelegate.Method.Name} publishAsync TradePairEto: {JsonConvert.SerializeObject(result.Data.TradePairDto)}");
+            _logger.LogDebug($"from {methodDelegate.Method.Name} publishAsync TradePairEto: {JsonConvert.SerializeObject(result.Data.TradePairDto)}");
 
             await _distributedEventBus.PublishAsync(new EntityCreatedEto<TradePairEto>(
                 _objectMapper.Map<TradePairGrainDto, TradePairEto>(
                     result.Data.TradePairDto)
             ));
             
-            _logger.LogInformation($"from {methodDelegate.Method.Name} publishAsync TradePairMarketDataSnapshotEto: {JsonConvert.SerializeObject(result.Data.SnapshotDto)}");
+            _logger.LogDebug($"from {methodDelegate.Method.Name} publishAsync TradePairMarketDataSnapshotEto: {JsonConvert.SerializeObject(result.Data.SnapshotDto)}");
             
             await _distributedEventBus.PublishAsync(new EntityCreatedEto<TradePairMarketDataSnapshotEto>(
                 _objectMapper.Map<TradePairMarketDataSnapshotGrainDto, TradePairMarketDataSnapshotEto>(
