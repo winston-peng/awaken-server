@@ -13,8 +13,6 @@ namespace AwakenServer.Worker;
 
 public class TradeRecordEventSwapWorker : AwakenServerWorkerBase
 {
-    private readonly IChainAppService _chainAppService;
-    private readonly IGraphQLProvider _graphQlProvider;
     private readonly ITradeRecordAppService _tradeRecordAppService;
     private readonly SwapWorkerSettings _workerSetting;
     
@@ -22,13 +20,11 @@ public class TradeRecordEventSwapWorker : AwakenServerWorkerBase
     private bool executed = false;
 
     public TradeRecordEventSwapWorker(AbpAsyncTimer timer, IServiceScopeFactory serviceScopeFactory,
-        IChainAppService chainAppService, IGraphQLProvider iGraphQlProvider,
+        IChainAppService chainAppService, IGraphQLProvider graphQlProvider,
         ITradeRecordAppService tradeRecordAppService, ILogger<TradeRecordEventSwapWorker> logger,
         IOptionsSnapshot<WorkerSettings> workerSettings)
-        : base(timer, serviceScopeFactory, workerSettings.Value.SwapEvent)
+        : base(timer, serviceScopeFactory, workerSettings.Value.SwapEvent, graphQlProvider, chainAppService)
     {
-        _graphQlProvider = iGraphQlProvider;
-        _chainAppService = chainAppService;
         _tradeRecordAppService = tradeRecordAppService;
         _logger = logger;
         _workerSetting = workerSettings.Value.SwapEvent;
@@ -36,7 +32,7 @@ public class TradeRecordEventSwapWorker : AwakenServerWorkerBase
 
     protected override async Task DoWorkAsync(PeriodicBackgroundWorkerContext workerContext)
     {
-        PreDoWork(workerContext);
+        PreDoWork(workerContext, _workerSetting.ResetBlockHeightFlag, QueryType.TradeRecord);
         
         _logger.LogInformation($"TradeRecordEventSwapWorker.DoWorkAsync Start with config: " +
                                $"TimePeriod: {_workerSetting.TimePeriod}, " +
@@ -54,12 +50,6 @@ public class TradeRecordEventSwapWorker : AwakenServerWorkerBase
         var chains = await _chainAppService.GetListAsync(new GetChainInput());
         foreach (var chain in chains.Items)
         {
-            if (_workerSetting.ResetBlockHeightFlag)
-            {
-                await _graphQlProvider.SetLastEndHeightAsync(chain.Name, QueryType.TradeRecord, _workerSetting.ResetBlockHeight);
-                _logger.LogInformation($"swap reset block height: {_workerSetting.ResetBlockHeight}");
-            }
-            
             var lastEndHeight = await _graphQlProvider.GetLastEndHeightAsync(chain.Name, QueryType.TradeRecord);
             _logger.LogInformation("swap first lastEndHeight: {lastEndHeight}", lastEndHeight);
             

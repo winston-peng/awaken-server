@@ -22,23 +22,20 @@ public class TradePairGrain : Grain<TradePairState>, ITradePairGrain
 {
     private readonly IObjectMapper _objectMapper;
     private readonly ILogger<TradePairGrain> _logger;
-    private readonly ITokenPriceProvider _tokenPriceProvider;
     private readonly IClusterClient _clusterClient;
-    private readonly SortedSet<Tuple<DateTime, string>> _previous7DaysMarketDataSnapshots;
+    private readonly SortedDictionary<DateTime, string> _previous7DaysMarketDataSnapshots;
 
     public TradePairGrain(IObjectMapper objectMapper,
-        ITokenPriceProvider tokenPriceProvider,
         IClusterClient clusterClient,
         ILogger<TradePairGrain> logger)
     {
         _objectMapper = objectMapper;
         _logger = logger;
-        _tokenPriceProvider = tokenPriceProvider;
         _clusterClient = clusterClient;
-        _previous7DaysMarketDataSnapshots = new SortedSet<Tuple<DateTime, string>>(
-            Comparer<Tuple<DateTime, string>>.Create((grain1, grain2) =>
+        _previous7DaysMarketDataSnapshots = new SortedDictionary<DateTime, string>(
+            Comparer<DateTime>.Create((datetime1, datetime2) =>
             {
-                return grain2.Item1.CompareTo(grain1.Item1);
+                return datetime2.CompareTo(datetime1);
             })
         );
     }
@@ -60,10 +57,7 @@ public class TradePairGrain : Grain<TradePairState>, ITradePairGrain
     {
         DateTime now = DateTime.Now;
         DateTime pastWeek = now.AddDays(-7);
-
-        Dictionary<DateTime, ITradePairMarketDataSnapshotGrain> pastWeekSnapshots =
-            new Dictionary<DateTime, ITradePairMarketDataSnapshotGrain>();
-
+        
         foreach (var snapshotId in State.MarketDataSnapshotGrainIds)
         {
             ITradePairMarketDataSnapshotGrain snapshotGrain =
@@ -74,21 +68,13 @@ public class TradePairGrain : Grain<TradePairState>, ITradePairGrain
                 var snapshotData = snapshotDataResult.Data;
                 if (snapshotData.Timestamp >= pastWeek && snapshotData.Timestamp <= now)
                 {
-                    _previous7DaysMarketDataSnapshots.Add(new Tuple<DateTime, string>(snapshotData.Timestamp,
-                        snapshotGrain.GetPrimaryKeyString()));
+                    _previous7DaysMarketDataSnapshots.Add(snapshotData.Timestamp,
+                        snapshotGrain.GetPrimaryKeyString());
                 }
             }
         }
     }
-
-    public async Task RemoveHistorySnapshotCacheAsync()
-    {
-        DateTime currentDate = DateTime.Now;
-        DateTime oneWeekAgo = currentDate.AddDays(-7);
-
-        _previous7DaysMarketDataSnapshots.RemoveWhere(item => item.Item1 < oneWeekAgo);
-    }
-
+    
     public async Task<GrainResultDto<TradePairGrainDto>> GetAsync()
     {
         if (State.Id == Guid.Empty)
@@ -110,9 +96,9 @@ public class TradePairGrain : Grain<TradePairState>, ITradePairGrain
     {
         foreach (var snapshot in _previous7DaysMarketDataSnapshots)
         {
-            if (maxTime >= snapshot.Item1)
+            if (maxTime >= snapshot.Key)
             {
-                var grain = _clusterClient.GetGrain<ITradePairMarketDataSnapshotGrain>(snapshot.Item2);
+                var grain = _clusterClient.GetGrain<ITradePairMarketDataSnapshotGrain>(snapshot.Value);
                 var result = await grain.GetAsync();
                 if (result.Success)
                 {
@@ -137,7 +123,7 @@ public class TradePairGrain : Grain<TradePairState>, ITradePairGrain
 
         foreach (var snapshot in _previous7DaysMarketDataSnapshots)
         {
-            var grain = _clusterClient.GetGrain<ITradePairMarketDataSnapshotGrain>(snapshot.Item2);
+            var grain = _clusterClient.GetGrain<ITradePairMarketDataSnapshotGrain>(snapshot.Value);
             var result = await grain.GetAsync();
             if (result.Success)
             {
@@ -156,7 +142,7 @@ public class TradePairGrain : Grain<TradePairState>, ITradePairGrain
         }
 
         return _clusterClient.GetGrain<ITradePairMarketDataSnapshotGrain>(_previous7DaysMarketDataSnapshots
-            .FirstOrDefault().Item2);
+            .FirstOrDefault().Value);
     }
 
     public async Task<List<TradePairMarketDataSnapshotGrainDto>> GetPrevious7DaysSnapshotsDtoAsync()
@@ -164,7 +150,7 @@ public class TradePairGrain : Grain<TradePairState>, ITradePairGrain
         List<TradePairMarketDataSnapshotGrainDto> sortedSnapshots = new List<TradePairMarketDataSnapshotGrainDto>();
         foreach (var snapshot in _previous7DaysMarketDataSnapshots)
         {
-            var grain = _clusterClient.GetGrain<ITradePairMarketDataSnapshotGrain>(snapshot.Item2);
+            var grain = _clusterClient.GetGrain<ITradePairMarketDataSnapshotGrain>(snapshot.Value);
             var result = await grain.GetAsync();
             if (result.Success)
             {
@@ -254,8 +240,21 @@ public class TradePairGrain : Grain<TradePairState>, ITradePairGrain
         var timestamp = DateTimeHelper.FromUnixTimeMilliseconds(dto.Timestamp);
         var price = double.Parse(token1Amount) / double.Parse(token0Amount);
 
-        var priceUSD0 = (double)await _tokenPriceProvider.GetPriceAsync(State.Token0.Symbol);
-        var priceUSD1 = (double)await _tokenPriceProvider.GetPriceAsync(State.Token1.Symbol);
+        var token0PriceResult = await _clusterClient.GetGrain<ITokenPriceGrain>(State.Token0.Id).GetCurrentPriceAsync(State.Token0.Symbol);
+        if (!token0PriceResult.Success)
+        {
+            _logger.LogError($"get token price from token price grain failed. token symbol: {State.Token0.Symbol}");
+        }
+        
+        var token1PriceResult = await _clusterClient.GetGrain<ITokenPriceGrain>(State.Token1.Id).GetCurrentPriceAsync(State.Token1.Symbol);
+        if (!token1PriceResult.Success)
+        {
+            _logger.LogError($"get token price from token price grain failed. token symbol: {State.Token1.Symbol}");
+        }
+        
+        var priceUSD0 = (double)token0PriceResult.Data.PriceInUsd;
+        var priceUSD1 = (double)token1PriceResult.Data.PriceInUsd;
+        
         var tvl = priceUSD0 * double.Parse(token0Amount) +
                   priceUSD1 * double.Parse(token1Amount);
         
@@ -305,8 +304,17 @@ public class TradePairGrain : Grain<TradePairState>, ITradePairGrain
         // add snapshot
         if (!State.MarketDataSnapshotGrainIds.Contains(snapshotGrain.GetPrimaryKeyString()))
         {
-            _previous7DaysMarketDataSnapshots.Add(new Tuple<DateTime, string>(snapshotDto.Timestamp,
-                snapshotGrain.GetPrimaryKeyString()));
+            if (_previous7DaysMarketDataSnapshots.Count >= 7 * 24)
+            {
+                var lastKey = _previous7DaysMarketDataSnapshots.Last().Key;
+                bool removed = _previous7DaysMarketDataSnapshots.Remove(lastKey);
+                if (!removed)
+                {
+                    _logger.LogError("previous 7 days market data snapshots remove failed");
+                }
+            }
+            _previous7DaysMarketDataSnapshots.Add(snapshotDto.Timestamp,
+                snapshotGrain.GetPrimaryKeyString());
             State.MarketDataSnapshotGrainIds.Add(snapshotGrain.GetPrimaryKeyString());
         }
         
@@ -370,9 +378,21 @@ public class TradePairGrain : Grain<TradePairState>, ITradePairGrain
             }
         }
 
-        var priceUSD0 = await _tokenPriceProvider.GetPriceAsync(State.Token0.Symbol);
-        var priceUSD1 = await _tokenPriceProvider.GetPriceAsync(State.Token1.Symbol);
-
+        var token0PriceResult = await _clusterClient.GetGrain<ITokenPriceGrain>(State.Token0.Id).GetCurrentPriceAsync(State.Token0.Symbol);
+        if (!token0PriceResult.Success)
+        {
+            _logger.LogError($"get token price from token price grain failed. token symbol: {State.Token0.Symbol}");
+        }
+        
+        var token1PriceResult = await _clusterClient.GetGrain<ITokenPriceGrain>(State.Token1.Id).GetCurrentPriceAsync(State.Token1.Symbol);
+        if (!token1PriceResult.Success)
+        {
+            _logger.LogError($"get token price from token price grain failed. token symbol: {State.Token1.Symbol}");
+        }
+        
+        var priceUSD0 = (double)token0PriceResult.Data.PriceInUsd;
+        var priceUSD1 = (double)token1PriceResult.Data.PriceInUsd;
+        
         State.PriceUSD = priceUSD1 != 0 ? State.Price * (double)priceUSD1 : (double)priceUSD0;
         State.PricePercentChange24h = lastDayPriceUSD == 0
             ? 0

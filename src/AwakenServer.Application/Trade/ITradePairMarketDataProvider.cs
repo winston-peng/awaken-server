@@ -164,15 +164,15 @@ namespace AwakenServer.Trade
             }
             
             var result = await methodDelegate(grain);
-
-            _logger.LogInformation("AddOrUpdateSnapshotAsync: distributedEventBus.PublishAsync TradePairEto: " + JsonConvert.SerializeObject(result.Data.TradePairDto));
+            
+            _logger.LogInformation($"from {methodDelegate.Method.Name} publishAsync TradePairEto: {JsonConvert.SerializeObject(result.Data.TradePairDto)}");
 
             await _distributedEventBus.PublishAsync(new EntityCreatedEto<TradePairEto>(
                 _objectMapper.Map<TradePairGrainDto, TradePairEto>(
                     result.Data.TradePairDto)
             ));
             
-            _logger.LogInformation("AddOrUpdateSnapshotAsync: distributedEventBus.PublishAsync TradePairMarketDataSnapshotEto: " + JsonConvert.SerializeObject(result.Data.SnapshotDto));
+            _logger.LogInformation($"from {methodDelegate.Method.Name} publishAsync TradePairMarketDataSnapshotEto: {JsonConvert.SerializeObject(result.Data.SnapshotDto)}");
             
             await _distributedEventBus.PublishAsync(new EntityCreatedEto<TradePairMarketDataSnapshotEto>(
                 _objectMapper.Map<TradePairMarketDataSnapshotGrainDto, TradePairMarketDataSnapshotEto>(

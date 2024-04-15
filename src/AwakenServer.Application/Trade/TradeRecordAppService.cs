@@ -268,7 +268,7 @@ namespace AwakenServer.Trade
             if (await tradeRecordGrain.Exist())
             {
                 _logger.LogInformation("swap event transactionHash existed: {transactionHash}", dto.TransactionHash);
-                return false;
+                return true;
             }
 
             var pair = await GetAsync(dto.ChainId, dto.PairAddress);

@@ -15,8 +15,6 @@ public class TradePairMarketDataSnapshotUpdateResult
 
 public interface ITradePairGrain : IGrainWithStringKey
 {
-    public Task RemoveHistorySnapshotCacheAsync();
-    
     public Task<GrainResultDto<TradePairGrainDto>> GetAsync();
     
     public Task<GrainResultDto<TradePairGrainDto>> AddOrUpdateAsync(TradePairGrainDto dto);

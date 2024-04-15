@@ -1,5 +1,6 @@
 using System.Threading.Tasks;
 using AwakenServer.Chains;
+using AwakenServer.Provider;
 using AwakenServer.Trade;
 using AwakenServer.Trade.Dtos;
 using Microsoft.Extensions.DependencyInjection;
@@ -12,20 +13,18 @@ namespace AwakenServer.Worker
 {
     public class TradePairUpdateWorker : AwakenServerWorkerBase
     {
-        private readonly IChainAppService _chainAppService;
         private readonly ITradePairAppService _tradePairAppService;
         private readonly TradePairUpdateWorkerSettings _workerSetting;
         private readonly ILogger<TradePairUpdateWorker> _logger;
-
-
+        
         public TradePairUpdateWorker(AbpAsyncTimer timer, IServiceScopeFactory serviceScopeFactory,
             ITradePairAppService tradePairAppService, IChainAppService chainAppService,
+            IGraphQLProvider graphQlProvider,
             IOptionsSnapshot<WorkerSettings> workerSettings,
             ILogger<TradePairUpdateWorker> logger)
-            : base(timer, serviceScopeFactory, workerSettings.Value.TradePairUpdate)
+            : base(timer, serviceScopeFactory, workerSettings.Value.TradePairUpdate, graphQlProvider, chainAppService)
         {
             _tradePairAppService = tradePairAppService;
-            _chainAppService = chainAppService;
             _logger = logger;
             _workerSetting = workerSettings.Value.TradePairUpdate;
             timer.Period = _workerSetting.TimePeriod;

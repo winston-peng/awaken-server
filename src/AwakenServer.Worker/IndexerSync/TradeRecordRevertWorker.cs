@@ -1,5 +1,6 @@
 using System.Threading.Tasks;
 using AwakenServer.Chains;
+using AwakenServer.Provider;
 using AwakenServer.Trade;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -11,7 +12,6 @@ namespace AwakenServer.Worker.IndexerSync;
 
 public class TradeRecordRevertWorker : AwakenServerWorkerBase
 {
-    private readonly IChainAppService _chainAppService;
     private readonly ITradeRecordAppService _tradeRecordAppService;
     private readonly ILogger<TradeRecordRevertWorker> _logger;
     private readonly TradeRecordRevertWorkerSettings _workerSetting;
@@ -21,10 +21,10 @@ public class TradeRecordRevertWorker : AwakenServerWorkerBase
         IChainAppService chainAppService,
         ITradeRecordAppService tradeRecordAppService, 
         ILogger<TradeRecordRevertWorker> logger,
-        IOptionsSnapshot<WorkerSettings> workerSettings)
-        : base(timer, serviceScopeFactory, workerSettings.Value.TradeRecordRevert)
+        IOptionsSnapshot<WorkerSettings> workerSettings,
+        IGraphQLProvider graphQlProvider)
+        : base(timer, serviceScopeFactory, workerSettings.Value.TradeRecordRevert, graphQlProvider, chainAppService)
     {
-        _chainAppService = chainAppService;
         _tradeRecordAppService = tradeRecordAppService;
         _logger = logger;
         _workerSetting = workerSettings.Value.TradeRecordRevert;

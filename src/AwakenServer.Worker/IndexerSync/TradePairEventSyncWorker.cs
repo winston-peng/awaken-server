@@ -15,20 +15,16 @@ namespace AwakenServer.Worker.IndexerSync;
 
 public class TradePairEventSyncWorker : AwakenServerWorkerBase
 {
-    private readonly IChainAppService _chainAppService;
-    private readonly IGraphQLProvider _graphQlProvider;
     private readonly ILogger<TradePairEventSyncWorker> _logger;
     private readonly ITradePairAppService _tradePairAppService;
     private readonly TradePairWorkerSettings _workerSetting;
     
     public TradePairEventSyncWorker(AbpAsyncTimer timer, IServiceScopeFactory serviceScopeFactory,
-        IGraphQLProvider iGraphQlProvider, IChainAppService chainAppService,
+        IGraphQLProvider graphQlProvider, IChainAppService chainAppService,
         ITradePairAppService tradePairAppService, ILogger<TradePairEventSyncWorker> logger,
         IOptionsSnapshot<WorkerSettings> workerSettings)
-        : base(timer, serviceScopeFactory, workerSettings.Value.TradePairEvent)
+        : base(timer, serviceScopeFactory, workerSettings.Value.TradePairEvent, graphQlProvider, chainAppService)
     {
-        _graphQlProvider = iGraphQlProvider;
-        _chainAppService = chainAppService;
         _logger = logger;
         _tradePairAppService = tradePairAppService;
         _workerSetting = workerSettings.Value.TradePairEvent;
@@ -36,7 +32,7 @@ public class TradePairEventSyncWorker : AwakenServerWorkerBase
 
     protected override async Task DoWorkAsync(PeriodicBackgroundWorkerContext workerContext)
     {
-        PreDoWork(workerContext);
+        PreDoWork(workerContext, _workerSetting.ResetBlockHeightFlag, QueryType.TradePair);
         
         _logger.LogInformation($"TradePairEventSyncWorker.DoWorkAsync Start with config: " +
                                $"TimePeriod: {_workerSetting.TimePeriod}, " +
@@ -46,14 +42,8 @@ public class TradePairEventSyncWorker : AwakenServerWorkerBase
         var chains = await _chainAppService.GetListAsync(new GetChainInput());
         foreach (var chain in chains.Items)
         {
-            if (_workerSetting.ResetBlockHeightFlag)
-            {
-                await _graphQlProvider.SetLastEndHeightAsync(chain.Name, QueryType.TradePair, _workerSetting.ResetBlockHeight);
-                _logger.LogInformation($"trade reset block height: {_workerSetting.ResetBlockHeight}");
-            }
-            
             var lastEndHeight = await _graphQlProvider.GetLastEndHeightAsync(chain.Name, QueryType.TradePair);
-            _logger.LogInformation("trade first lastEndHeight: {lastEndHeight}", lastEndHeight);
+            _logger.LogInformation("trade pair first lastEndHeight: {lastEndHeight}", lastEndHeight);
             
             var result = await _graphQlProvider.GetTradePairInfoListAsync(new GetTradePairsInfoInput
             {
