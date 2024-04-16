@@ -114,8 +114,8 @@ namespace AwakenServer.Trade
                 BlockHeight = blockHeight
             });
             _graphQlProvider.AddSwapRecord(dto);
-            await _tradeRecordAppService.RevertAsync(chainId);
-            await _tradeRecordAppService.RevertAsync(chainId);
+            await _tradeRecordAppService.RevertTradeRecordAsync(chainId);
+            await _tradeRecordAppService.RevertTradeRecordAsync(chainId);
 
             for (var i = 2; i < 104; i++)
             {
@@ -187,7 +187,7 @@ namespace AwakenServer.Trade
             });
             
             
-            await _tradeRecordAppService.RevertAsync(chainId);
+            await _tradeRecordAppService.RevertTradeRecordAsync(chainId);
             
             Thread.Sleep(3000);
             

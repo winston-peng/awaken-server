@@ -20,7 +20,7 @@ namespace AwakenServer.Trade
 
         Task CreateCacheAsync(Guid tradePairId, SwapRecordDto dto);
 
-        Task RevertAsync(string chainId);
+        Task RevertTradeRecordAsync(string chainId);
 
         Task<int> GetUserTradeAddressCountAsync(string chainId, Guid tradePairId, DateTime? minDateTime = null,
             DateTime? maxDateTime = null);

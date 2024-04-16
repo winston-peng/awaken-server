@@ -16,8 +16,6 @@ using Volo.Abp.ObjectMapping;
 
 namespace AwakenServer.Grains.Grain.Price.TradePair;
 
-
-
 public class TradePairGrain : Grain<TradePairState>, ITradePairGrain
 {
     private readonly IObjectMapper _objectMapper;
@@ -147,7 +145,7 @@ public class TradePairGrain : Grain<TradePairState>, ITradePairGrain
 
         return null;
     }
-    
+
     public async Task<ITradePairMarketDataSnapshotGrain> GetLatestSnapshotGrainAsync()
     {
         if (_previous7DaysMarketDataSnapshots.IsNullOrEmpty())
@@ -188,20 +186,20 @@ public class TradePairGrain : Grain<TradePairState>, ITradePairGrain
             Id = Guid.NewGuid(),
             ChainId = dto.ChainId,
             TradePairId = State.Id,
-            Volume = double.Parse(dto.Token0Amount),
-            TradeValue = double.Parse(dto.Token1Amount),
-            TradeCount = 1,
+            Volume = dto.IsRevert ? -double.Parse(dto.Token0Amount) : double.Parse(dto.Token0Amount),
+            TradeValue = dto.IsRevert ? -double.Parse(dto.Token1Amount) : double.Parse(dto.Token1Amount),
+            TradeCount = dto.IsRevert ? -1 : 1,
             Timestamp = GetSnapshotTime(dto.Timestamp),
         });
     }
-    
+
     public async Task<GrainResultDto<TradePairMarketDataSnapshotUpdateResult>>
         UpdateTotalSupplyAsync(
             LiquidityRecordGrainDto dto)
     {
         var lpAmount = BigDecimal.Parse(dto.LpTokenAmount);
         lpAmount = dto.Type == LiquidityType.Mint ? lpAmount : -lpAmount;
-        
+
         var updateResult = await AddOrUpdateSnapshotAsync(
             new TradePairMarketDataSnapshotGrainDto
             {
@@ -211,7 +209,7 @@ public class TradePairGrain : Grain<TradePairState>, ITradePairGrain
                 Timestamp = GetSnapshotTime(dto.Timestamp),
                 TotalSupply = lpAmount.ToNormalizeString(),
             });
-        
+
         // nie:The current snapshot is not up-to-date. The latest snapshot needs to update TotalSupply 
         var latestSnapshot = await GetLatestSnapshotAsync();
         if (latestSnapshot != null && updateResult.Data.SnapshotDto.Timestamp < latestSnapshot.Timestamp)
@@ -230,7 +228,7 @@ public class TradePairGrain : Grain<TradePairState>, ITradePairGrain
                 }
             };
         }
-        
+
         return updateResult;
     }
 
@@ -244,7 +242,7 @@ public class TradePairGrain : Grain<TradePairState>, ITradePairGrain
         var priceUSD1 = (double)await _tokenPriceProvider.GetPriceAsync(State.Token1.Symbol);
         var tvl = priceUSD0 * double.Parse(dto.Token0Amount) +
                   priceUSD1 * double.Parse(dto.Token1Amount);
-        
+
         var priceUSD = priceUSD1 != 0 ? price * priceUSD1 : priceUSD0;
 
         return await AddOrUpdateSnapshotAsync(new TradePairMarketDataSnapshotGrainDto
@@ -274,13 +272,13 @@ public class TradePairGrain : Grain<TradePairState>, ITradePairGrain
         }
 
         snapshotDto.Timestamp = GetSnapshotTime(snapshotDto.Timestamp);
-        
+
         _logger.LogInformation(
             $"add snapshot id:{State.Id},{State.Token0.Symbol}-{State.Token1.Symbol}, " +
             $"timestamp:{snapshotDto.Timestamp} " +
             $"fee:{State.FeeRate},price:{State.Price}-priceUSD:{State.PriceUSD}, " +
             $"tvl:{State.TVL}");
-        
+
         var snapshotGrain = _clusterClient.GetGrain<ITradePairMarketDataSnapshotGrain>(
             GrainIdHelper.GenerateGrainId(snapshotDto.ChainId, snapshotDto.TradePairId, snapshotDto.Timestamp));
 
@@ -295,7 +293,7 @@ public class TradePairGrain : Grain<TradePairState>, ITradePairGrain
                 snapshotGrain.GetPrimaryKeyString()));
             State.MarketDataSnapshotGrainIds.Add(snapshotGrain.GetPrimaryKeyString());
         }
-        
+
         // update trade pair
         var updateTradePairResult = await UpdateFromSnapshotAsync(updateSnapshotResult.Data);
         return new GrainResultDto<TradePairMarketDataSnapshotUpdateResult>
@@ -458,13 +456,13 @@ public class TradePairGrain : Grain<TradePairState>, ITradePairGrain
             .OrderByDescending(s => s.Timestamp).ToList();
         var lastDayVolume24h = lastDaySnapshot.Sum(snapshot => snapshot.Volume);
         var lastDayTvl = 0d;
-        var lastDayPriceUSD = 0d;
+        var lastDayPrice = 0d;
 
         if (lastDaySnapshot.Count > 0)
         {
             var snapshot = lastDaySnapshot.First();
             lastDayTvl = snapshot.TVL;
-            lastDayPriceUSD = snapshot.PriceUSD;
+            lastDayPrice = snapshot.Price;
         }
         else
         {
@@ -472,7 +470,7 @@ public class TradePairGrain : Grain<TradePairState>, ITradePairGrain
             if (latestBeforeThisSnapshotDto != null)
             {
                 lastDayTvl = latestBeforeThisSnapshotDto.TVL;
-                lastDayPriceUSD = latestBeforeThisSnapshotDto.PriceUSD;
+                lastDayPrice = latestBeforeThisSnapshotDto.Price;
             }
         }
 
@@ -490,12 +488,12 @@ public class TradePairGrain : Grain<TradePairState>, ITradePairGrain
         State.PriceLow24h = priceLow24h;
         State.PriceHigh24hUSD = priceHigh24hUSD;
         State.PriceLow24hUSD = priceLow24hUSD;
-        State.PriceChange24h = lastDayPriceUSD == 0
+        State.PriceChange24h = lastDayPrice == 0
             ? 0
-            : State.PriceUSD - lastDayPriceUSD;
-        State.PricePercentChange24h = lastDayPriceUSD == 0
+            : State.PriceUSD - lastDayPrice;
+        State.PricePercentChange24h = lastDayPrice == 0
             ? 0
-            : (State.PriceUSD - lastDayPriceUSD) * 100 / lastDayPriceUSD;
+            : (State.PriceUSD - lastDayPrice) * 100 / lastDayPrice;
         State.VolumePercentChange24h = lastDayVolume24h == 0
             ? 0
             : (State.Volume24h - lastDayVolume24h) * 100 / lastDayVolume24h;

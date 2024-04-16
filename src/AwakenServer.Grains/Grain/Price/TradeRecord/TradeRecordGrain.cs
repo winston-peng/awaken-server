@@ -36,8 +36,6 @@ public class TradeRecordGrain : Grain<TradeRecordState>, ITradeRecordGrain
     {
         State = _objectMapper.Map<TradeRecordGrainDto, TradeRecordState>(dto);
         
-        
-        
         await WriteStateAsync();
 
         return new GrainResultDto<TradeRecordGrainDto>()

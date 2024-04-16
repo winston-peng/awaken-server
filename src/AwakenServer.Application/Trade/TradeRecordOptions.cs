@@ -17,6 +17,8 @@ namespace AwakenServer.Trade
 
         public int BatchFlushTimePeriod { get; set; } = 3;
         public int BatchFlushCount { get; set; } = 10;
+
+        public int StartBlockHeightGap = 10;
     }
 
     public class BlockHeightSetDto
