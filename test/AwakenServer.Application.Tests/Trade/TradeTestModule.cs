@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using AwakenServer.Applications.GameOfTrust;
 using AwakenServer.Chains;
@@ -146,6 +147,7 @@ namespace AwakenServer.Trade
 
             var chainEth = AsyncHelper.RunSync(async () => await chainService.CreateAsync(new ChainCreateDto
             {
+                Id = "tDVV",
                 Name = "tDVV"
             }));
             environmentProvider.EthChainId = chainEth.Id;
@@ -186,6 +188,7 @@ namespace AwakenServer.Trade
                 {
                     ChainId = chainEth.Name,
                     Address = "0xPool006a6FaC8c710e53c4B2c2F96477119dA361",
+                    Id = Guid.Parse("3F2504E0-4F89-41D3-9A0C-0305E82C3301"),
                     Token0Id = tokenETH.Id,
                     Token1Id = tokenUSDT.Id,
                     FeeRate = 0.5
@@ -198,6 +201,7 @@ namespace AwakenServer.Trade
                 {
                     ChainId = chainEth.Name,
                     Address = "0xPool006a6FaC8c710e53c4B2c2F96477119dA362",
+                    Id = Guid.Parse("3D2504E0-4F89-41D3-9A0C-0305E82C3302"),
                     Token0Id = tokenBTC.Id,
                     Token1Id = tokenETH.Id,
                     FeeRate = 0.03,

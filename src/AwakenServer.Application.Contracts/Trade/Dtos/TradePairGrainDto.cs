@@ -6,9 +6,7 @@ namespace AwakenServer.Trade.Dtos
     public class TradePairGrainDto : TradePairDto
     {
         public TokenDto Token0 { get; set; }
-
         public TokenDto Token1 { get; set; }
-        
         public string TotalSupply { get; set; }
         public double Price { get; set; }
         public double PriceUSD { get; set; }
@@ -32,8 +30,5 @@ namespace AwakenServer.Trade.Dtos
     
     public class SyncRecordGrainDto : SyncRecordDto
     {
-    
     }
-    
-    
 }

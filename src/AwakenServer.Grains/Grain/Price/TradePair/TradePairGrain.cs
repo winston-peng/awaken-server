@@ -240,13 +240,13 @@ public class TradePairGrain : Grain<TradePairState>, ITradePairGrain
         var timestamp = DateTimeHelper.FromUnixTimeMilliseconds(dto.Timestamp);
         var price = double.Parse(token1Amount) / double.Parse(token0Amount);
 
-        var token0PriceResult = await _clusterClient.GetGrain<ITokenPriceGrain>(State.Token0.Id).GetCurrentPriceAsync(State.Token0.Symbol);
+        var token0PriceResult = await _clusterClient.GetGrain<ITokenPriceGrain>(State.Token0.Symbol).GetCurrentPriceAsync(State.Token0.Symbol);
         if (!token0PriceResult.Success)
         {
             _logger.LogError($"get token price from token price grain failed. token symbol: {State.Token0.Symbol}");
         }
         
-        var token1PriceResult = await _clusterClient.GetGrain<ITokenPriceGrain>(State.Token1.Id).GetCurrentPriceAsync(State.Token1.Symbol);
+        var token1PriceResult = await _clusterClient.GetGrain<ITokenPriceGrain>(State.Token1.Symbol).GetCurrentPriceAsync(State.Token1.Symbol);
         if (!token1PriceResult.Success)
         {
             _logger.LogError($"get token price from token price grain failed. token symbol: {State.Token1.Symbol}");
@@ -378,13 +378,13 @@ public class TradePairGrain : Grain<TradePairState>, ITradePairGrain
             }
         }
 
-        var token0PriceResult = await _clusterClient.GetGrain<ITokenPriceGrain>(State.Token0.Id).GetCurrentPriceAsync(State.Token0.Symbol);
+        var token0PriceResult = await _clusterClient.GetGrain<ITokenPriceGrain>(State.Token0.Symbol).GetCurrentPriceAsync(State.Token0.Symbol);
         if (!token0PriceResult.Success)
         {
             _logger.LogError($"get token price from token price grain failed. token symbol: {State.Token0.Symbol}");
         }
         
-        var token1PriceResult = await _clusterClient.GetGrain<ITokenPriceGrain>(State.Token1.Id).GetCurrentPriceAsync(State.Token1.Symbol);
+        var token1PriceResult = await _clusterClient.GetGrain<ITokenPriceGrain>(State.Token1.Symbol).GetCurrentPriceAsync(State.Token1.Symbol);
         if (!token1PriceResult.Success)
         {
             _logger.LogError($"get token price from token price grain failed. token symbol: {State.Token1.Symbol}");

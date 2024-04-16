@@ -22,6 +22,7 @@ public class ChainTestModule : AbpModule
         context.Services.RemoveAll<IBlockchainClientProvider>();
         context.Services.AddSingleton<IBlockchainClientProvider, MockAElfClientProvider>(); 
         context.Services.AddSingleton<IBlockchainClientProvider, MockDefaultClientProvider>();
+        context.Services.AddSingleton<IBlockchainClientProvider, MockEthereumClientProvider>();
         
         context.Services.Configure<ChainsInitOptions>(o =>
         {
