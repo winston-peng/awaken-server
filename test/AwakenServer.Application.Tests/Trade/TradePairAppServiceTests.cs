@@ -184,8 +184,8 @@ namespace AwakenServer.Trade
                 PairAddress = TradePairEthUsdtAddress,
                 SymbolA = "ETH",
                 SymbolB = "USDT",
-                ReserveA = 100,
-                ReserveB = 10000,
+                ReserveA = 100000000,
+                ReserveB = 100000000,
                 Timestamp = DateTimeHelper.ToUnixTimeMilliseconds(DateTime.UtcNow.AddDays(-2))
             };
             
@@ -193,14 +193,19 @@ namespace AwakenServer.Trade
             
             var snapshotTime =
                 _tradePairMarketDataProvider.GetSnapshotTime(DateTimeHelper.FromUnixTimeMilliseconds(newLiquidity.Timestamp));
+            
             var marketDataSnapshot = await _tradePairSnapshotIndexRepository.GetAsync(q =>
                 q.Term(i => i.Field(f => f.TradePairId).Value(TradePairEthUsdtId)) &&
                 q.Term(i => i.Field(f => f.Timestamp).Value(snapshotTime)));
+
+            // var marketDataSnapshotResult = await _clusterClient.GetGrain<ITradePairMarketDataSnapshotGrain>(GrainIdHelper.GenerateGrainId(ChainId, TradePairEthUsdtId, snapshotTime)).GetAsync();
+            // var marketDataSnapshot = marketDataSnapshotResult.Data;
+            
             marketDataSnapshot.Price.ShouldBe(100);
             marketDataSnapshot.PriceUSD.ShouldBe(100);
-            marketDataSnapshot.TVL.ShouldBe(10000);
-            marketDataSnapshot.ValueLocked0.ShouldBe(100);
-            marketDataSnapshot.ValueLocked1.ShouldBe(10000);
+            marketDataSnapshot.TVL.ShouldBe(100);
+            marketDataSnapshot.ValueLocked0.ShouldBe(1);
+            marketDataSnapshot.ValueLocked1.ShouldBe(100);
 
             var pair = await _tradePairIndexRepository.GetAsync(TradePairEthUsdtId);
             pair.Price.ShouldBe(100);
@@ -217,7 +222,7 @@ namespace AwakenServer.Trade
                 PairAddress = TradePairEthUsdtAddress,
                 SymbolA = "ETH",
                 SymbolB = "USDT",
-                ReserveA = 200,
+                ReserveA = 20000,
                 ReserveB = 22000,
                 Timestamp = DateTimeHelper.ToUnixTimeMilliseconds(DateTime.UtcNow)
             };
@@ -251,7 +256,7 @@ namespace AwakenServer.Trade
                 PairAddress = TradePairEthUsdtAddress,
                 SymbolA = "ETH",
                 SymbolB = "USDT",
-                ReserveA = 100,
+                ReserveA = 10000,
                 ReserveB = 12000,
                 Timestamp = DateTimeHelper.ToUnixTimeMilliseconds(DateTime.UtcNow.AddDays(-1))
             };
@@ -285,7 +290,7 @@ namespace AwakenServer.Trade
                 PairAddress = TradePairEthUsdtAddress,
                 SymbolA = "ETH",
                 SymbolB = "USDT",
-                ReserveA = 200,
+                ReserveA = 20000,
                 ReserveB = 12000,
                 Timestamp = DateTimeHelper.ToUnixTimeMilliseconds(DateTime.UtcNow.AddDays(-1))
             };

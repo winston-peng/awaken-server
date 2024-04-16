@@ -333,8 +333,6 @@ namespace AwakenServer.Trade
                 TradePairGrainId = grain.GetPrimaryKeyString()
             });
             
-            // await grain.AddOrUpdateInfoAsync(tradePairInfo);
-            
             var index = ObjectMapper.Map<TradePairCreateDto, Index.TradePair>(input);
             index.Token0 = ObjectMapper.Map<TokenDto, Token>(token0);
             index.Token1 = ObjectMapper.Map<TokenDto, Token>(token1);
@@ -359,6 +357,12 @@ namespace AwakenServer.Trade
             }
             
             var pair = await GetAsync(dto.ChainId, dto.PairAddress);
+            if (pair == null)
+            {
+                _logger.LogError($"get pair: {dto.PairAddress} failed in chain: {dto.ChainId}");
+                return;
+            }
+            
             await _tradePairMarketDataProvider.AddOrUpdateSnapshotAsync(pair.Id, async grain =>
             {
                 return await grain.UpdateLiquidityAsync(_objectMapper.Map<SyncRecordDto, SyncRecordGrainDto>(dto));
