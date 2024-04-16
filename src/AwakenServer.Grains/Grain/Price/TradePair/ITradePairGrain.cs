@@ -11,6 +11,7 @@ public class TradePairMarketDataSnapshotUpdateResult
 {
     public TradePairGrainDto TradePairDto;
     public TradePairMarketDataSnapshotGrainDto SnapshotDto;
+    public TradePairMarketDataSnapshotGrainDto LatestSnapshotDto;
 }
 
 public interface ITradePairGrain : IGrainWithStringKey
@@ -25,7 +26,7 @@ public interface ITradePairGrain : IGrainWithStringKey
     
     public Task<GrainResultDto<TradePairMarketDataSnapshotUpdateResult>> UpdateTotalSupplyAsync(LiquidityRecordGrainDto dto);
     
-    public Task<GrainResultDto<TradePairMarketDataSnapshotUpdateResult>> UpdateTradeRecordAsync(TradeRecordGrainDto dto);
+    public Task<GrainResultDto<TradePairMarketDataSnapshotUpdateResult>> UpdateTradeRecordAsync(TradeRecordGrainDto dto, int tradeAddressCount24h);
     
     public Task<GrainResultDto<TradePairMarketDataSnapshotUpdateResult>> AddOrUpdateSnapshotAsync(TradePairMarketDataSnapshotGrainDto snapshotDto);
     

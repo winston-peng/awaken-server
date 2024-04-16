@@ -113,7 +113,6 @@ namespace AwakenServer.Trade.Handlers
                 recordInput.Timestamp = DateTimeHelper.ToUnixTimeMilliseconds(DateTime.UtcNow.AddHours(-1));
                 recordInput.Token0Amount = "1000";
                 recordInput.Token1Amount = "2000";
-
                 recordInput.TransactionHash = $"tx{i}";
                 await _tradeRecordAppService.CreateAsync(recordInput);
             }
@@ -146,6 +145,7 @@ namespace AwakenServer.Trade.Handlers
             {
                 recordInput.Token0Amount = "1000";
                 recordInput.Token1Amount = "2000";
+                recordInput.TransactionHash = $"tx{i}";
                 await _tradeRecordAppService.CreateAsync(recordInput);
             }
 
@@ -182,8 +182,9 @@ namespace AwakenServer.Trade.Handlers
                 TransactionHash = "tx",
                 TradePairId = TradePairEthUsdtId
             };
-            for (int i = 0; i < 10; i++)
+            for (int i = 30; i < 40; i++)
             {
+                recordInput2.TransactionHash = $"tx{i}";
                 await _tradeRecordAppService.CreateAsync(recordInput2);
             }
 
@@ -194,8 +195,8 @@ namespace AwakenServer.Trade.Handlers
 
 
             marketDataSnapshot = await _snapshotIndexRepository.GetAsync(q =>
-                q.Term(i => i.Field(f => f.ChainId).Value(recordInput.ChainId)) &&
-                q.Term(i => i.Field(f => f.TradePairId).Value(recordInput.TradePairId)) &&
+                q.Term(i => i.Field(f => f.ChainId).Value(recordInput2.ChainId)) &&
+                q.Term(i => i.Field(f => f.TradePairId).Value(recordInput2.TradePairId)) &&
                 q.Term(i => i.Field(f => f.Timestamp).Value(snapshotTime)));
             marketDataSnapshot.Volume.ShouldBe(1000);
             marketDataSnapshot.TradeValue.ShouldBe(2000);

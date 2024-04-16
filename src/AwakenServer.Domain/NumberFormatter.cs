@@ -11,6 +11,12 @@ namespace AwakenServer
             return new BigDecimal(num).ToNormalizeString();
         }
         
+        public static long WithDecimals(this long number, int decimals)
+        {
+            var num = number * Math.Pow(10, decimals);
+            return (long)num;
+        }
+        
         public static string ToNormalizeString(this BigDecimal bigDecimal)
         {
             if (bigDecimal >= 0)

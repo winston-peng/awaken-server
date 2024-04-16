@@ -150,6 +150,16 @@ namespace AwakenServer.Trade
                 _objectMapper.Map<TradePairMarketDataSnapshotGrainDto, TradePairMarketDataSnapshotEto>(
                     result.Data.SnapshotDto)
             ));
+
+            if (result.Data.LatestSnapshotDto != null)
+            {
+                _logger.LogDebug($"update latest snapshot from {methodDelegate.Method.Name} publishAsync TradePairMarketDataSnapshotEto: {JsonConvert.SerializeObject(result.Data.LatestSnapshotDto)}");
+            
+                await _distributedEventBus.PublishAsync(new EntityCreatedEto<TradePairMarketDataSnapshotEto>(
+                    _objectMapper.Map<TradePairMarketDataSnapshotGrainDto, TradePairMarketDataSnapshotEto>(
+                        result.Data.LatestSnapshotDto)
+                ));
+            }
         }
         
 

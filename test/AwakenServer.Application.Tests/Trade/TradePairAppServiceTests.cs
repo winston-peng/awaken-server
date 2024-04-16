@@ -15,6 +15,7 @@ using Orleans;
 using Shouldly;
 using Volo.Abp.ObjectMapping;
 using Xunit;
+using AwakenServer;
 
 namespace AwakenServer.Trade
 {
@@ -104,13 +105,13 @@ namespace AwakenServer.Trade
                 ChainId = ChainId
             });
 
-            tokens.Token0.Count.ShouldBe(1);
+            tokens.Token0.Count.ShouldBe(2);
             tokens.Token0.ShouldContain(t => t.Id == TokenBtcId);
-            //tokens.Token0.ShouldContain(t => t.Id == TokenEthId);
+            tokens.Token0.ShouldContain(t => t.Id == TokenEthId);
 
-            tokens.Token1.Count.ShouldBe(1);
+            tokens.Token1.Count.ShouldBe(2);
             tokens.Token1.ShouldContain(t => t.Id == TokenUsdtId);
-            //tokens.Token1.ShouldContain(t => t.Id == TokenEthId);
+            tokens.Token1.ShouldContain(t => t.Id == TokenEthId);
         }
 
         [Fact]
@@ -131,9 +132,8 @@ namespace AwakenServer.Trade
             pair.ShouldBeNull();
 
             pair = await _tradePairAppService.GetByAddressAsync(pairDto.ChainName, pairDto.Address);
-            pair.ShouldBeNull();
-
-
+            pair.ShouldNotBeNull();
+            
             var pairIndexDto = await _tradePairAppService.GetByAddressAsync(createdPair.Id, pairDto.Address);
             pairIndexDto.Id.ShouldBe((createdPair.Id));
         }
@@ -184,8 +184,8 @@ namespace AwakenServer.Trade
                 PairAddress = TradePairEthUsdtAddress,
                 SymbolA = "ETH",
                 SymbolB = "USDT",
-                ReserveA = 100000000,
-                ReserveB = 100000000,
+                ReserveA = NumberFormatter.WithDecimals(100, 8),
+                ReserveB = NumberFormatter.WithDecimals(10000, 6),
                 Timestamp = DateTimeHelper.ToUnixTimeMilliseconds(DateTime.UtcNow.AddDays(-2))
             };
             
@@ -197,15 +197,12 @@ namespace AwakenServer.Trade
             var marketDataSnapshot = await _tradePairSnapshotIndexRepository.GetAsync(q =>
                 q.Term(i => i.Field(f => f.TradePairId).Value(TradePairEthUsdtId)) &&
                 q.Term(i => i.Field(f => f.Timestamp).Value(snapshotTime)));
-
-            // var marketDataSnapshotResult = await _clusterClient.GetGrain<ITradePairMarketDataSnapshotGrain>(GrainIdHelper.GenerateGrainId(ChainId, TradePairEthUsdtId, snapshotTime)).GetAsync();
-            // var marketDataSnapshot = marketDataSnapshotResult.Data;
             
             marketDataSnapshot.Price.ShouldBe(100);
             marketDataSnapshot.PriceUSD.ShouldBe(100);
-            marketDataSnapshot.TVL.ShouldBe(100);
-            marketDataSnapshot.ValueLocked0.ShouldBe(1);
-            marketDataSnapshot.ValueLocked1.ShouldBe(100);
+            marketDataSnapshot.TVL.ShouldBe(10000);
+            marketDataSnapshot.ValueLocked0.ShouldBe(100);
+            marketDataSnapshot.ValueLocked1.ShouldBe(10000);
 
             var pair = await _tradePairIndexRepository.GetAsync(TradePairEthUsdtId);
             pair.Price.ShouldBe(100);
@@ -222,8 +219,8 @@ namespace AwakenServer.Trade
                 PairAddress = TradePairEthUsdtAddress,
                 SymbolA = "ETH",
                 SymbolB = "USDT",
-                ReserveA = 20000,
-                ReserveB = 22000,
+                ReserveA = NumberFormatter.WithDecimals(200, 8),
+                ReserveB = NumberFormatter.WithDecimals(22000, 6),
                 Timestamp = DateTimeHelper.ToUnixTimeMilliseconds(DateTime.UtcNow)
             };
             
@@ -256,8 +253,8 @@ namespace AwakenServer.Trade
                 PairAddress = TradePairEthUsdtAddress,
                 SymbolA = "ETH",
                 SymbolB = "USDT",
-                ReserveA = 10000,
-                ReserveB = 12000,
+                ReserveA = NumberFormatter.WithDecimals(100, 8),
+                ReserveB = NumberFormatter.WithDecimals(12000, 6),
                 Timestamp = DateTimeHelper.ToUnixTimeMilliseconds(DateTime.UtcNow.AddDays(-1))
             };
             
@@ -290,8 +287,8 @@ namespace AwakenServer.Trade
                 PairAddress = TradePairEthUsdtAddress,
                 SymbolA = "ETH",
                 SymbolB = "USDT",
-                ReserveA = 20000,
-                ReserveB = 12000,
+                ReserveA = NumberFormatter.WithDecimals(200, 8),
+                ReserveB = NumberFormatter.WithDecimals(12000, 6),
                 Timestamp = DateTimeHelper.ToUnixTimeMilliseconds(DateTime.UtcNow.AddDays(-1))
             };
             await _tradePairAppService.UpdateLiquidityAsync(newLiquidity4);

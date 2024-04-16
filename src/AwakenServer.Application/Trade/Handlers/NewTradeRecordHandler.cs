@@ -28,10 +28,12 @@ namespace AwakenServer.Trade.Handlers
 
         public async Task HandleEventAsync(NewTradeRecordEvent eventData)
         {
+            var tradeAddressCount24h = await _tradeRecordAppService.GetUserTradeAddressCountAsync(eventData.ChainId, eventData.TradePairId,
+                eventData.Timestamp, eventData.Timestamp);
             var dto = _objectMapper.Map<NewTradeRecordEvent, TradeRecordGrainDto>(eventData);
             await _tradePairMarketDataProvider.AddOrUpdateSnapshotAsync(eventData.TradePairId, async grain =>
             {
-                return await grain.UpdateTradeRecordAsync(dto);
+                return await grain.UpdateTradeRecordAsync(dto, tradeAddressCount24h);
             });
         }
     }

@@ -167,7 +167,7 @@ public class TradePairGrain : Grain<TradePairState>, ITradePairGrain
     }
 
     public async Task<GrainResultDto<TradePairMarketDataSnapshotUpdateResult>> UpdateTradeRecordAsync(
-        TradeRecordGrainDto dto)
+        TradeRecordGrainDto dto, int tradeAddressCount24h)
     {
         return await AddOrUpdateSnapshotAsync(new TradePairMarketDataSnapshotGrainDto
         {
@@ -178,6 +178,7 @@ public class TradePairGrain : Grain<TradePairState>, ITradePairGrain
             TradeValue = double.Parse(dto.Token1Amount),
             TradeCount = 1,
             Timestamp = GetSnapshotTime(dto.Timestamp),
+            TradeAddressCount24h = tradeAddressCount24h
         });
     }
     
@@ -210,9 +211,9 @@ public class TradePairGrain : Grain<TradePairState>, ITradePairGrain
                 Success = true,
                 Data = new TradePairMarketDataSnapshotUpdateResult
                 {
-                    // return this snapshot and latest trade pair
-                    TradePairDto = updateTradePairByLatestResult.Data,
-                    SnapshotDto = updateResult.Data.SnapshotDto
+                    SnapshotDto = updateResult.Data.SnapshotDto,
+                    LatestSnapshotDto = latestResult.Data,
+                    TradePairDto = updateTradePairByLatestResult.Data
                 }
             };
         }

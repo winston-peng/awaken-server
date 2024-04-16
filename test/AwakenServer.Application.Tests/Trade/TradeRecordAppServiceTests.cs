@@ -70,7 +70,7 @@ namespace AwakenServer.Trade
             var swapList = _graphQlProvider.GetSwapRecordsAsync(ChainId, 0 , 100);
             swapList.Result.Count.ShouldBe(1);
             var ret = await _tradeRecordAppService.CreateAsync(swapRecordDto);
-            ret.ShouldBe(false);
+            ret.ShouldBe(true);
             await _tradePairIndexRepository.DeleteAsync(tradePair.Id);
             swapRecordDto.TransactionHash = "6622966a928185655d691565d6128835e7d1ccdf1dd3b5f277c5f2a5b2802d36";
             ret = await _tradeRecordAppService.CreateAsync(swapRecordDto);
@@ -318,7 +318,7 @@ namespace AwakenServer.Trade
                 Timestamp = DateTimeHelper.ToUnixTimeMilliseconds(DateTime.UtcNow.AddDays(-1)),
                 Token0Amount = "100",
                 Token1Amount = "1000",
-                TransactionHash = "0xdab24d0f0c28a3be6b59332ab0cb0b4cd54f10f3c1b12cfc81d72e934d74b28f"
+                TransactionHash = "0xa"
             };
             await _tradeRecordAppService.CreateAsync(input1);
             
@@ -331,7 +331,7 @@ namespace AwakenServer.Trade
                 Timestamp = DateTimeHelper.ToUnixTimeMilliseconds(DateTime.UtcNow),
                 Token0Amount = "10",
                 Token1Amount = "100",
-                TransactionHash = "0xdab24d0f0c28a3be6b59332ab0cb0b4cd54f10f3c1b12cfc81d72e934d74b28f"
+                TransactionHash = "0xb"
             };
             await _tradeRecordAppService.CreateAsync(input2);
 
@@ -498,7 +498,7 @@ namespace AwakenServer.Trade
                     Timestamp = DateTimeHelper.ToUnixTimeMilliseconds(DateTime.UtcNow),
                     Token0Amount = "100",
                     Token1Amount = "1000",
-                    TransactionHash = "0xdab24d0f0c28a3be6b59332ab0cb0b4cd54f10f3c1b12cfc81d72e934d74b28f"
+                    TransactionHash = $"0x{i}"
                 };
                 await _tradeRecordAppService.CreateAsync(input1);
             }

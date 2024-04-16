@@ -216,20 +216,9 @@ namespace AwakenServer.Trade
                 TotalCount = totalCount.Count
             };
         }
-
-
-        public async Task CreateAsync(TradeRecordCreateDto input)
+        
+        public async Task CreateUserTradeSummary(TradeRecordCreateDto input)
         {
-            var tradeRecord = ObjectMapper.Map<TradeRecordCreateDto, TradeRecord>(input);
-            tradeRecord.Price = double.Parse(tradeRecord.Token1Amount) / double.Parse(tradeRecord.Token0Amount);
-            tradeRecord.Id = Guid.NewGuid();
-            
-            var tradeRecordGrain = _clusterClient.GetGrain<ITradeRecordGrain>(GrainIdHelper.GenerateGrainId(input.ChainId, input.TransactionHash));
-            await tradeRecordGrain.InsertAsync(ObjectMapper.Map<TradeRecord, TradeRecordGrainDto>(tradeRecord));
-            await _distributedEventBus.PublishAsync(new EntityCreatedEto<TradeRecordEto>(
-                ObjectMapper.Map<TradeRecord, TradeRecordEto>(tradeRecord)
-            ));
-
             var userTradeSummaryGrain =
                 _clusterClient.GetGrain<IUserTradeSummaryGrain>(
                     GrainIdHelper.GenerateGrainId(input.ChainId, input.TradePairId, input.Address));
@@ -242,7 +231,7 @@ namespace AwakenServer.Trade
                     ChainId = input.ChainId,
                     TradePairId = input.TradePairId,
                     Address = input.Address,
-                    LatestTradeTime = tradeRecord.Timestamp
+                    LatestTradeTime = DateTimeHelper.FromUnixTimeMilliseconds(input.Timestamp)
                 };
 
                 await userTradeSummaryGrain.AddOrUpdateAsync(userTradeSummary);
@@ -252,12 +241,32 @@ namespace AwakenServer.Trade
             }
             else
             {
-                userTradeSummaryResult.Data.LatestTradeTime = tradeRecord.Timestamp;
+                userTradeSummaryResult.Data.LatestTradeTime = DateTimeHelper.FromUnixTimeMilliseconds(input.Timestamp);
                 await userTradeSummaryGrain.AddOrUpdateAsync(userTradeSummaryResult.Data);
                 await _distributedEventBus.PublishAsync(
                     _objectMapper.Map<UserTradeSummaryGrainDto, UserTradeSummaryEto>(userTradeSummaryResult.Data)
                 );
             }
+        }
+        
+        public async Task CreateAsync(TradeRecordCreateDto input)
+        {
+            var tradeRecordGrain = _clusterClient.GetGrain<ITradeRecordGrain>(GrainIdHelper.GenerateGrainId(input.ChainId, input.TransactionHash));
+            if (await tradeRecordGrain.Exist())
+            {
+                return;
+            }
+            
+            var tradeRecord = ObjectMapper.Map<TradeRecordCreateDto, TradeRecord>(input);
+            tradeRecord.Price = double.Parse(tradeRecord.Token1Amount) / double.Parse(tradeRecord.Token0Amount);
+            tradeRecord.Id = Guid.NewGuid();
+            
+            await tradeRecordGrain.InsertAsync(ObjectMapper.Map<TradeRecord, TradeRecordGrainDto>(tradeRecord));
+            await _distributedEventBus.PublishAsync(new EntityCreatedEto<TradeRecordEto>(
+                ObjectMapper.Map<TradeRecord, TradeRecordEto>(tradeRecord)
+            ));
+
+            await CreateUserTradeSummary(input);
 
             await _localEventBus.PublishAsync(ObjectMapper.Map<TradeRecord, NewTradeRecordEvent>(tradeRecord));
         }
@@ -317,17 +326,8 @@ namespace AwakenServer.Trade
             await _distributedEventBus.PublishAsync(new EntityCreatedEto<TradeRecordEto>(
                 ObjectMapper.Map<TradeRecord, TradeRecordEto>(tradeRecord)
             ));
-            
-            await _distributedEventBus.PublishAsync(
-                _objectMapper.Map<UserTradeSummaryGrainDto, UserTradeSummaryEto>(new UserTradeSummaryGrainDto
-                {
-                    Id = Guid.NewGuid(),
-                    ChainId = record.ChainId,
-                    TradePairId = record.TradePairId,
-                    Address = record.Address,
-                    LatestTradeTime = tradeRecord.Timestamp
-                })
-            );
+
+            await CreateUserTradeSummary(record);
             
             await _localEventBus.PublishAsync(ObjectMapper.Map<TradeRecord, NewTradeRecordEvent>(tradeRecord));
             

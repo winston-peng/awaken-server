@@ -93,7 +93,7 @@ public class TradePairGrainTests : AwakenServerGrainTestBase
             Timestamp = DateTime.Now,
             Token0Amount = "10",
             Token1Amount = "100",
-        });
+        }, 1);
         
         result.Success.ShouldBe(true);
         result.Data.TradePairDto.Volume24h.ShouldBe(10);
@@ -106,7 +106,7 @@ public class TradePairGrainTests : AwakenServerGrainTestBase
             Timestamp = DateTime.Now,
             Token0Amount = "10",
             Token1Amount = "100",
-        });
+        }, 2);
         result.Success.ShouldBe(true);
         result.Data.TradePairDto.Volume24h.ShouldBe(20);
         result.Data.TradePairDto.TradeValue24h.ShouldBe(200);
