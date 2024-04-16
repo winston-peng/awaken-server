@@ -55,7 +55,7 @@ public class GraphQLProvider : IGraphQLProvider, ISingletonDependency
                 token1Symbol,
                 feeRate,
                 isTokenReversed,
-                blockHeight, 
+                blockHeight
             }}}",
             
             Variables = new
@@ -147,7 +147,7 @@ public class GraphQLProvider : IGraphQLProvider, ISingletonDependency
                 sender,
                 type,
                 timestamp,
-                blockHeight,
+                blockHeight
             }}",
             Variables = new
             {

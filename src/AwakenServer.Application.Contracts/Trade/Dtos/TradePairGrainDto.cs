@@ -30,7 +30,7 @@ namespace AwakenServer.Trade.Dtos
         public double FeePercent7d { get; set; }
     }
     
-    public class LiquidityUpdateGrainDto : LiquidityUpdateDto
+    public class SyncRecordGrainDto : SyncRecordDto
     {
     
     }

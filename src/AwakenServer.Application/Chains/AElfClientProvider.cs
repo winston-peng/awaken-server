@@ -56,6 +56,7 @@ namespace AwakenServer.Chains
                 Decimals = token.Decimals,
                 Symbol = token.Symbol
             };
+            
         }
 
         public async Task<TokenInfo> GetTokenInfoFromChainAsync(string chainName, string address, string symbol)

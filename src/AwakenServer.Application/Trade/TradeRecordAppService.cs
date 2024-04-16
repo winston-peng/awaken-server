@@ -11,13 +11,13 @@ using AwakenServer.Grains.Grain.Trade;
 using AwakenServer.Provider;
 using AwakenServer.Trade.Dtos;
 using AwakenServer.Trade.Etos;
+using AwakenServer.Worker;
 using MassTransit;
 using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Nest;
 using Orleans;
-using Orleans.Runtime;
 using Volo.Abp;
 using Volo.Abp.Application.Dtos;
 using Volo.Abp.Application.Services;
@@ -39,7 +39,7 @@ namespace AwakenServer.Trade
         private readonly IObjectMapper _objectMapper;
         private readonly ILocalEventBus _localEventBus;
         private readonly ILogger<TradeRecordAppService> _logger;
-        private readonly TradeRecordOptions _tradeRecordOptions;
+        private readonly TradeRecordRevertWorkerSettings _tradeRecordRevertWorkerOptions;
         private readonly IDistributedEventBus _distributedEventBus;
         private readonly IDistributedCache<BlockHeightSetDto> _blockHeightSetCache;
         private readonly IDistributedCache<TransactionHashSetDto> _transactionHashSetCache;
@@ -47,6 +47,10 @@ namespace AwakenServer.Trade
         private readonly IGraphQLProvider _graphQlProvider;
         private readonly IBus _bus;
 
+        public const string BlockHeightSetPrefix = "TradeRecord:BlockHeightSet";
+        public const string TransactionHashSetPrefix = "TradeRecord:TransactionHashSet";
+        public const string TransactionHashPrefix = "TradeRecord:TransactionHash";
+        
         private const string ASC = "asc";
         private const string ASCEND = "ascend";
         private const string TIMESTAMP = "timestamp";
@@ -61,7 +65,7 @@ namespace AwakenServer.Trade
             IObjectMapper objectMapper,
             ILocalEventBus localEventBus,
             ILogger<TradeRecordAppService> logger,
-            IOptionsSnapshot<TradeRecordOptions> tradeRecordOptions,
+            IOptionsSnapshot<TradeRecordRevertWorkerSettings> tradeRecordOptions,
             IDistributedEventBus distributedEventBus,
             IDistributedCache<BlockHeightSetDto> blockHeightSetCache,
             IDistributedCache<TransactionHashSetDto> transactionHashSetCache,
@@ -76,7 +80,7 @@ namespace AwakenServer.Trade
             _objectMapper = objectMapper;
             _localEventBus = localEventBus;
             _logger = logger;
-            _tradeRecordOptions = tradeRecordOptions.Value;
+            _tradeRecordRevertWorkerOptions = tradeRecordOptions.Value;
             _distributedEventBus = distributedEventBus;
             _blockHeightSetCache = blockHeightSetCache;
             _transactionHashSetCache = transactionHashSetCache;
@@ -102,6 +106,18 @@ namespace AwakenServer.Trade
             }
 
             return ObjectMapper.Map<Index.TradeRecord, TradeRecordIndexDto>(record);
+        }
+        
+        public async Task<TradeRecordIndexDto> GetRecordFromGrainAsync(string chainId, string transactionId)
+        {
+            var tradeRecordGrain = _clusterClient.GetGrain<ITradeRecordGrain>(GrainIdHelper.GenerateGrainId(chainId, transactionId));
+            var result = await tradeRecordGrain.GetAsync();
+            if (!result.Success)
+            {
+                return null;
+            }
+            
+            return ObjectMapper.Map<TradeRecordGrainDto, TradeRecordIndexDto>(result.Data);
         }
 
 
@@ -207,8 +223,8 @@ namespace AwakenServer.Trade
             var tradeRecord = ObjectMapper.Map<TradeRecordCreateDto, TradeRecord>(input);
             tradeRecord.Price = double.Parse(tradeRecord.Token1Amount) / double.Parse(tradeRecord.Token0Amount);
             tradeRecord.Id = Guid.NewGuid();
-
-            var tradeRecordGrain = _clusterClient.GetGrain<ITradeRecordGrain>(tradeRecord.TransactionHash);
+            
+            var tradeRecordGrain = _clusterClient.GetGrain<ITradeRecordGrain>(GrainIdHelper.GenerateGrainId(input.ChainId, input.TransactionHash));
             await tradeRecordGrain.InsertAsync(ObjectMapper.Map<TradeRecord, TradeRecordGrainDto>(tradeRecord));
             await _distributedEventBus.PublishAsync(new EntityCreatedEto<TradeRecordEto>(
                 ObjectMapper.Map<TradeRecord, TradeRecordEto>(tradeRecord)
@@ -248,13 +264,11 @@ namespace AwakenServer.Trade
 
         public async Task<bool> CreateAsync(SwapRecordDto dto)
         {
-            var tradeRecordGrain =
-                _clusterClient.GetGrain<ITradeRecordGrain>(
-                    GrainIdHelper.GenerateGrainId(dto.ChainId, dto.TransactionHash));
+            var tradeRecordGrain = _clusterClient.GetGrain<ITradeRecordGrain>(GrainIdHelper.GenerateGrainId(dto.ChainId, dto.TransactionHash));
             if (await tradeRecordGrain.Exist())
             {
                 _logger.LogInformation("swap event transactionHash existed: {transactionHash}", dto.TransactionHash);
-                return false;
+                return true;
             }
 
             var pair = await GetAsync(dto.ChainId, dto.PairAddress);
@@ -292,21 +306,18 @@ namespace AwakenServer.Trade
                 "blockHeight: {blockHeight}, totalFee: {totalFee}", dto.ChainId, pair.Id, dto.Sender,
                 dto.TransactionHash, dto.Timestamp,
                 record.Side, dto.Channel, record.Token0Amount, record.Token1Amount, dto.BlockHeight, dto.TotalFee);
-
-
+            
+            
             var tradeRecord = ObjectMapper.Map<TradeRecordCreateDto, TradeRecord>(record);
             tradeRecord.Price = double.Parse(tradeRecord.Token1Amount) / double.Parse(tradeRecord.Token0Amount);
             tradeRecord.Id = Guid.NewGuid();
-
-            // write grain 
+            
             await tradeRecordGrain.InsertAsync(ObjectMapper.Map<TradeRecord, TradeRecordGrainDto>(tradeRecord));
-
-            // write es by publish event : TradeRecord
+            
             await _distributedEventBus.PublishAsync(new EntityCreatedEto<TradeRecordEto>(
                 ObjectMapper.Map<TradeRecord, TradeRecordEto>(tradeRecord)
             ));
-
-            // write es : UserTradeSummary
+            
             await _distributedEventBus.PublishAsync(
                 _objectMapper.Map<UserTradeSummaryGrainDto, UserTradeSummaryEto>(new UserTradeSummaryGrainDto
                 {
@@ -317,11 +328,9 @@ namespace AwakenServer.Trade
                     LatestTradeTime = tradeRecord.Timestamp
                 })
             );
-
-            // update kLine and trade pair by publish event : NewTradeRecordEvent, Handler: KLineHandler and kNewTradeRecordHandler
+            
             await _localEventBus.PublishAsync(ObjectMapper.Map<TradeRecord, NewTradeRecordEvent>(tradeRecord));
-
-            // add unconfirmed data to cache for revert
+            
             await CreateCacheAsync(pair.Id, dto);
             return true;
         }
@@ -378,7 +387,7 @@ namespace AwakenServer.Trade
                 return;
             }
 
-            if (await GetRecordAsync(dto.TransactionHash) != null)
+            if (await GetRecordFromGrainAsync(dto.ChainId, dto.TransactionHash) != null)
             {
                 _logger.LogInformation("FixTrade  record continue,blockHeight:{1}", dto.BlockHeight);
                 return;
@@ -428,7 +437,7 @@ namespace AwakenServer.Trade
             var startIndex = 0;
             while (startIndex >= 0)
             {
-                var key = $"{dto.ChainId}:{TradeRecordOptions.BlockHeightSetPrefix}:{startIndex}";
+                var key = $"{dto.ChainId}:{BlockHeightSetPrefix}:{startIndex}";
                 var cache = await _blockHeightSetCache.GetOrAddAsync(key, async () => new BlockHeightSetDto());
                 if (cache.BlockHeight.Contains(dto.BlockHeight))
                 {
@@ -437,7 +446,7 @@ namespace AwakenServer.Trade
                     break;
                 }
 
-                if (cache.BlockHeight.Count < _tradeRecordOptions.BlockHeightLimit)
+                if (cache.BlockHeight.Count < _tradeRecordRevertWorkerOptions.BlockHeightLimit)
                 {
                     cache.BlockHeight.Add(dto.BlockHeight);
                     await _blockHeightSetCache.SetAsync(key, cache);

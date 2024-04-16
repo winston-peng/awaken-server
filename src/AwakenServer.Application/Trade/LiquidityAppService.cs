@@ -54,42 +54,6 @@ namespace AwakenServer.Trade
             _logger = logger;
         }
 
-        public async Task InitializeDataAsync()
-        {
-            int skipCount = 0;
-            int maxResultCount = 1000;
-            while (true)
-            {
-                var queryResult = await _graphQlProvider.QueryUserLiquidityAsync(new GetUserLiquidityInput
-                {
-                    SkipCount = skipCount,
-                    MaxResultCount = maxResultCount
-                });
-                foreach (var dto in queryResult.Data)
-                {
-                    var tradePair = await _tradePairAppService.GetTradePairAsync(dto.ChainId, dto.Pair);
-                    if (tradePair == null)
-                    {
-                        _logger.LogError("tradePair not existed,chainId:{chainId},address:{address}", dto.ChainId,
-                            dto.Pair);
-                        continue;
-                    }
-            
-                    var userLiquidityGrainDto = ObjectMapper.Map<UserLiquidityDto, UserLiquidityGrainDto>(dto);
-                    userLiquidityGrainDto.TradePair = tradePair;
-            
-                    var userLiquidityGrain = _clusterClient.GetGrain<IUserLiquidityGrain>(
-                        GrainIdHelper.GenerateGrainId(dto.ChainId, dto.Address));
-                    userLiquidityGrain.AddOrUpdateAsync(userLiquidityGrainDto);
-                    _logger.LogInformation($"sync UserLiquidityGrain grainId: {userLiquidityGrain.GetPrimaryKeyString()}, TradePair.Address: {tradePair.Address}, LpTokenAmount: {userLiquidityGrainDto.LpTokenAmount} from es to grain");
-                }
-                
-                if (queryResult.Data.Count < maxResultCount)
-                    break;
-
-                skipCount += maxResultCount;
-            }
-        }
         
         public async Task<PagedResultDto<LiquidityRecordIndexDto>> GetRecordsAsync(GetLiquidityRecordsInput input)
         {
@@ -329,10 +293,6 @@ namespace AwakenServer.Trade
                 AssetUSD = asset,
                 AssetBTC = btcPrice == 0 ? 0 : asset / btcPrice
             };
-        }
-
-        public async Task CreateAsync(LiquidityRecordCreateDto input)
-        {
         }
 
         public async Task CreateAsync(LiquidityRecordDto input)

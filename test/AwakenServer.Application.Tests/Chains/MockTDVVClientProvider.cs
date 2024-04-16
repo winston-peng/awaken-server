@@ -14,12 +14,46 @@ public class MockTDVVClientProvider: IBlockchainClientProvider
 
     public  Task<TokenDto> GetTokenInfoAsync(string chainName, string address, string symbol)
     {
-        return Task.FromResult(new TokenDto
+        switch (symbol)
         {
-            Address = address,
-            Decimals = 18,
-            Symbol = symbol
-        });
+            case "BTC":
+                return Task.FromResult(new TokenDto
+                {
+                    Address = "7RzVGiuVWkvL4VfVHdZfQF2Tri3sgLe9U991bohHFfSRZXuGX",
+                    Decimals = 8,
+                    Symbol = symbol
+                });
+            case "ETH":
+                return Task.FromResult(new TokenDto
+                {
+                    Address = "7RzVGiuVWkvL4VfVHdZfQF2Tri3sgLe9U991bohHFfSRZXuGX",
+                    Decimals = 8,
+                    Symbol = symbol
+                });
+            case "ELF":
+                return Task.FromResult(new TokenDto
+                {
+                    Address = "7RzVGiuVWkvL4VfVHdZfQF2Tri3sgLe9U991bohHFfSRZXuGX",
+                    Decimals = 8,
+                    Symbol = symbol
+                });
+            case "USDT":
+                return Task.FromResult(new TokenDto
+                {
+                    Address = "7RzVGiuVWkvL4VfVHdZfQF2Tri3sgLe9U991bohHFfSRZXuGX",
+                    Decimals = 8,
+                    Symbol = symbol
+                });
+            default:
+                return Task.FromResult(new TokenDto
+                {
+                    Address = "7RzVGiuVWkvL4VfVHdZfQF2Tri3sgLe9U991bohHFfSRZXuGX",
+                    Decimals = 8,
+                    Symbol = symbol
+                });
+                
+        }
+        
     }
     
     public async Task<GetBalanceOutput> GetBalanceAsync(string chainName, string address, string contractAddress,

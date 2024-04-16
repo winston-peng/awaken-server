@@ -15,15 +15,13 @@ public class TradePairMarketDataSnapshotUpdateResult
 
 public interface ITradePairGrain : IGrainWithStringKey
 {
-    public Task RemoveHistorySnapshotCacheAsync();
-    
     public Task<GrainResultDto<TradePairGrainDto>> GetAsync();
     
     public Task<GrainResultDto<TradePairGrainDto>> AddOrUpdateAsync(TradePairGrainDto dto);
     
     public Task<GrainResultDto<TradePairGrainDto>> UpdateAsync(DateTime timestamp, int userTradeAddressCount);
     
-    public Task<GrainResultDto<TradePairMarketDataSnapshotUpdateResult>> UpdateLiquidityAsync(LiquidityUpdateGrainDto dto);
+    public Task<GrainResultDto<TradePairMarketDataSnapshotUpdateResult>> UpdateLiquidityAsync(SyncRecordGrainDto dto);
     
     public Task<GrainResultDto<TradePairMarketDataSnapshotUpdateResult>> UpdateTotalSupplyAsync(LiquidityRecordGrainDto dto);
     

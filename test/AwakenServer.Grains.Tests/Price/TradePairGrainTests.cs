@@ -1,4 +1,5 @@
 using AwakenServer.Grains.Grain.Price.TradePair;
+using AwakenServer.Grains.Grain.Price.TradeRecord;
 using AwakenServer.Grains.Grain.Trade;
 using AwakenServer.Trade;
 using AwakenServer.Trade.Dtos;
@@ -11,7 +12,7 @@ namespace AwakenServer.Grains.Tests.Price;
 public class TradePairGrainTests : AwakenServerGrainTestBase
 {
     [Fact]
-    public async Task TradePairSyncGrainTest()
+    public async Task SyncTest()
     {
         var tradePairId = Guid.Parse("feb4d613-1f3b-451e-9961-5043760ba295");
         var tradePair = new TradePairGrainDto
@@ -42,5 +43,73 @@ public class TradePairGrainTests : AwakenServerGrainTestBase
         result = await grain.GetAsync();
         result.Data.Price.ShouldBe(1.1);
         result.Data.TotalSupply.ShouldBe("22.2");
+    }
+
+    [Fact]
+    public async Task UpdateLiquidityTest()
+    {
+        var grain = Cluster.Client.GetGrain<ITradePairGrain>(GrainIdHelper.GenerateGrainId(TradePairEthUsdtId));
+        var result = await grain.UpdateLiquidityAsync(new SyncRecordGrainDto
+        {
+            ChainId = ChainName,
+            PairAddress = TradePairEthUsdtAddress,
+            Timestamp = DateTimeHelper.ToUnixTimeMilliseconds(DateTime.Now),
+            ReserveA = 100000000,
+            ReserveB = 1000000,
+            BlockHeight = 100,
+            SymbolA = "ETH",
+            SymbolB = "USDT"
+        });
+        
+        result.Success.ShouldBe(true);
+        result.Data.TradePairDto.Price.ShouldBe(1);
+        result.Data.TradePairDto.TVL.ShouldBe(2);
+        result.Data.TradePairDto.PriceUSD.ShouldBe(1);
+    }
+    
+    [Fact]
+    public async Task UpdateTotalSupplyAsync()
+    {
+        var grain = Cluster.Client.GetGrain<ITradePairGrain>(GrainIdHelper.GenerateGrainId(TradePairEthUsdtId));
+        var result = await grain.UpdateTotalSupplyAsync(new LiquidityRecordGrainDto
+        {
+            ChainId = ChainName,
+            Timestamp = DateTime.Now,
+            Type = LiquidityType.Mint,
+            LpTokenAmount = "100000",
+        });
+        
+        result.Success.ShouldBe(true);
+        result.Data.TradePairDto.TotalSupply.ShouldBe("200000");
+    }
+    
+    [Fact]
+    public async Task UpdateTradeRecordAsync()
+    {
+        var grain = Cluster.Client.GetGrain<ITradePairGrain>(GrainIdHelper.GenerateGrainId(TradePairEthUsdtId));
+        var result = await grain.UpdateTradeRecordAsync(new TradeRecordGrainDto
+        {
+            ChainId = ChainName,
+            Timestamp = DateTime.Now,
+            Token0Amount = "10",
+            Token1Amount = "100",
+        });
+        
+        result.Success.ShouldBe(true);
+        result.Data.TradePairDto.Volume24h.ShouldBe(10);
+        result.Data.TradePairDto.TradeValue24h.ShouldBe(100);
+        result.Data.TradePairDto.TradeCount24h.ShouldBe(1);
+        
+        result = await grain.UpdateTradeRecordAsync(new TradeRecordGrainDto
+        {
+            ChainId = ChainName,
+            Timestamp = DateTime.Now,
+            Token0Amount = "10",
+            Token1Amount = "100",
+        });
+        result.Success.ShouldBe(true);
+        result.Data.TradePairDto.Volume24h.ShouldBe(20);
+        result.Data.TradePairDto.TradeValue24h.ShouldBe(200);
+        result.Data.TradePairDto.TradeCount24h.ShouldBe(2);
     }
 }

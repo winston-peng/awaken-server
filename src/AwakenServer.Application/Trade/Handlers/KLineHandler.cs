@@ -17,15 +17,17 @@ namespace AwakenServer.Trade.Handlers
         private readonly IClusterClient _clusterClient;
         private readonly IObjectMapper _objectMapper;
         private readonly KLinePeriodOptions _kLinePeriodOptions;
-        public IDistributedEventBus DistributedEventBus { get; set; }
+        public IDistributedEventBus _distributedEventBus { get; set; }
         
         public KLineHandler(IClusterClient clusterClient,
             IObjectMapper objectMapper,
-            IOptionsSnapshot<KLinePeriodOptions> kLinePeriodOptions)
+            IOptionsSnapshot<KLinePeriodOptions> kLinePeriodOptions,
+            IDistributedEventBus distributedEventBus)
         {
             _clusterClient = clusterClient;
             _objectMapper = objectMapper;
             _kLinePeriodOptions = kLinePeriodOptions.Value;
+            _distributedEventBus = distributedEventBus;
         }
 
         public async Task HandleEventAsync(NewTradeRecordEvent eventData)
@@ -54,7 +56,7 @@ namespace AwakenServer.Trade.Handlers
                 var result = await grain.AddOrUpdateAsync(kLine);
                 if (result.Success)
                 {
-                    await DistributedEventBus.PublishAsync(_objectMapper.Map<KLineGrainDto, KLineEto>(result.Data));
+                    await _distributedEventBus.PublishAsync(_objectMapper.Map<KLineGrainDto, KLineEto>(result.Data));
                 }
             }
         }
