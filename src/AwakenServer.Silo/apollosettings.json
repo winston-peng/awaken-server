@@ -1,12 +1,11 @@
 {
   "apollo": {
-    "AppId": "CAServerService_test1",    
+    "AppId": "Awaken_Test4",
     "ConfigServer": [
-      "http://192.168.66.144:8080",      
-      "http://192.168.66.235:8080"
+      "http://localhost:8080"
     ],
     "Namespaces": [
-      "silo.appsettings.json"           
+      "TEST1.Silo.json"
     ],
     "Env": "DEV"
   }

@@ -54,7 +54,7 @@ public class AwakenServerEntityHandlerModule : AbpModule
 
         Configure<ApiOptions>(configuration.GetSection("Api"));
 
-        Configure<WorkerSettings>(configuration.GetSection("WorkerSettings"));
+        Configure<WorkerOptions>(configuration.GetSection("WorkerSettings"));
         
         Configure<TradeRecordRevertWorkerSettings>(configuration.GetSection("WorkerSettings:TradeRecordRevert"));
         

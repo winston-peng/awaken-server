@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using AwakenServer.Asset;
+using AwakenServer.Common;
 using AwakenServer.Trade.Dtos;
 
 namespace AwakenServer.Provider;
@@ -15,6 +16,6 @@ public interface IGraphQLProvider
     public Task<UserLiquidityPageResultDto> QueryUserLiquidityAsync(GetUserLiquidityInput input);
     public Task<List<UserTokenDto>> GetUserTokensAsync(string chainId, string address);
     public Task<long> GetIndexBlockHeightAsync(string chainId);
-    public Task<long> GetLastEndHeightAsync(string chainId, string type);
-    public Task SetLastEndHeightAsync(string chainId, string type, long height);
+    public Task<long> GetLastEndHeightAsync(string chainId, WorkerBusinessType type);
+    public Task SetLastEndHeightAsync(string chainId, WorkerBusinessType type, long height);
 }

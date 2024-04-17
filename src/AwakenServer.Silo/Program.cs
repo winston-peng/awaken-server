@@ -1,5 +1,6 @@
 using AwakenServer.Silo;
 using AwakenServer.Silo.Extensions;
+using CAServer;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -56,4 +57,5 @@ public class Program
         .UseOrleansSnapshot()
         .UseAutofac()
         .UseSerilog();
+    
 }

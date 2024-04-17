@@ -1,5 +1,6 @@
 using AwakenServer.CoinGeckoApi;
 using AwakenServer.Grains;
+using AwakenServer.Options;
 using Microsoft.Extensions.DependencyInjection;
 using Volo.Abp.AspNetCore.Serilog;
 using Volo.Abp.Autofac;
@@ -17,5 +18,7 @@ public class AwakenServerServerOrleansSiloModule : AbpModule
     public override void ConfigureServices(ServiceConfigurationContext context)
     {
         context.Services.AddHostedService<AwakenServerHostedService>();
+        var configuration = context.Services.GetConfiguration();
+        Configure<TokenPriceExpirationTimeOptions>(configuration.GetSection("TokenPriceExpirationTime"));
     }
 }

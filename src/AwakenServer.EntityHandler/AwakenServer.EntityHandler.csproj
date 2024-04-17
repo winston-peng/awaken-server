@@ -37,6 +37,9 @@
 
     <ItemGroup>
       <None Include="bin\Debug\net7.0\apollosettings.json" />
+      <None Update="apollosettings.json">
+        <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+      </None>
     </ItemGroup>
 
 </Project>

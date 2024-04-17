@@ -6,6 +6,7 @@ using AElf.Indexing.Elasticsearch;
 using AwakenServer.Tokens;
 using AwakenServer.Trade;
 using AwakenServer.Asset;
+using AwakenServer.Common;
 using AwakenServer.Trade.Dtos;
 using Nest;
 using Volo.Abp.DependencyInjection;
@@ -113,12 +114,12 @@ public class MockGraphQLProvider :  IGraphQLProvider, ISingletonDependency
         return 2;
     }
 
-    public async Task<long> GetLastEndHeightAsync(string chainId, string type)
+    public async Task<long> GetLastEndHeightAsync(string chainId, WorkerBusinessType type)
     {
         return 2;
     }
 
-    public async Task SetLastEndHeightAsync(string chainId, string type, long height)
+    public async Task SetLastEndHeightAsync(string chainId, WorkerBusinessType type, long height)
     {
     }
 

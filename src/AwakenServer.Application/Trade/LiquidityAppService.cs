@@ -310,9 +310,9 @@ namespace AwakenServer.Trade
             var tradePair = await _tradePairAppService.GetTradePairAsync(input.ChainId, input.Pair);
             if (tradePair == null)
             {
-                _logger.LogInformation("tradePair not existed,chainId:{chainId},address:{address}", input.ChainId,
+                _logger.LogInformation("tradePair not existed,chainId:{chainId}, address:{address}", input.ChainId,
                     input.Pair);
-                throw new Exception("tradePair not existed");
+                return;
             }
             
             var dto = ObjectMapper.Map<LiquidityRecordDto, UserLiquidityGrainDto>(input);

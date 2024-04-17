@@ -2,8 +2,11 @@ using System;
 using System.Threading.Tasks;
 using AwakenServer.Chains;
 using AwakenServer.CMS;
+using AwakenServer.Common;
 using AwakenServer.Provider;
 using AwakenServer.Trade;
+using DnsClient;
+
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -14,52 +17,50 @@ namespace AwakenServer.Worker.IndexerSync;
 
 public class SyncEventSyncWorker : AwakenServerWorkerBase
 {
+    protected override WorkerBusinessType BusinessType => WorkerBusinessType.SyncEvent;
+    
+    protected readonly IChainAppService _chainAppService;
+    protected readonly IGraphQLProvider _graphQlProvider;
     private readonly ITradePairAppService _tradePairAppService;
-    private readonly ILogger<SyncEventSyncWorker> _logger;
-    private readonly SyncWorkerSettings _workerSetting;
 
     public SyncEventSyncWorker(AbpAsyncTimer timer, IServiceScopeFactory serviceScopeFactory,
-        IChainAppService chainAppService, IGraphQLProvider graphQlProvider,
-        ITradePairAppService tradePairAppService, ILogger<SyncEventSyncWorker> logger,
-        IOptionsSnapshot<WorkerSettings> workerSettings)
-        : base(timer, serviceScopeFactory, workerSettings.Value.SyncEvent, graphQlProvider, chainAppService)
+        ITradePairAppService tradePairAppService, ILogger<AwakenServerWorkerBase> logger,
+        IOptionsMonitor<WorkerOptions> optionsMonitor,
+        IGraphQLProvider graphQlProvider,
+        IChainAppService chainAppService)
+        : base(timer, serviceScopeFactory, optionsMonitor, graphQlProvider, chainAppService, logger)
     {
-
+        _chainAppService = chainAppService;
+        _graphQlProvider = graphQlProvider;
         _tradePairAppService = tradePairAppService;
-        _logger = logger;
-        _workerSetting = workerSettings.Value.SyncEvent;
     }
 
-    protected override async Task DoWorkAsync(PeriodicBackgroundWorkerContext workerContext)
+    public override async Task<long> SyncDataAsync(ChainDto chain, long startHeight, long newIndexHeight)
     {
-        PreDoWork(workerContext, _workerSetting.ResetBlockHeightFlag, QueryType.Sync);
+        long blockHeight = -1;
         
-        _logger.LogInformation($"SyncEventSyncWorker.DoWorkAsync Start with config: " +
-                               $"TimePeriod: {_workerSetting.TimePeriod}, " +
-                               $"ResetBlockHeightFlag: {_workerSetting.ResetBlockHeightFlag}, " +
-                               $"ResetBlockHeight:{_workerSetting.ResetBlockHeight}");
+        var queryList = await _graphQlProvider.GetSyncRecordsAsync(chain.Id, startHeight, 0);
         
-        var chains = await _chainAppService.GetListAsync(new GetChainInput());
-        foreach (var chain in chains.Items)
+        _logger.LogInformation("sync queryList count: {count} ,chainId:{chainId}", queryList.Count, chain.Id);
+        
+        try
         {
-            var lastEndHeight = await _graphQlProvider.GetLastEndHeightAsync(chain.Name, QueryType.Sync);
-
-            var queryList = await _graphQlProvider.GetSyncRecordsAsync(chain.Name, lastEndHeight + _workerSetting.QueryStartBlockHeightOffset, 0);
-            _logger.LogInformation("sync queryList count: {count} ,chainId:{chainId}", queryList.Count, chain.Name);
-            try
+            foreach (var queryDto in queryList)
             {
-                foreach (var queryDto in queryList)
-                {
-                    await _tradePairAppService.UpdateLiquidityAsync(queryDto);
-                    await _graphQlProvider.SetLastEndHeightAsync(chain.Name, QueryType.Sync, queryDto.BlockHeight);
-                }
-                
-                _logger.LogInformation($"sync lastEndHeight: {await _graphQlProvider.GetLastEndHeightAsync(chain.Name, QueryType.Sync)}, chainId:{chain.Name}");
-            }
-            catch (Exception e)
-            {
-                _logger.LogError(e, "sync event fail.");
+                await _tradePairAppService.UpdateLiquidityAsync(queryDto);
+                blockHeight = Math.Max(blockHeight, queryDto.BlockHeight);
             }
         }
+        catch (Exception e)
+        {
+            _logger.LogError(e, "sync event fail.");
+        }
+
+        return blockHeight;
+    }
+    
+    protected override async Task DoWorkAsync(PeriodicBackgroundWorkerContext workerContext)
+    {
+        await DealDataAsync();
     }
 }

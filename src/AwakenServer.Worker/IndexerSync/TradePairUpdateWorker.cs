@@ -1,8 +1,10 @@
 using System.Threading.Tasks;
 using AwakenServer.Chains;
+using AwakenServer.Common;
 using AwakenServer.Provider;
 using AwakenServer.Trade;
 using AwakenServer.Trade.Dtos;
+
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -13,30 +15,31 @@ namespace AwakenServer.Worker
 {
     public class TradePairUpdateWorker : AwakenServerWorkerBase
     {
+        protected override WorkerBusinessType BusinessType => WorkerBusinessType.TradePairUpdate;
+        
+        protected readonly IChainAppService _chainAppService;
+        protected readonly IGraphQLProvider _graphQlProvider;
         private readonly ITradePairAppService _tradePairAppService;
-        private readonly TradePairUpdateWorkerSettings _workerSetting;
-        private readonly ILogger<TradePairUpdateWorker> _logger;
         
         public TradePairUpdateWorker(AbpAsyncTimer timer, IServiceScopeFactory serviceScopeFactory,
             ITradePairAppService tradePairAppService, IChainAppService chainAppService,
             IGraphQLProvider graphQlProvider,
-            IOptionsSnapshot<WorkerSettings> workerSettings,
-            ILogger<TradePairUpdateWorker> logger)
-            : base(timer, serviceScopeFactory, workerSettings.Value.TradePairUpdate, graphQlProvider, chainAppService)
+            IOptionsMonitor<WorkerOptions> optionsMonitor,
+            ILogger<AwakenServerWorkerBase> logger)
+            : base(timer, serviceScopeFactory, optionsMonitor, graphQlProvider, chainAppService, logger)
         {
+            _chainAppService = chainAppService;
+            _graphQlProvider = graphQlProvider;
             _tradePairAppService = tradePairAppService;
-            _logger = logger;
-            _workerSetting = workerSettings.Value.TradePairUpdate;
-            timer.Period = _workerSetting.TimePeriod;
         }
 
+        public override Task<long> SyncDataAsync(ChainDto chain, long startHeight, long newIndexHeight)
+        {
+            throw new System.NotImplementedException();
+        }
+        
         protected override async Task DoWorkAsync(PeriodicBackgroundWorkerContext workerContext)
         {
-            PreDoWork(workerContext);
-            
-            _logger.LogInformation($"TradePairUpdateWorker.DoWorkAsync Start with config: " +
-                                   $"TimePeriod: {_workerSetting.TimePeriod}");
-            
             var chains = await _chainAppService.GetListAsync(new GetChainInput());
             foreach (var chain in chains.Items)
             {

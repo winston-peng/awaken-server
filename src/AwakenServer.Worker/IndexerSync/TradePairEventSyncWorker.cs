@@ -2,9 +2,12 @@ using System;
 using System.Threading.Tasks;
 using AwakenServer.Chains;
 using AwakenServer.CMS;
+using AwakenServer.Common;
 using AwakenServer.Provider;
 using AwakenServer.Trade;
 using AwakenServer.Trade.Dtos;
+using DnsClient;
+
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -15,64 +18,55 @@ namespace AwakenServer.Worker.IndexerSync;
 
 public class TradePairEventSyncWorker : AwakenServerWorkerBase
 {
-    private readonly ILogger<TradePairEventSyncWorker> _logger;
+    protected override WorkerBusinessType BusinessType => WorkerBusinessType.TradePairEvent;
+    
+    protected readonly IChainAppService _chainAppService;
+    protected readonly IGraphQLProvider _graphQlProvider;
     private readonly ITradePairAppService _tradePairAppService;
-    private readonly TradePairWorkerSettings _workerSetting;
     
     public TradePairEventSyncWorker(AbpAsyncTimer timer, IServiceScopeFactory serviceScopeFactory,
-        IGraphQLProvider graphQlProvider, IChainAppService chainAppService,
-        ITradePairAppService tradePairAppService, ILogger<TradePairEventSyncWorker> logger,
-        IOptionsSnapshot<WorkerSettings> workerSettings)
-        : base(timer, serviceScopeFactory, workerSettings.Value.TradePairEvent, graphQlProvider, chainAppService)
+        ITradePairAppService tradePairAppService, ILogger<AwakenServerWorkerBase> logger,
+        IOptionsMonitor<WorkerOptions> optionsMonitor,
+        IGraphQLProvider graphQlProvider,
+        IChainAppService chainAppService)
+        : base(timer, serviceScopeFactory, optionsMonitor, graphQlProvider, chainAppService, logger)
     {
-        _logger = logger;
+        _chainAppService = chainAppService;
+        _graphQlProvider = graphQlProvider;
         _tradePairAppService = tradePairAppService;
-        _workerSetting = workerSettings.Value.TradePairEvent;
     }
 
+    public override async Task<long> SyncDataAsync(ChainDto chain, long startHeight, long newIndexHeight)
+    {
+        long blockHeight = -1;
+        
+        var result = await _graphQlProvider.GetTradePairInfoListAsync(new GetTradePairsInfoInput
+        {
+            ChainId = chain.Id,
+            StartBlockHeight = startHeight,
+            EndBlockHeight = 0
+        });
+
+        foreach (var pair in result.TradePairInfoDtoList.Data)
+        {
+            blockHeight = Math.Max(blockHeight, pair.BlockHeight);
+
+            _logger.LogInformation("Syncing {pairId} on {chainName}, {Token0Symbol}/{Token1Symbol}",
+                pair.Id, chain, pair.Token0Symbol, pair.Token1Symbol);
+
+            await _tradePairAppService.SyncTokenAsync(pair.ChainId, pair.Token0Symbol, chain);
+            await _tradePairAppService.SyncTokenAsync(pair.ChainId, pair.Token1Symbol, chain);
+            await _tradePairAppService.SyncPairAsync(pair, chain);
+                
+            _logger.LogInformation("Syncing {pairId} on {chainName}, {Token0Symbol}/{Token1Symbol} done",
+                pair.Id, chain, pair.Token0Symbol, pair.Token1Symbol);
+        }
+
+        return blockHeight;
+    }
+    
     protected override async Task DoWorkAsync(PeriodicBackgroundWorkerContext workerContext)
     {
-        PreDoWork(workerContext, _workerSetting.ResetBlockHeightFlag, QueryType.TradePair);
-        
-        _logger.LogInformation($"TradePairEventSyncWorker.DoWorkAsync Start with config: " +
-                               $"TimePeriod: {_workerSetting.TimePeriod}, " +
-                               $"ResetBlockHeightFlag: {_workerSetting.ResetBlockHeightFlag}, " +
-                               $"ResetBlockHeight:{_workerSetting.ResetBlockHeight}");
-        
-        var chains = await _chainAppService.GetListAsync(new GetChainInput());
-        foreach (var chain in chains.Items)
-        {
-            var lastEndHeight = await _graphQlProvider.GetLastEndHeightAsync(chain.Name, QueryType.TradePair);
-            _logger.LogInformation("trade pair first lastEndHeight: {lastEndHeight}", lastEndHeight);
-            
-            var result = await _graphQlProvider.GetTradePairInfoListAsync(new GetTradePairsInfoInput
-            {
-                ChainId = chain.Name,
-                StartBlockHeight = lastEndHeight + _workerSetting.QueryStartBlockHeightOffset,
-                EndBlockHeight = 0
-            });
-
-            long blockHeight = -1;
-            foreach (var pair in result.TradePairInfoDtoList.Data)
-            {
-                blockHeight = Math.Max(blockHeight, pair.BlockHeight);
-
-                _logger.LogInformation("Syncing {pairId} on {chainName}, {Token0Symbol}/{Token1Symbol}",
-                    pair.Id, chain.Name, pair.Token0Symbol, pair.Token1Symbol);
-
-                await _tradePairAppService.SyncTokenAsync(pair.ChainId, pair.Token0Symbol, chain);
-                await _tradePairAppService.SyncTokenAsync(pair.ChainId, pair.Token1Symbol, chain);
-                await _tradePairAppService.SyncPairAsync(pair, chain);
-                
-                _logger.LogInformation("Syncing {pairId} on {chainName}, {Token0Symbol}/{Token1Symbol} done",
-                    pair.Id, chain.Name, pair.Token0Symbol, pair.Token1Symbol);
-            }
-
-            if (blockHeight > 0)
-            {
-                await _graphQlProvider.SetLastEndHeightAsync(chain.Name, QueryType.TradePair, blockHeight);
-            }
-            _logger.LogInformation($"TradePair lastEndHeight: {blockHeight},:chainId:{chain.Name}");
-        }
+        await DealDataAsync();
     }
 }

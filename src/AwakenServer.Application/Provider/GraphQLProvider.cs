@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using AwakenServer.Asset;
+using AwakenServer.Common;
 using AwakenServer.ContractEventHandler.Application;
 using AwakenServer.Grains.Grain.ApplicationHandler;
 using AwakenServer.Tokens;
@@ -371,11 +372,11 @@ public class GraphQLProvider : IGraphQLProvider, ISingletonDependency
         return graphQLResponse.Data.SyncState.ConfirmedBlockHeight;
     }
 
-    public async Task<long> GetLastEndHeightAsync(string chainId, string type)
+    public async Task<long> GetLastEndHeightAsync(string chainId, WorkerBusinessType type)
     {
         try
         {
-            var grain = _clusterClient.GetGrain<IContractServiceGraphQLGrain>(type + chainId);
+            var grain = _clusterClient.GetGrain<IContractServiceGraphQLGrain>(type.ToString() + chainId);
             return await grain.GetStateAsync();
         }
         catch (Exception e)
@@ -385,11 +386,11 @@ public class GraphQLProvider : IGraphQLProvider, ISingletonDependency
         }
     }
 
-    public async Task SetLastEndHeightAsync(string chainId, string type, long height)
+    public async Task SetLastEndHeightAsync(string chainId, WorkerBusinessType type, long height)
     {
         try
         {
-            var grain = _clusterClient.GetGrain<IContractServiceGraphQLGrain>(type +
+            var grain = _clusterClient.GetGrain<IContractServiceGraphQLGrain>(type.ToString() +
                                                                               chainId);
             await grain.SetStateAsync(height);
         }
