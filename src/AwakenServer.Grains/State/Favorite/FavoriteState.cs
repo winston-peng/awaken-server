@@ -1,3 +1,5 @@
+using System.Collections.Generic;
+
 namespace AwakenServer.Grains.State.Favorite;
 
 public class FavoriteState

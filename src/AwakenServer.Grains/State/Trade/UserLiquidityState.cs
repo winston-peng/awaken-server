@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using AwakenServer.Trade.Dtos;
 
 namespace AwakenServer.Grains.State.Trade;

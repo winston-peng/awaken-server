@@ -1,3 +1,4 @@
+using System;
 using AwakenServer.Trade;
 
 namespace AwakenServer.Grains.Grain.Price.TradeRecord;

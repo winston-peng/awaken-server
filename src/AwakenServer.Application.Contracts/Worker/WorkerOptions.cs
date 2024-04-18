@@ -38,6 +38,7 @@ public class SwapWorkerSettings : WorkerSettingBase
 public class SyncWorkerSettings : WorkerSettingBase
 {
 }
+
 public class TradePairWorkerSettings : WorkerSettingBase
 {
 }
@@ -49,10 +50,12 @@ public class TradeRecordRevertWorkerSettings : WorkerSettingBase
     public int BlockHeightLimit { get; set; } = 100;
     public int RetryLimit { get; set; } = 3;
     public int TransactionHashExpirationTime { get; set; } = 360;
-    
+
     public int BatchFlushTimePeriod { get; set; } = 3;
-    
+
     public int BatchFlushCount { get; set; } = 10;
+
+    public int StartBlockHeightGap { get; set; } = 10;
 }
 
 public class TradePairUpdateWorkerSettings : WorkerSettingBase

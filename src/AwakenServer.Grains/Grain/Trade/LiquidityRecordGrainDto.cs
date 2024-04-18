@@ -1,3 +1,4 @@
+using System;
 using AwakenServer.Trade;
 using AwakenServer.Trade.Dtos;
 

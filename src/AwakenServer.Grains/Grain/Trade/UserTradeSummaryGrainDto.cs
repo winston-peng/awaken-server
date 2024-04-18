@@ -1,3 +1,5 @@
+using System;
+
 namespace AwakenServer.Grains.Grain.Trade;
 
 public class UserTradeSummaryGrainDto

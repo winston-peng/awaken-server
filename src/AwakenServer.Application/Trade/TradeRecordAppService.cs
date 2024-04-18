@@ -41,16 +41,10 @@ namespace AwakenServer.Trade
         private readonly ILogger<TradeRecordAppService> _logger;
         private readonly TradeRecordRevertWorkerSettings _tradeRecordRevertWorkerOptions;
         private readonly IDistributedEventBus _distributedEventBus;
-        private readonly IDistributedCache<BlockHeightSetDto> _blockHeightSetCache;
-        private readonly IDistributedCache<TransactionHashSetDto> _transactionHashSetCache;
-        private readonly IDistributedCache<TransactionHashDto> _transactionHashCache;
         private readonly IGraphQLProvider _graphQlProvider;
         private readonly IBus _bus;
 
-        public const string BlockHeightSetPrefix = "TradeRecord:BlockHeightSet";
-        public const string TransactionHashSetPrefix = "TradeRecord:TransactionHashSet";
-        public const string TransactionHashPrefix = "TradeRecord:TransactionHash";
-        
+
         private const string ASC = "asc";
         private const string ASCEND = "ascend";
         private const string TIMESTAMP = "timestamp";
@@ -67,9 +61,6 @@ namespace AwakenServer.Trade
             ILogger<TradeRecordAppService> logger,
             IOptionsSnapshot<TradeRecordRevertWorkerSettings> tradeRecordOptions,
             IDistributedEventBus distributedEventBus,
-            IDistributedCache<BlockHeightSetDto> blockHeightSetCache,
-            IDistributedCache<TransactionHashSetDto> transactionHashSetCache,
-            IDistributedCache<TransactionHashDto> transactionHashCache,
             IGraphQLProvider graphQlProvider,
             IBus bus)
         {
@@ -82,9 +73,6 @@ namespace AwakenServer.Trade
             _logger = logger;
             _tradeRecordRevertWorkerOptions = tradeRecordOptions.Value;
             _distributedEventBus = distributedEventBus;
-            _blockHeightSetCache = blockHeightSetCache;
-            _transactionHashSetCache = transactionHashSetCache;
-            _transactionHashCache = transactionHashCache;
             _graphQlProvider = graphQlProvider;
             _bus = bus;
         }
@@ -107,16 +95,17 @@ namespace AwakenServer.Trade
 
             return ObjectMapper.Map<Index.TradeRecord, TradeRecordIndexDto>(record);
         }
-        
+
         public async Task<TradeRecordIndexDto> GetRecordFromGrainAsync(string chainId, string transactionId)
         {
-            var tradeRecordGrain = _clusterClient.GetGrain<ITradeRecordGrain>(GrainIdHelper.GenerateGrainId(chainId, transactionId));
+            var tradeRecordGrain =
+                _clusterClient.GetGrain<ITradeRecordGrain>(GrainIdHelper.GenerateGrainId(chainId, transactionId));
             var result = await tradeRecordGrain.GetAsync();
             if (!result.Success)
             {
                 return null;
             }
-            
+
             return ObjectMapper.Map<TradeRecordGrainDto, TradeRecordIndexDto>(result.Data);
         }
 
@@ -223,8 +212,10 @@ namespace AwakenServer.Trade
             var tradeRecord = ObjectMapper.Map<TradeRecordCreateDto, TradeRecord>(input);
             tradeRecord.Price = double.Parse(tradeRecord.Token1Amount) / double.Parse(tradeRecord.Token0Amount);
             tradeRecord.Id = Guid.NewGuid();
-            
-            var tradeRecordGrain = _clusterClient.GetGrain<ITradeRecordGrain>(GrainIdHelper.GenerateGrainId(input.ChainId, input.TransactionHash));
+
+            var tradeRecordGrain =
+                _clusterClient.GetGrain<ITradeRecordGrain>(
+                    GrainIdHelper.GenerateGrainId(input.ChainId, input.TransactionHash));
             await tradeRecordGrain.InsertAsync(ObjectMapper.Map<TradeRecord, TradeRecordGrainDto>(tradeRecord));
             await _distributedEventBus.PublishAsync(new EntityCreatedEto<TradeRecordEto>(
                 ObjectMapper.Map<TradeRecord, TradeRecordEto>(tradeRecord)
@@ -264,7 +255,9 @@ namespace AwakenServer.Trade
 
         public async Task<bool> CreateAsync(SwapRecordDto dto)
         {
-            var tradeRecordGrain = _clusterClient.GetGrain<ITradeRecordGrain>(GrainIdHelper.GenerateGrainId(dto.ChainId, dto.TransactionHash));
+            var tradeRecordGrain =
+                _clusterClient.GetGrain<ITradeRecordGrain>(
+                    GrainIdHelper.GenerateGrainId(dto.ChainId, dto.TransactionHash));
             if (await tradeRecordGrain.Exist())
             {
                 _logger.LogInformation("swap event transactionHash existed: {transactionHash}", dto.TransactionHash);
@@ -277,7 +270,7 @@ namespace AwakenServer.Trade
                 _logger.LogInformation("swap can not find trade pair: {chainId}, {pairAddress}", dto.ChainId,
                     dto.PairAddress);
                 return false;
-            }
+            } 
 
             var isSell = pair.Token0.Symbol == dto.SymbolIn;
             var record = new TradeRecordCreateDto
@@ -306,18 +299,18 @@ namespace AwakenServer.Trade
                 "blockHeight: {blockHeight}, totalFee: {totalFee}", dto.ChainId, pair.Id, dto.Sender,
                 dto.TransactionHash, dto.Timestamp,
                 record.Side, dto.Channel, record.Token0Amount, record.Token1Amount, dto.BlockHeight, dto.TotalFee);
-            
-            
+
+
             var tradeRecord = ObjectMapper.Map<TradeRecordCreateDto, TradeRecord>(record);
             tradeRecord.Price = double.Parse(tradeRecord.Token1Amount) / double.Parse(tradeRecord.Token0Amount);
             tradeRecord.Id = Guid.NewGuid();
-            
+
             await tradeRecordGrain.InsertAsync(ObjectMapper.Map<TradeRecord, TradeRecordGrainDto>(tradeRecord));
-            
+
             await _distributedEventBus.PublishAsync(new EntityCreatedEto<TradeRecordEto>(
                 ObjectMapper.Map<TradeRecord, TradeRecordEto>(tradeRecord)
             ));
-            
+
             await _distributedEventBus.PublishAsync(
                 _objectMapper.Map<UserTradeSummaryGrainDto, UserTradeSummaryEto>(new UserTradeSummaryGrainDto
                 {
@@ -328,10 +321,9 @@ namespace AwakenServer.Trade
                     LatestTradeTime = tradeRecord.Timestamp
                 })
             );
-            
+
             await _localEventBus.PublishAsync(ObjectMapper.Map<TradeRecord, NewTradeRecordEvent>(tradeRecord));
-            
-            await CreateCacheAsync(pair.Id, dto);
+
             return true;
         }
 
@@ -432,39 +424,6 @@ namespace AwakenServer.Trade
             ));
         }
 
-        public async Task CreateCacheAsync(Guid tradePairId, SwapRecordDto dto)
-        {
-            var startIndex = 0;
-            while (startIndex >= 0)
-            {
-                var key = $"{dto.ChainId}:{BlockHeightSetPrefix}:{startIndex}";
-                var cache = await _blockHeightSetCache.GetOrAddAsync(key, async () => new BlockHeightSetDto());
-                if (cache.BlockHeight.Contains(dto.BlockHeight))
-                {
-                    await _blockHeightSetCache.RefreshAsync(key);
-                    await CreateTransactionHashCacheAsync(tradePairId, dto);
-                    break;
-                }
-
-                if (cache.BlockHeight.Count < _tradeRecordRevertWorkerOptions.BlockHeightLimit)
-                {
-                    cache.BlockHeight.Add(dto.BlockHeight);
-                    await _blockHeightSetCache.SetAsync(key, cache);
-                    await CreateTransactionHashCacheAsync(tradePairId, dto);
-                    break;
-                }
-
-                if (cache.NextNode > 0)
-                {
-                    startIndex = cache.NextNode;
-                    continue;
-                }
-
-                cache.NextNode = startIndex + 1;
-                await _blockHeightSetCache.SetAsync(key, cache);
-                startIndex = cache.NextNode;
-            }
-        }
 
         public async Task RevertTradeRecordAsync(string chainId)
         {
@@ -476,7 +435,7 @@ namespace AwakenServer.Trade
                 var startBlockHeight = confirmBlockHeightGrain.GetAsync().Result.Data;
                 startBlockHeight = startBlockHeight > 0 ? startBlockHeight : confirmedHeight;
 
-                startBlockHeight -= _tradeRecordOptions.StartBlockHeightGap;
+                startBlockHeight -= _tradeRecordRevertWorkerOptions.StartBlockHeightGap;
 
                 var indexRecordList =
                     await _graphQlProvider.GetSwapRecordsAsync(chainId, startBlockHeight, confirmedHeight);
@@ -486,7 +445,7 @@ namespace AwakenServer.Trade
                         confirmedHeight);
                 }
 
-                var serverRecordList = await GetRangeRecordAsync(chainId, startBlockHeight, confirmedHeight, 1000);
+                var serverRecordList = await GetRangeRecordAsync(chainId, startBlockHeight, confirmedHeight, 5000);
 
                 var needDeletedTradeRecords = serverRecordList
                     .Where(s => indexRecordList.All(i => i.TransactionHash != s.TransactionHash)).ToList();
@@ -680,186 +639,6 @@ namespace AwakenServer.Trade
             }
 
             return result;
-        }
-
-        private async Task CreateTransactionHashCacheAsync(Guid tradePairId, SwapRecordDto dto)
-        {
-            var heightKey = $"{dto.ChainId}:{TradeRecordOptions.TransactionHashSetPrefix}:{dto.BlockHeight}";
-            var txnSetDto =
-                await _transactionHashSetCache.GetOrAddAsync(heightKey, async () => new TransactionHashSetDto());
-            if (txnSetDto.TransactionHash.Contains(dto.TransactionHash))
-            {
-                await _transactionHashSetCache.RefreshAsync(heightKey);
-            }
-            else
-            {
-                txnSetDto.TransactionHash.Add(dto.TransactionHash);
-                await _transactionHashSetCache.SetAsync(heightKey, txnSetDto);
-            }
-
-            var txnKey = $"{dto.ChainId}:{TradeRecordOptions.TransactionHashPrefix}:{dto.TransactionHash}";
-            var txnDto = new TransactionHashDto()
-            {
-                Address = dto.Sender,
-                TradePairId = tradePairId,
-                BlockHeight = dto.BlockHeight,
-                TransactionHash = dto.TransactionHash
-            };
-            await _transactionHashCache.SetAsync(txnKey, txnDto, new DistributedCacheEntryOptions
-            {
-                AbsoluteExpiration = DateTimeOffset.UtcNow.AddSeconds(_tradeRecordOptions.TransactionHashExpirationTime)
-            });
-        }
-
-        private async Task<List<Index.TradeRecord>> QueryAsync(string chainId, long confirmedHeight)
-        {
-            var tradeRecordList = new List<Index.TradeRecord>();
-            var skipCount = 0;
-            var totalCount = 1;
-            while (totalCount > 0)
-            {
-                var recordList = await GetListAsync(chainId, confirmedHeight, skipCount,
-                    _tradeRecordOptions.QueryOnceLimit);
-                if (recordList.Count == 0) break;
-                tradeRecordList.AddRange(recordList);
-                skipCount += _tradeRecordOptions.QueryOnceLimit;
-                totalCount = recordList.Count;
-            }
-
-            return tradeRecordList;
-        }
-
-        private async Task RequestEsAsync(string chainId, long confirmedHeight)
-        {
-            var tradeRecordList = await QueryAsync(chainId, confirmedHeight);
-            _logger.LogInformation("persistence txnHash when revert: {chainId}, {count}", chainId,
-                tradeRecordList.Count);
-            if (tradeRecordList.Count == 0) return;
-
-            var minBlockHeight = tradeRecordList[0].BlockHeight;
-            var txnHashList = new List<TransactionHashDto>();
-            txnHashList.AddRange(tradeRecordList.Select(t => new TransactionHashDto()
-            {
-                Address = t.Address,
-                TradePairId = t.TradePair.Id,
-                BlockHeight = t.BlockHeight,
-                TransactionHash = t.TransactionHash,
-                Retry = (DateTime.UtcNow - t.Timestamp).Milliseconds > _tradeRecordOptions.RevertTimePeriod
-                    ? _tradeRecordOptions.RetryLimit
-                    : 1
-            }));
-
-            await RequestGraphQlAsync(chainId, minBlockHeight, confirmedHeight, txnHashList, tradeRecordList);
-        }
-
-        private async Task RequestGraphQlAsync(string chainId, long minBlockHeight, long confirmedHeight,
-            List<TransactionHashDto> txnHashList, List<Index.TradeRecord> tradeRecordList)
-        {
-            var revertTxnHashList = new List<TransactionHashDto>();
-            var txnHashs = new List<string>();
-            while (minBlockHeight <= confirmedHeight)
-            {
-                var endBlockHeight = minBlockHeight + _tradeRecordOptions.BlockHeightLimit > confirmedHeight
-                    ? confirmedHeight
-                    : minBlockHeight + _tradeRecordOptions.BlockHeightLimit;
-                var dtoList = await _graphQlProvider.GetSwapRecordsAsync(chainId, minBlockHeight, endBlockHeight);
-                var records = dtoList.Select(t => t.TransactionHash).ToList();
-                txnHashs.AddRange(records);
-
-                minBlockHeight = endBlockHeight;
-                if (minBlockHeight == confirmedHeight) break;
-            }
-
-            _logger.LogInformation("query list when revert: {chainId}, {cacheCount}, {graphQLCount}, {esCount}",
-                chainId, txnHashList.Count, txnHashs.Count, tradeRecordList.Count);
-            revertTxnHashList.AddRange(txnHashList.FindAll(t => !txnHashs.Contains(t.TransactionHash)));
-            var revertTradeRecordList = tradeRecordList.FindAll(t => !txnHashs.Contains(t.TransactionHash));
-            await RevertActionAsync(chainId, revertTxnHashList, revertTradeRecordList);
-
-            var txns = txnHashList.FindAll(t => t.Retry == _tradeRecordOptions.RetryLimit)
-                .Select(t => t.TransactionHash).ToList();
-            var intersectTxnHashList = txnHashs.Intersect(txns).ToList();
-            var intersectTradeRecordList =
-                tradeRecordList.FindAll(t => intersectTxnHashList.Contains(t.TransactionHash));
-            intersectTradeRecordList.ForEach(t => t.IsConfirmed = true);
-            await ConfirmActionAsync(chainId, intersectTxnHashList, intersectTradeRecordList);
-        }
-
-        private async Task RevertActionAsync(string chainId, List<TransactionHashDto> revertTxnHashList,
-            List<Index.TradeRecord> revertTradeRecordList)
-        {
-            _logger.LogInformation(
-                "revert txnHash when revert: {chainId}, {revertTradeRecordListCount}, {revertTxnHashListCount}",
-                chainId, revertTradeRecordList.Count, revertTxnHashList.Count);
-            if (revertTradeRecordList.Count > 0)
-            {
-                await _tradeRecordIndexRepository.BulkDeleteAsync(revertTradeRecordList);
-            }
-
-            if (revertTxnHashList.Count == 0) return;
-
-            try
-            {
-                await _transactionHashCache.RemoveManyAsync(revertTxnHashList.ConvertAll(t =>
-                    $"{chainId}:{TradeRecordOptions.TransactionHashPrefix}:{t.TransactionHash}"));
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "remove revert cache fail when revert.");
-            }
-
-            var listDto = new List<TradeRecordRemovedDto>();
-            foreach (var revertTxnHash in revertTxnHashList)
-            {
-                listDto.Add(new TradeRecordRemovedDto()
-                {
-                    ChainId = chainId,
-                    TradePairId = revertTxnHash.TradePairId,
-                    Address = revertTxnHash.Address,
-                    TransactionHash = revertTxnHash.TransactionHash
-                });
-            }
-
-            await _bus.Publish<RemovedIndexEvent<TradeRecordRemovedListResultDto>>(
-                new RemovedIndexEvent<TradeRecordRemovedListResultDto>
-                {
-                    Data = new TradeRecordRemovedListResultDto()
-                    {
-                        Items = listDto
-                    }
-                });
-
-            /*await _distributedEventBus.PublishAsync(new RemovedIndexEvent<TradeRecordRemovedListResultDto>
-            {
-                Data = new TradeRecordRemovedListResultDto()
-                {
-                    Items = listDto
-                }
-            });*/
-        }
-
-        private async Task ConfirmActionAsync(string chainId, List<string> intersectTxnHashList,
-            List<Index.TradeRecord> intersectTradeRecordList)
-        {
-            _logger.LogInformation(
-                "confirm txnHash when revert: {chainId}, {intersectTradeRecordListCount}, {intersectTxnHashListCount}",
-                chainId, intersectTradeRecordList.Count, intersectTxnHashList.Count);
-            if (intersectTradeRecordList.Count > 0)
-            {
-                await _tradeRecordIndexRepository.BulkAddOrUpdateAsync(intersectTradeRecordList);
-            }
-
-            if (intersectTxnHashList.Count == 0) return;
-
-            try
-            {
-                await _transactionHashCache.RemoveManyAsync(intersectTxnHashList
-                    .ConvertAll(t => $"{chainId}:{TradeRecordOptions.TransactionHashPrefix}:{t}"));
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "remove confirmed cache fail when revert.");
-            }
         }
     }
 }

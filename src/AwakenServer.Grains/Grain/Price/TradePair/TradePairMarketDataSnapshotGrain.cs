@@ -1,8 +1,10 @@
+using System;
 using AwakenServer.Grains.State.Price;
 using Microsoft.Extensions.Logging;
 using Orleans;
 using Volo.Abp.ObjectMapping;
 using System.Numerics;
+using System.Threading.Tasks;
 using Nethereum.Util;
 
 namespace AwakenServer.Grains.Grain.Price.TradePair;
@@ -93,7 +95,7 @@ public class TradePairMarketDataSnapshotGrain : Grain<TradePairMarketDataSnapsho
                 dto.TotalSupply = (BigDecimal.Parse(dto.TotalSupply) + BigDecimal.Parse(updateDto.TotalSupply)).ToNormalizeString();
             }
 
-            if (updateDto.Volume > 0)
+            if (updateDto.Volume != 0)
             {
                 if (initialSnapshot)
                 {
@@ -105,7 +107,7 @@ public class TradePairMarketDataSnapshotGrain : Grain<TradePairMarketDataSnapsho
                 }
             }
 
-            if (updateDto.TradeValue > 0)
+            if (updateDto.TradeValue != 0)
             {
                 if (initialSnapshot)
                 {
@@ -117,7 +119,7 @@ public class TradePairMarketDataSnapshotGrain : Grain<TradePairMarketDataSnapsho
                 }
             }
 
-            if (updateDto.TradeCount > 0)
+            if (updateDto.TradeCount != 0)
             {
                 if (initialSnapshot)
                 {

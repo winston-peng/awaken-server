@@ -1,3 +1,4 @@
+using System.Threading.Tasks;
 using AwakenServer.Grains.Grain.Price.TradeRecord;
 using Orleans;
 
