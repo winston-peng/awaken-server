@@ -46,7 +46,7 @@ public class TradeRecordRevertWorker : AwakenServerWorkerBase
         foreach (var chain in chains.Items)
         {
             _logger.LogInformation("revert start, {chainName}", chain.Name);
-            await _tradeRecordAppService.RevertAsync(chain.Name);
+            await _tradeRecordAppService.RevertTradeRecordAsync(chain.Name);
         }
     }
 }

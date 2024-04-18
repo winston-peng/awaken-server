@@ -18,7 +18,7 @@ namespace AwakenServer.Trade.Handlers
         private readonly IObjectMapper _objectMapper;
         private readonly KLinePeriodOptions _kLinePeriodOptions;
         public IDistributedEventBus _distributedEventBus { get; set; }
-        
+
         public KLineHandler(IClusterClient clusterClient,
             IObjectMapper objectMapper,
             IOptionsSnapshot<KLinePeriodOptions> kLinePeriodOptions,
@@ -32,13 +32,18 @@ namespace AwakenServer.Trade.Handlers
 
         public async Task HandleEventAsync(NewTradeRecordEvent eventData)
         {
+            if (eventData.IsRevert)
+            {
+                return;
+            }
+
             var timeStamp = DateTimeHelper.ToUnixTimeMilliseconds(eventData.Timestamp);
 
             foreach (var period in _kLinePeriodOptions.Periods)
             {
                 var periodTimestamp = KLineHelper.GetKLineTimestamp(period, timeStamp);
                 var token0Amount = double.Parse(eventData.Token0Amount);
-                
+
                 var id = GrainIdHelper.GenerateGrainId(eventData.ChainId, eventData.TradePairId, period);
                 var grain = _clusterClient.GetGrain<IKLineGrain>(id);
                 var kLine = new KLineGrainDto

@@ -29,8 +29,10 @@ public class TradeRecordRevertWorkerSettings : WorkerSetting
     public int BlockHeightLimit { get; set; } = 100;
     public int RetryLimit { get; set; } = 3;
     public int TransactionHashExpirationTime { get; set; } = 360;
-    
+
     public int BatchFlushTimePeriod { get; set; } = 3;
-    
+
     public int BatchFlushCount { get; set; } = 10;
+
+    public int StartBlockHeightGap { get; set; } = 10;
 }

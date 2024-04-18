@@ -1,3 +1,5 @@
+using System;
+
 namespace AwakenServer.Grains.Grain.Favorite;
 
 public class FavoriteGrainDto

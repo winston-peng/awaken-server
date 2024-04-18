@@ -1,8 +1,10 @@
+using System;
 using AwakenServer.Grains.State.Price;
 using Microsoft.Extensions.Logging;
 using Orleans;
 using Volo.Abp.ObjectMapping;
 using System.Numerics;
+using System.Threading.Tasks;
 using Nethereum.Util;
 
 namespace AwakenServer.Grains.Grain.Price.TradePair;
@@ -74,8 +76,8 @@ public class TradePairMarketDataSnapshotGrain : Grain<TradePairMarketDataSnapsho
         TradePairMarketDataSnapshotGrainDto lastDto)
     {
         dto.TotalSupply = (BigDecimal.Parse(lastDto.TotalSupply) + BigDecimal.Parse(dto.TotalSupply))
-                .ToNormalizeString();
-        
+            .ToNormalizeString();
+
         if (dto.Price > 0)
         {
             dto.PriceHigh = Math.Max(lastDto.PriceHigh, dto.Price);
@@ -108,12 +110,12 @@ public class TradePairMarketDataSnapshotGrain : Grain<TradePairMarketDataSnapsho
         {
             dto.TVL = lastDto.TVL;
         }
-        
+
         if (dto.ValueLocked0 <= 0)
         {
             dto.ValueLocked0 = lastDto.ValueLocked0;
         }
-        
+
         if (dto.ValueLocked1 <= 0)
         {
             dto.ValueLocked1 = lastDto.ValueLocked1;
@@ -123,7 +125,7 @@ public class TradePairMarketDataSnapshotGrain : Grain<TradePairMarketDataSnapsho
         {
             dto.TradeAddressCount24h = lastDto.TradeAddressCount24h;
         }
-        
+
         State =
             _objectMapper.Map<TradePairMarketDataSnapshotGrainDto, TradePairMarketDataSnapshotState>(dto);
     }
@@ -157,7 +159,7 @@ public class TradePairMarketDataSnapshotGrain : Grain<TradePairMarketDataSnapsho
         {
             lastDto.TradeAddressCount24h = updateDto.TradeAddressCount24h;
         }
-        
+
         if (updateDto.Price > 0)
         {
             lastDto.Price = updateDto.Price;

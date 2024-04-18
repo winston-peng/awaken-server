@@ -1,3 +1,5 @@
+using System;
+
 namespace AwakenServer.Grains.State.Price;
 
 public class TradePairInfoState

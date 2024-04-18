@@ -1,3 +1,5 @@
+using System;
+using System.Threading.Tasks;
 using AwakenServer.Grains.Grain.Price.TradeRecord;
 using AwakenServer.Grains.State.Price;
 using Orleans;
@@ -35,8 +37,6 @@ public class TradeRecordGrain : Grain<TradeRecordState>, ITradeRecordGrain
     public async Task<GrainResultDto<TradeRecordGrainDto>> InsertAsync(TradeRecordGrainDto dto)
     {
         State = _objectMapper.Map<TradeRecordGrainDto, TradeRecordState>(dto);
-        
-        
         
         await WriteStateAsync();
 

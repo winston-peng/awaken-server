@@ -23,6 +23,7 @@ public class TradeRecordEventSwapWorker : AwakenServerWorkerBase
     private readonly ITradeRecordAppService _tradeRecordAppService;
     private bool executed = false;
 
+
     public TradeRecordEventSwapWorker(AbpAsyncTimer timer, IServiceScopeFactory serviceScopeFactory,
         ITradeRecordAppService tradeRecordAppService, ILogger<AwakenServerWorkerBase> logger,
         IOptionsMonitor<WorkerOptions> optionsMonitor,
@@ -57,34 +58,7 @@ public class TradeRecordEventSwapWorker : AwakenServerWorkerBase
     
     protected override async Task DoWorkAsync(PeriodicBackgroundWorkerContext workerContext)
     {
-        if (!executed)
-        {
-            _logger.LogInformation("FixTrade start");
-            await UpdateTransaction();
-            executed = true;
-        }
-        
         await DealDataAsync();
     }
-
-    protected async Task UpdateTransaction()
-    {
-        var endHeight = await _graphQlProvider.GetLastEndHeightAsync("tDVV", WorkerBusinessType.SwapEvent);
-        long curHeight = 189607411;
-
-        for (long i = curHeight; i <= endHeight;)
-        {
-            var queryList = await _graphQlProvider.GetSwapRecordsAsync("tDVV", i, 0);
-            if (queryList.IsNullOrEmpty())
-            {
-                i++;
-            }
-
-            foreach (var queryDto in queryList)
-            {
-                await _tradeRecordAppService.FillRecord(queryDto);
-                i = queryDto.BlockHeight;
-            }
-        }
-    }
+    
 }

@@ -17,12 +17,11 @@ namespace AwakenServer.Trade
         Task CreateAsync(TradeRecordCreateDto input);
 
         Task<bool> CreateAsync(SwapRecordDto dto);
-        
+
         Task FillRecord(SwapRecordDto dto);
 
-        Task CreateCacheAsync(Guid tradePairId, SwapRecordDto dto);
 
-        Task RevertAsync(string chainId);
+        Task RevertTradeRecordAsync(string chainId);
 
         Task<int> GetUserTradeAddressCountAsync(string chainId, Guid tradePairId, DateTime? minDateTime = null,
             DateTime? maxDateTime = null);
