@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 using AElf.Indexing.Elasticsearch;
 using AwakenServer.Chains;
 using AwakenServer.CMS;
+using AwakenServer.Common;
 using AwakenServer.Favorite;
 using AwakenServer.Grains;
 using AwakenServer.Grains.Grain.Price;
@@ -51,7 +52,8 @@ namespace AwakenServer.Trade
         private readonly IBus _bus;
         private readonly IClusterClient _clusterClient;
         private readonly IObjectMapper _objectMapper;
-
+        private readonly IRevertProvider _revertProvider;
+        
         private const string ASC = "asc";
         private const string ASCEND = "ascend";
         private const string PRICE = "price";
@@ -82,7 +84,8 @@ namespace AwakenServer.Trade
             IBus bus,
             ILogger<TradePairAppService> logger,
             IClusterClient clusterClient,
-            IObjectMapper objectMapper)
+            IObjectMapper objectMapper,
+            IRevertProvider revertProvider)
         {
             _tradePairInfoIndex = tradePairInfoIndex;
             _tokenPriceProvider = tokenPriceProvider;
@@ -100,6 +103,8 @@ namespace AwakenServer.Trade
             _bus = bus;
             _clusterClient = clusterClient;
             _objectMapper = objectMapper;
+            _revertProvider = revertProvider;
+
         }
 
         public async Task<List<TradePairDto>> GetTradePairInfoListAsync(GetTradePairsInfoInput input)
@@ -142,7 +147,6 @@ namespace AwakenServer.Trade
             var tradePairResult = await grain.GetAsync();
             if (!tradePairResult.Success)
             {
-                _logger.LogError($"grain id {id} does not exist");
                 return null;
             }
             
@@ -188,7 +192,7 @@ namespace AwakenServer.Trade
             {
                 mustQuery.Add(q => q.Term(i => i.Field(f => f.Address).Value(address)));
             }
-
+            mustQuery.Add(q => q.Term(i => i.Field(f => f.IsDeleted).Value(false)));
             QueryContainer Filter(QueryContainerDescriptor<Index.TradePair> f) => f.Bool(b => b.Must(mustQuery));
 
             var list = await _tradePairIndexRepository.GetListAsync(Filter);
@@ -348,13 +352,48 @@ namespace AwakenServer.Trade
         }
 
         
-        public async Task UpdateLiquidityAsync(SyncRecordDto dto)
+        public async Task RevertTradePairAsync(string chainId, int queryOnceLimit)
         {
-            var grain = _clusterClient.GetGrain<ISyncRecordsGrain>(GrainIdHelper.GenerateGrainId(dto.ChainId, dto.BlockHeight));
-            if (await grain.ExistAsync(dto.PairAddress + "-" + dto.Timestamp))
+            try
+            {
+                var needDeletedTradeRecords =
+                    await _revertProvider.GetNeedDeleteTransactionsAsync(EventType.TradePairEvent, chainId);
+
+                if (needDeletedTradeRecords.IsNullOrEmpty())
+                {
+                    return;
+                }
+
+                var needDeleteIndexes = await GetListAsync(chainId, needDeletedTradeRecords, queryOnceLimit);
+                foreach (var tradeRecord in needDeleteIndexes)
+                {
+                    tradeRecord.IsDeleted = true;
+                }
+                
+                await _tradePairIndexRepository.BulkAddOrUpdateAsync(needDeleteIndexes);
+
+                foreach (var tradeRecord in needDeleteIndexes)
+                {
+                    var grain = _clusterClient.GetGrain<ITradePairGrain>(GrainIdHelper.GenerateGrainId(tradeRecord.Id));
+                    tradeRecord.IsDeleted = true;
+                    await grain.AddOrUpdateAsync(_objectMapper.Map<Index.TradePair, TradePairGrainDto>(tradeRecord));
+                }
+            }
+            catch (Exception e)
+            {
+                _logger.LogError("Revert trade pair err:{0}", e);
+            }
+        }
+        
+        public async Task CreateSyncAsync(SyncRecordDto dto)
+        {
+            var grain = _clusterClient.GetGrain<ISyncRecordGrain>(GrainIdHelper.GenerateGrainId(dto.ChainId, dto.TransactionHash));
+            if (await grain.ExistAsync())
             {
                 return;
             }
+            
+            await _revertProvider.checkOrAddUnconfirmedTransaction(EventType.SyncEvent, dto.ChainId, dto.BlockHeight, dto.TransactionHash);
             
             var pair = await GetAsync(dto.ChainId, dto.PairAddress);
             if (pair == null)
@@ -362,15 +401,57 @@ namespace AwakenServer.Trade
                 _logger.LogError($"get pair: {dto.PairAddress} failed in chain: {dto.ChainId}");
                 return;
             }
-            
+
+            dto.PairId = pair.Id;
             await _tradePairMarketDataProvider.AddOrUpdateSnapshotAsync(pair.Id, async grain =>
             {
-                return await grain.UpdateLiquidityAsync(_objectMapper.Map<SyncRecordDto, SyncRecordGrainDto>(dto));
+                return await grain.UpdatePriceAsync(_objectMapper.Map<SyncRecordDto, SyncRecordGrainDto>(dto));
             });
             
-            await grain.AddSyncRecordAsync(dto.PairAddress + "-" + dto.Timestamp);
+            await grain.AddAsync(_objectMapper.Map<SyncRecordDto, SyncRecordsGrainDto>(dto));
         }
 
+        
+        public async Task RevertSyncAsync(string chainId, int queryOnceLimit)
+        {
+            try
+            {
+                var needDeletedTradeRecords =
+                    await _revertProvider.GetNeedDeleteTransactionsAsync(EventType.SyncEvent, chainId);
+
+                if (needDeletedTradeRecords.IsNullOrEmpty())
+                {
+                    return;
+                }
+
+                var needRevertDatas = new List<SyncRecordDto>();
+                foreach (var transactionHash in needDeletedTradeRecords)
+                {
+                    var grain = _clusterClient.GetGrain<ISyncRecordGrain>(GrainIdHelper.GenerateGrainId(chainId, transactionHash));
+                    var result = await grain.GetAsync();
+                    if (result.Success)
+                    {
+                        needRevertDatas.Add(_objectMapper.Map<SyncRecordsGrainDto, SyncRecordDto>(result.Data));
+                    }
+                }
+                
+                foreach (var revertData in needRevertDatas)
+                {
+                    revertData.IsRevert = true;
+                    await _tradePairMarketDataProvider.AddOrUpdateSnapshotAsync(revertData.PairId, async grain =>
+                    {
+                        return await grain.UpdatePriceAsync(_objectMapper.Map<SyncRecordDto, SyncRecordGrainDto>(revertData));
+                    });
+                }
+            }
+            catch (Exception e)
+            {
+                _logger.LogError("Revert trade pair err:{0}", e);
+            }
+        }
+
+        
+        
         public async Task CreateTradePairIndexAsync(TradePairInfoDto input, TokenDto token0, TokenDto token1,
             ChainDto chain)
         {
@@ -463,6 +544,8 @@ namespace AwakenServer.Trade
             {
                 return;
             }
+            
+            await _revertProvider.checkOrAddUnconfirmedTransaction(EventType.TradePairEvent, pair.ChainId, pair.BlockHeight, pair.TransactionHash);
 
             var token0 = await _tokenAppService.GetAsync(new GetTokenInput
             {
@@ -521,6 +604,7 @@ namespace AwakenServer.Trade
             List<Guid> idList)
         {
             var queryBuilder = await new TradePairListQueryBuilder(_cmsAppService, _favoriteAppService)
+                .WithNotDeleted()
                 .WithChainId(input.ChainId)
                 .WithIdList(idList)
                 .WithToken0Id(input.Token0Id)
@@ -596,9 +680,21 @@ namespace AwakenServer.Trade
             var mustQuery = new List<Func<QueryContainerDescriptor<Index.TradePair>, QueryContainer>>();
             mustQuery.Add(q => q.Term(i => i.Field(f => f.ChainId).Value(chainName)));
             mustQuery.Add(q => q.Term(i => i.Field(f => f.Address).Value(address)));
-
+            mustQuery.Add(q => q.Term(i => i.Field(f => f.IsDeleted).Value(false)));
             QueryContainer Filter(QueryContainerDescriptor<Index.TradePair> f) => f.Bool(b => b.Must(mustQuery));
             return await _tradePairIndexRepository.GetAsync(Filter);
+        }
+        
+        private async Task<List<Index.TradePair>> GetListAsync(string chainId, List<string> transactionHashs, int maxResultCount)
+        {
+            var mustQuery = new List<Func<QueryContainerDescriptor<Index.TradePair>, QueryContainer>>();
+            mustQuery.Add(q => q.Term(i => i.Field(f => f.ChainId).Value(chainId)));
+            mustQuery.Add(q => q.Term(i => i.Field(f => f.IsDeleted).Value(false)));
+            mustQuery.Add(q => q.Terms(i => i.Field(f => f.TransactionHash).Terms(transactionHashs)));
+            
+            QueryContainer Filter(QueryContainerDescriptor<Index.TradePair> f) => f.Bool(b => b.Must(mustQuery));
+            var list = await _tradePairIndexRepository.GetListAsync(Filter, limit: maxResultCount);
+            return list.Item2;
         }
 
         private async Task<bool> IsNeedUpdateAsync(TradePairGrainDto pair, DateTime time)
@@ -736,5 +832,6 @@ namespace AwakenServer.Trade
                     return descriptor => descriptor.Ascending(f => f.Token0.Symbol);
             }
         }
+        
     }
 }

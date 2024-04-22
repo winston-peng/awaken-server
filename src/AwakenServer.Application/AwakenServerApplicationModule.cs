@@ -3,6 +3,7 @@ using AwakenServer.Chains;
 using AwakenServer.CMS;
 using AwakenServer.ContractEventHandler.Application;
 using AwakenServer.Grains;
+using AwakenServer.Provider;
 using AwakenServer.Trade;
 using Microsoft.Extensions.DependencyInjection;
 using Volo.Abp;
@@ -56,6 +57,7 @@ namespace AwakenServer
             context.Services.AddSingleton<IBlockchainClientFactory<AElfClient>, AElfClientFactory>();
             context.Services.AddSingleton<IHttpService>(provider => { return new HttpService(3); });
             context.Services.AddSingleton<ITradePairMarketDataProvider, TradePairMarketDataProvider>();
+            context.Services.AddSingleton<IRevertProvider, RevertProvider>();
         }
 
         public override void OnPreApplicationInitialization(ApplicationInitializationContext context)

@@ -16,7 +16,7 @@ namespace AwakenServer.Worker;
 
 public class MarketSnapshotWorker : AwakenServerWorkerBase
 {
-    protected override WorkerBusinessType BusinessType => WorkerBusinessType.MarketSnapshot;
+    protected override WorkerBusinessType _businessType => WorkerBusinessType.MarketSnapshot;
     
     private readonly IChainAppService _chainAppService;
     private readonly ITradePairAppService _tradePairAppService;

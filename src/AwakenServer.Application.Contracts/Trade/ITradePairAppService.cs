@@ -24,10 +24,11 @@ namespace AwakenServer.Trade
         Task<List<TradePairIndexDto>> GetListAsync(string chainId, IEnumerable<string> addresses);
         Task<List<TradePairDto>> GetTradePairInfoListAsync(GetTradePairsInfoInput input);
         Task<TradePairDto> CreateAsync(TradePairCreateDto input);
-        Task UpdateLiquidityAsync(SyncRecordDto dto);
+        Task CreateSyncAsync(SyncRecordDto dto);
         Task UpdateTradePairAsync(Guid id);
         Task DeleteManyAsync(List<Guid> ids);
         Task SyncTokenAsync(string chainId, string symbol, ChainDto chain);
         Task SyncPairAsync(TradePairInfoDto pair, ChainDto chain);
+        Task RevertTradePairAsync(string chainId, int queryOnceLimit);
     }
 }

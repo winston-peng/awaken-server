@@ -5,6 +5,7 @@ namespace AwakenServer.Trade.Dtos
 {
     public class TradePairGrainDto : TradePairDto
     {
+        public bool IsDeleted { get; set; }
         public TokenDto Token0 { get; set; }
         public TokenDto Token1 { get; set; }
         public string TotalSupply { get; set; }

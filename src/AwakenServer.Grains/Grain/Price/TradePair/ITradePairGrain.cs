@@ -24,7 +24,7 @@ public interface ITradePairGrain : IGrainWithStringKey
     
     public Task<GrainResultDto<TradePairGrainDto>> UpdateAsync(DateTime timestamp, int userTradeAddressCount);
     
-    public Task<GrainResultDto<TradePairMarketDataSnapshotUpdateResult>> UpdateLiquidityAsync(SyncRecordGrainDto dto);
+    public Task<GrainResultDto<TradePairMarketDataSnapshotUpdateResult>> UpdatePriceAsync(SyncRecordGrainDto dto);
     
     public Task<GrainResultDto<TradePairMarketDataSnapshotUpdateResult>> UpdateTotalSupplyAsync(LiquidityRecordGrainDto dto);
     

@@ -12,6 +12,7 @@ using Microsoft.AspNetCore.DataProtection;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Newtonsoft.Json;
 using Orleans;
 using Orleans.Configuration;
 using Orleans.Providers.MongoDB.Configuration;
@@ -25,6 +26,7 @@ using Volo.Abp.Caching.StackExchangeRedis;
 using Volo.Abp.EventBus.RabbitMq;
 using Volo.Abp.Modularity;
 using Volo.Abp.Threading;
+using JsonConvert = Newtonsoft.Json.JsonConvert;
 
 namespace AwakenServer.EntityHandler;
 
@@ -57,6 +59,11 @@ public class AwakenServerEntityHandlerModule : AbpModule
         Configure<WorkerOptions>(configuration.GetSection("WorkerSettings"));
         
         Configure<TradeRecordRevertWorkerSettings>(configuration.GetSection("WorkerSettings:TradeRecordRevert"));
+        
+        Configure<TradePairTokenOrderOptions>(configuration.GetSection("TradePairTokenOrderOptions"));
+
+        var config = configuration.GetSection("TradePairTokenOrderOptions").Get<TradePairTokenOrderOptions>();
+        string json = JsonConvert.SerializeObject(config.TradePairTokens, Formatting.Indented);
         
         context.Services.AddMassTransit(x =>
         {

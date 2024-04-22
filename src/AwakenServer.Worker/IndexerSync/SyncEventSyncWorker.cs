@@ -17,7 +17,7 @@ namespace AwakenServer.Worker.IndexerSync;
 
 public class SyncEventSyncWorker : AwakenServerWorkerBase
 {
-    protected override WorkerBusinessType BusinessType => WorkerBusinessType.SyncEvent;
+    protected override WorkerBusinessType _businessType => WorkerBusinessType.SyncEvent;
     
     protected readonly IChainAppService _chainAppService;
     protected readonly IGraphQLProvider _graphQlProvider;
@@ -39,7 +39,7 @@ public class SyncEventSyncWorker : AwakenServerWorkerBase
     {
         long blockHeight = -1;
         
-        var queryList = await _graphQlProvider.GetSyncRecordsAsync(chain.Id, startHeight, 0);
+        var queryList = await _graphQlProvider.GetSyncRecordsAsync(chain.Id, startHeight, 0, 0, _workerOptions.QueryOnceLimit);
         
         _logger.LogInformation("sync queryList count: {count} ,chainId:{chainId}", queryList.Count, chain.Id);
         
@@ -47,7 +47,7 @@ public class SyncEventSyncWorker : AwakenServerWorkerBase
         {
             foreach (var queryDto in queryList)
             {
-                await _tradePairAppService.UpdateLiquidityAsync(queryDto);
+                await _tradePairAppService.CreateSyncAsync(queryDto);
                 blockHeight = Math.Max(blockHeight, queryDto.BlockHeight);
             }
         }

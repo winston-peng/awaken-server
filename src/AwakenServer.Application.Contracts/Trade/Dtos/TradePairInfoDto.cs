@@ -25,6 +25,9 @@ public class TradePairInfoDto
     public Guid Token0Id { get; set; }
     public Guid Token1Id { get; set; }
     public double FeeRate { get; set; }
+    
     public bool IsTokenReversed { get; set; }
     public long BlockHeight { get; set; }
+    
+    public string TransactionHash { get; set; }
 }

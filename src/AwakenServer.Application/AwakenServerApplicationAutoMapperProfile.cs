@@ -63,6 +63,7 @@ namespace AwakenServer
                 opt => opt.MapFrom(source => DateTimeHelper.FromUnixTimeMilliseconds(source.Timestamp)));
             CreateMap<TradeRecord, TradeRecordGrainDto>();
             CreateMap<TradeRecord, TradeRecordEto>();
+            CreateMap<Trade.Index.TradeRecord, TradeRecord>();
             CreateMap<UserTradeSummaryGrainDto, UserTradeSummaryEto>();
             CreateMap<UserTradeSummaryEto, Trade.Index.UserTradeSummary>();
             CreateMap<Trade.TradePair, TradePairDto>();
@@ -80,7 +81,7 @@ namespace AwakenServer
             CreateMap<TradePairWithToken, TradePairWithTokenDto>();
 
             CreateMap<TradePairMarketDataSnapshotEto, TradePairMarketDataSnapshot>().ReverseMap();
-
+            CreateMap<SyncRecordDto, SyncRecordsGrainDto>().ReverseMap();
 
             CreateMap<TradePairInfoDto, TradePairDto>()
                 .ForMember(dest => dest.Id, opt => opt.MapFrom(src => Guid.Parse(src.Id)));
@@ -109,6 +110,7 @@ namespace AwakenServer
             CreateMap<NewLiquidityRecordEvent, LiquidityRecordDto>();
             CreateMap<LiquidityRecordEto, Trade.Index.LiquidityRecord>();
             CreateMap<LiquidityRecordDto, UserLiquidityGrainDto>();
+            CreateMap<LiquidityRecordDto, LiquidityRecordGrainDto>().ReverseMap();
             CreateMap<NewLiquidityRecordEvent, LiquidityRecordGrainDto>();
             CreateMap<SyncRecordDto, SyncRecordGrainDto>();
             CreateMap<NewTradeRecordEvent, TradeRecordGrainDto>();
@@ -122,8 +124,8 @@ namespace AwakenServer
             CreateMap<UserLiquidityDto, UserLiquidityGrainDto>();
             CreateMap<GetUserAssertInput, GetUserLiquidityInput>();
             CreateMap<Trade.Index.UserLiquidity, UserLiquidityIndexDto>();
-
-            CreateMap<Trade.TradeRecord, NewTradeRecordEvent>();
+            
+            CreateMap<TradeRecord, NewTradeRecordEvent>();
             CreateMap<TradeRecordEto, Trade.Index.TradeRecord>();
             CreateMap<Trade.Index.TradeRecord, TradeRecordIndexDto>().ForMember(
                 destination => destination.Timestamp,

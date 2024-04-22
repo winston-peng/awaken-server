@@ -1,12 +1,10 @@
-using System;
-using System.Collections.Generic;
+namespace AwakenServer.Grains.Grain.Trade;
 
-namespace AwakenServer.Grains.State.Trade;
-
-public class SyncRecordsState
+public class SyncRecordsGrainDto
 {
     public string ChainId { get; set; }
     public string PairAddress { get; set; }
+    public Guid PairId { get; set; }
     public string SymbolA { get; set; }
     public string SymbolB { get; set; }
     public long ReserveA { get; set; }

@@ -76,7 +76,7 @@ public class TradePairGrain : Grain<TradePairState>, ITradePairGrain
 
     public async Task<GrainResultDto<TradePairGrainDto>> GetAsync()
     {
-        if (State.Id == Guid.Empty)
+        if (State.Id == Guid.Empty || State.IsDeleted)
         {
             return new GrainResultDto<TradePairGrainDto>
             {
@@ -187,7 +187,8 @@ public class TradePairGrain : Grain<TradePairState>, ITradePairGrain
     {
         var lpAmount = BigDecimal.Parse(dto.LpTokenAmount);
         lpAmount = dto.Type == LiquidityType.Mint ? lpAmount : -lpAmount;
-
+        lpAmount = dto.IsRevert ? -lpAmount : lpAmount;
+        
         var updateResult = await AddOrUpdateSnapshotAsync(
             new TradePairMarketDataSnapshotGrainDto
             {
@@ -221,7 +222,7 @@ public class TradePairGrain : Grain<TradePairState>, ITradePairGrain
     }
 
     public async Task<GrainResultDto<TradePairMarketDataSnapshotUpdateResult>>
-        UpdateLiquidityAsync(SyncRecordGrainDto dto)
+        UpdatePriceAsync(SyncRecordGrainDto dto)
     {
         var isReversed = State.Token0.Symbol == dto.SymbolB;
         var token0Amount = isReversed

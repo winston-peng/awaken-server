@@ -18,7 +18,7 @@ namespace AwakenServer.Worker.IndexerSync;
 
 public class TradePairEventSyncWorker : AwakenServerWorkerBase
 {
-    protected override WorkerBusinessType BusinessType => WorkerBusinessType.TradePairEvent;
+    protected override WorkerBusinessType _businessType => WorkerBusinessType.TradePairEvent;
     
     protected readonly IChainAppService _chainAppService;
     protected readonly IGraphQLProvider _graphQlProvider;
@@ -44,7 +44,9 @@ public class TradePairEventSyncWorker : AwakenServerWorkerBase
         {
             ChainId = chain.Id,
             StartBlockHeight = startHeight,
-            EndBlockHeight = 0
+            EndBlockHeight = 0,
+            SkipCount = 0,
+            MaxResultCount = _workerOptions.QueryOnceLimit
         });
 
         foreach (var pair in result.TradePairInfoDtoList.Data)

@@ -13,4 +13,6 @@ public class UserLiquidityGrainDto
     public double AssetUSD { get; set; }
     public string Token0Amount { get; set; }
     public string Token1Amount { get; set; }
+    public bool IsRevert { get; set; }
+
 }

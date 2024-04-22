@@ -16,7 +16,7 @@ namespace AwakenServer.Worker;
 
 public class TradeRecordEventSwapWorker : AwakenServerWorkerBase
 {
-    protected override WorkerBusinessType BusinessType => WorkerBusinessType.SwapEvent;
+    protected override WorkerBusinessType _businessType => WorkerBusinessType.SwapEvent;
     
     protected readonly IChainAppService _chainAppService;
     protected readonly IGraphQLProvider _graphQlProvider;
@@ -40,7 +40,7 @@ public class TradeRecordEventSwapWorker : AwakenServerWorkerBase
     {
         long blockHeight = -1;
         
-        var queryList = await _graphQlProvider.GetSwapRecordsAsync(chain.Id, startHeight, 0);
+        var queryList = await _graphQlProvider.GetSwapRecordsAsync(chain.Id, startHeight, 0, 0, 10000);
         
         _logger.LogInformation("swap queryList count: {count}", queryList.Count);
             

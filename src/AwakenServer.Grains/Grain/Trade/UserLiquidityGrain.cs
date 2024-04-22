@@ -60,11 +60,11 @@ public class UserLiquidityGrain : Grain<UserLiquidityState>, IUserLiquidityGrain
         {
             if (dto.Type == LiquidityType.Mint)
             {
-                State.TradePairLiquidities[dto.TradePair.Address].LpTokenAmount += dto.LpTokenAmount;
+                State.TradePairLiquidities[dto.TradePair.Address].LpTokenAmount += (dto.IsRevert ? -dto.LpTokenAmount : dto.LpTokenAmount);
             }
             else
             {
-                State.TradePairLiquidities[dto.TradePair.Address].LpTokenAmount -= dto.LpTokenAmount;
+                State.TradePairLiquidities[dto.TradePair.Address].LpTokenAmount -= (dto.IsRevert ? -dto.LpTokenAmount : dto.LpTokenAmount);
             }
         }
 

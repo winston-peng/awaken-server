@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Threading.Tasks;
 using AwakenServer.Trade.Dtos;
 using Volo.Abp.Application.Dtos;
@@ -16,5 +17,9 @@ namespace AwakenServer.Trade
         Task<UserAssetDto> GetUserAssetAsync(GetUserAssertInput input);
         
         Task CreateAsync(LiquidityRecordDto input);
+
+        Task RevertLiquidityAsync(string chainId);
+
+        Task DoRevertAsync(string chainId, List<string> needDeletedTradeRecords);
     }
 }

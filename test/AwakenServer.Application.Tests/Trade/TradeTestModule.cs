@@ -4,6 +4,7 @@ using AwakenServer.Applications.GameOfTrust;
 using AwakenServer.Chains;
 using AwakenServer.CMS;
 using AwakenServer.Price;
+using AwakenServer.Provider;
 using AwakenServer.Tokens;
 using AwakenServer.Trade.Dtos;
 using AwakenServer.Worker;
@@ -22,14 +23,16 @@ namespace AwakenServer.Trade
         public override void ConfigureServices(ServiceConfigurationContext context)
         {
             context.Services.AddSingleton<IPriceAppService, MockPriceAppService>();
+            context.Services.AddSingleton<IRevertProvider, RevertProvider>();
             context.Services.Configure<TradeRecordRevertWorkerSettings>(o =>
             {
-                o.QueryOnceLimit = 1000;
+                o.QueryOnceLimit = 1;
                 o.BlockHeightLimit = 100;
                 o.RetryLimit = 2;
                 o.TransactionHashExpirationTime = 360;
                 o.TimePeriod = 75000;
             });
+            
 
             context.Services.Configure<AssetWhenNoTransactionOptions>(o =>
             {

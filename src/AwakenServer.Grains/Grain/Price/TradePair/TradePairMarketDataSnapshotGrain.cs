@@ -140,17 +140,17 @@ public class TradePairMarketDataSnapshotGrain : Grain<TradePairMarketDataSnapsho
                 .ToNormalizeString();
         }
 
-        if (updateDto.Volume > 0)
+        if (updateDto.Volume != 0)
         {
             lastDto.Volume += updateDto.Volume;
         }
 
-        if (updateDto.TradeValue > 0)
+        if (updateDto.TradeValue != 0)
         {
             lastDto.TradeValue += updateDto.TradeValue;
         }
 
-        if (updateDto.TradeCount > 0)
+        if (updateDto.TradeCount != 0)
         {
             lastDto.TradeCount += updateDto.TradeCount;
         }

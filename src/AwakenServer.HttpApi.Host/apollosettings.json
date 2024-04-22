@@ -5,7 +5,7 @@
       "http://localhost:8080"
     ],
     "Namespaces": [
-      "TEST1.HttpApi.Host.json"
+      "TEST1.HttpApiHost.json"
     ],
     "Env": "DEV"
   }

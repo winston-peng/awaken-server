@@ -51,7 +51,7 @@ public class TradePairGrainTests : AwakenServerGrainTestBase
     public async Task UpdateLiquidityTest()
     {
         var grain = Cluster.Client.GetGrain<ITradePairGrain>(GrainIdHelper.GenerateGrainId(TradePairEthUsdtId));
-        var result = await grain.UpdateLiquidityAsync(new SyncRecordGrainDto
+        var result = await grain.UpdatePriceAsync(new SyncRecordGrainDto
         {
             ChainId = ChainName,
             PairAddress = TradePairEthUsdtAddress,

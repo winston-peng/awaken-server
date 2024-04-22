@@ -21,11 +21,11 @@ public class WorkerSetting
     public bool ResetBlockHeightFlag { get; set; } = false;
     public long ResetBlockHeight { get; set; } = 0;
     public long QueryStartBlockHeightOffset { get; set; } = -1;
+    public int QueryOnceLimit { get; set; } = 10000;
 }
 
 public class TradeRecordRevertWorkerSettings : WorkerSetting
 {
-    public int QueryOnceLimit { get; set; } = 1000;
     public int BlockHeightLimit { get; set; } = 100;
     public int RetryLimit { get; set; } = 3;
     public int TransactionHashExpirationTime { get; set; } = 360;
@@ -33,6 +33,17 @@ public class TradeRecordRevertWorkerSettings : WorkerSetting
     public int BatchFlushTimePeriod { get; set; } = 3;
 
     public int BatchFlushCount { get; set; } = 10;
-
     public int StartBlockHeightGap { get; set; } = 10;
+}
+
+public class TradePairTokenOrderOptions
+{
+    public Dictionary<string, TradePairToken> TradePairTokens { get; set; } = new();
+}
+
+public class TradePairToken
+{
+    public string Address { get; set; }
+    public string Symbol { get; set; }
+    public int Weight { get; set; }
 }

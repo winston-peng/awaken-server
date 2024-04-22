@@ -43,10 +43,10 @@ public class GraphQLProvider : IGraphQLProvider, ISingletonDependency
         {
             Query =
                 @"query($id:String = null ,$chainId:String = null,$address:String = null,$token0Symbol:String = null,
-            $token1Symbol:String = null,$tokenSymbol:String = null,$feeRate:Float!,$startBlockHeight:Long!,$endBlockHeight:Long!){
+            $token1Symbol:String = null,$tokenSymbol:String = null,$feeRate:Float!,$startBlockHeight:Long!,$endBlockHeight:Long!,$maxResultCount:Int!,$skipCount:Int!){
             tradePairInfoDtoList:getTradePairInfoList(getTradePairInfoDto: {id:$id,chainId:$chainId,address:$address,token0Symbol:$token0Symbol,
             token1Symbol:$token1Symbol,tokenSymbol:$tokenSymbol,feeRate:$feeRate,skipCount:0,maxResultCount:1000,
-            startBlockHeight:$startBlockHeight,endBlockHeight:$endBlockHeight}){
+            startBlockHeight:$startBlockHeight,endBlockHeight:$endBlockHeight,maxResultCount:$maxResultCount,skipCount:$skipCount}){
             totalCount,
             data {
                 id,
@@ -56,7 +56,8 @@ public class GraphQLProvider : IGraphQLProvider, ISingletonDependency
                 token1Symbol,
                 feeRate,
                 isTokenReversed,
-                blockHeight
+                blockHeight,
+                TransactionHash
             }}}",
             
             Variables = new
@@ -69,7 +70,9 @@ public class GraphQLProvider : IGraphQLProvider, ISingletonDependency
                 tokenSymbol = input.TokenSymbol,
                 feeRate = input.FeeRate == 0 ? input.FeeRate : 0,
                 startBlockHeight = input.StartBlockHeight,
-                endBlockHeight = input.EndBlockHeight
+                endBlockHeight = input.EndBlockHeight,
+                maxResultCount = input.MaxResultCount,
+                skipCount = input.SkipCount
             }
         });
         
@@ -120,7 +123,7 @@ public class GraphQLProvider : IGraphQLProvider, ISingletonDependency
     }
 
     public async Task<List<LiquidityRecordDto>> GetLiquidRecordsAsync(string chainId, long startBlockHeight,
-        long endBlockHeight)
+        long endBlockHeight, int skipCount, int maxResultCount)
     {
         /*if (startBlockHeight > endBlockHeight)
         {
@@ -131,8 +134,8 @@ public class GraphQLProvider : IGraphQLProvider, ISingletonDependency
         var graphQlResponse = await _graphQLClient.SendQueryAsync<LiquidityRecordResultDto>(new GraphQLRequest
         {
             Query =
-                @"query($chainId:String,$startBlockHeight:Long!,$endBlockHeight:Long!){
-            getLiquidityRecords(dto: {chainId:$chainId,startBlockHeight:$startBlockHeight,endBlockHeight:$endBlockHeight, skipCount:0, maxResultCount:10000})
+                @"query($chainId:String,$startBlockHeight:Long!,$endBlockHeight:Long!,$maxResultCount:Int!,$skipCount:Int!){
+            getLiquidityRecords(dto: {chainId:$chainId,startBlockHeight:$startBlockHeight,endBlockHeight:$endBlockHeight,maxResultCount:$maxResultCount,skipCount:$skipCount})
             {
                 chainId,
                 pair,
@@ -154,7 +157,9 @@ public class GraphQLProvider : IGraphQLProvider, ISingletonDependency
             {
                 chainId,
                 startBlockHeight,
-                endBlockHeight
+                endBlockHeight,
+                maxResultCount,
+                skipCount
             }
         });
         
@@ -171,7 +176,7 @@ public class GraphQLProvider : IGraphQLProvider, ISingletonDependency
         return graphQlResponse.Data.GetLiquidityRecords;
     }
 
-    public async Task<List<SwapRecordDto>> GetSwapRecordsAsync(string chainId, long startBlockHeight, long endBlockHeight)
+    public async Task<List<SwapRecordDto>> GetSwapRecordsAsync(string chainId, long startBlockHeight, long endBlockHeight, int skipCount, int maxResultCount)
     {
         // if (startBlockHeight > endBlockHeight)
         // {
@@ -182,8 +187,8 @@ public class GraphQLProvider : IGraphQLProvider, ISingletonDependency
         var graphQlResponse = await _graphQLClient.SendQueryAsync<SwapRecordResultDto>(new GraphQLRequest
         {
             Query =
-                @"query($chainId:String,$startBlockHeight:Long!,$endBlockHeight:Long!){
-            getSwapRecords(dto: {chainId:$chainId,startBlockHeight:$startBlockHeight,endBlockHeight:$endBlockHeight,skipCount:0,maxResultCount:10000})
+                @"query($chainId:String,$startBlockHeight:Long!,$endBlockHeight:Long!,$maxResultCount:Int!,$skipCount:Int!){
+            getSwapRecords(dto: {chainId:$chainId,startBlockHeight:$startBlockHeight,endBlockHeight:$endBlockHeight,maxResultCount:$maxResultCount,skipCount:$skipCount})
             {
                 chainId,
                 pairAddress,
@@ -202,7 +207,9 @@ public class GraphQLProvider : IGraphQLProvider, ISingletonDependency
             {
                 chainId,
                 startBlockHeight,
-                endBlockHeight
+                endBlockHeight,
+                maxResultCount,
+                skipCount
             }
         });
         if (graphQlResponse.Errors != null)
@@ -217,15 +224,15 @@ public class GraphQLProvider : IGraphQLProvider, ISingletonDependency
         return graphQlResponse.Data.GetSwapRecords;
     }
 
-    public async Task<List<SyncRecordDto>> GetSyncRecordsAsync(string chainId, long startBlockHeight, long endBlockHeight)
+    public async Task<List<SyncRecordDto>> GetSyncRecordsAsync(string chainId, long startBlockHeight, long endBlockHeight, int skipCount, int maxResultCount)
     {
 
 
         var graphQlResponse = await _graphQLClient.SendQueryAsync<SyncRecordResultDto>(new GraphQLRequest
         {
             Query =
-                @"query($chainId:String,$startBlockHeight:Long!,$endBlockHeight:Long!){
-            getSyncRecords(dto: {chainId:$chainId,startBlockHeight:$startBlockHeight,endBlockHeight:$endBlockHeight,skipCount:0,maxResultCount:10000})
+                @"query($chainId:String,$startBlockHeight:Long!,$endBlockHeight:Long!,$maxResultCount:Int!,$skipCount:Int!){
+            getSyncRecords(dto: {chainId:$chainId,startBlockHeight:$startBlockHeight,endBlockHeight:$endBlockHeight,maxResultCount:$maxResultCount,skipCount:$skipCount})
             {
                 chainId,
                 pairAddress,
@@ -234,13 +241,16 @@ public class GraphQLProvider : IGraphQLProvider, ISingletonDependency
                 reserveA,
                 reserveB,
                 timestamp,
-                blockHeight
+                blockHeight,
+                TransactionHash
             }}",
             Variables = new
             {
                 chainId,
                 startBlockHeight,
-                endBlockHeight
+                endBlockHeight,
+                maxResultCount,
+                skipCount
             }
         });
         if (graphQlResponse.Errors != null)

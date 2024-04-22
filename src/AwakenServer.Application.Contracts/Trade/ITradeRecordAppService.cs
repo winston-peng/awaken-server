@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Threading.Tasks;
 using AwakenServer.Trade.Dtos;
 using Volo.Abp.Application.Dtos;
@@ -19,11 +20,12 @@ namespace AwakenServer.Trade
         Task<bool> CreateAsync(SwapRecordDto dto);
 
         Task FillRecord(SwapRecordDto dto);
-
-
+        
         Task RevertTradeRecordAsync(string chainId);
 
         Task<int> GetUserTradeAddressCountAsync(string chainId, Guid tradePairId, DateTime? minDateTime = null,
             DateTime? maxDateTime = null);
+
+        Task DoRevertAsync(string chainId, List<string> needDeletedTradeRecords);
     }
 }

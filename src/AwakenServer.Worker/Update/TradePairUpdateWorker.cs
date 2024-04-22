@@ -15,7 +15,7 @@ namespace AwakenServer.Worker
 {
     public class TradePairUpdateWorker : AwakenServerWorkerBase
     {
-        protected override WorkerBusinessType BusinessType => WorkerBusinessType.TradePairUpdate;
+        protected override WorkerBusinessType _businessType => WorkerBusinessType.TradePairUpdate;
         
         protected readonly IChainAppService _chainAppService;
         protected readonly IGraphQLProvider _graphQlProvider;

@@ -4,6 +4,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using AElf.Indexing.Elasticsearch;
 using AwakenServer.CMS;
+using AwakenServer.Common;
 using AwakenServer.Grains;
 using AwakenServer.Grains.Grain.Price.TradePair;
 using AwakenServer.Grains.Grain.Price.TradeRecord;
@@ -43,6 +44,7 @@ namespace AwakenServer.Trade
         private readonly IDistributedEventBus _distributedEventBus;
         private readonly IGraphQLProvider _graphQlProvider;
         private readonly IBus _bus;
+        private readonly IRevertProvider _revertProvider;
 
 
         private const string ASC = "asc";
@@ -62,7 +64,8 @@ namespace AwakenServer.Trade
             IOptionsSnapshot<TradeRecordRevertWorkerSettings> tradeRecordOptions,
             IDistributedEventBus distributedEventBus,
             IGraphQLProvider graphQlProvider,
-            IBus bus)
+            IBus bus,
+            IRevertProvider revertProvider)
         {
             _tradeRecordIndexRepository = tradeRecordIndexRepository;
             _userTradeSummaryIndexRepository = userTradeSummaryIndexRepository;
@@ -75,13 +78,14 @@ namespace AwakenServer.Trade
             _distributedEventBus = distributedEventBus;
             _graphQlProvider = graphQlProvider;
             _bus = bus;
+            _revertProvider = revertProvider;
         }
 
         public async Task<TradeRecordIndexDto> GetRecordAsync(string transactionId)
         {
             var mustQuery = new List<Func<QueryContainerDescriptor<Index.TradeRecord>, QueryContainer>>();
             mustQuery.Add(q => q.Term(i => i.Field(f => f.TransactionHash).Value(transactionId)));
-
+            mustQuery.Add(q => q.Term(i => i.Field(f => f.IsDeleted).Value(false)));
 
             QueryContainer Filter(QueryContainerDescriptor<Index.TradeRecord> f) => f.Bool(b => b.Must(mustQuery));
 
@@ -171,6 +175,7 @@ namespace AwakenServer.Trade
                 var side = input.Side.Value == 0 ? TradeSide.Buy : TradeSide.Sell;
                 mustQuery.Add(q => q.Term(i => i.Field(f => f.Side).Value(side)));
             }
+            mustQuery.Add(q => q.Term(i => i.Field(f => f.IsDeleted).Value(false)));
 
             QueryContainer Filter(QueryContainerDescriptor<Index.TradeRecord> f) => f.Bool(b => b.Must(mustQuery));
 
@@ -270,6 +275,8 @@ namespace AwakenServer.Trade
                 _logger.LogInformation("swap event transactionHash existed: {transactionHash}", dto.TransactionHash);
                 return true;
             }
+            
+            await _revertProvider.checkOrAddUnconfirmedTransaction(EventType.SwapEvent, dto.ChainId, dto.BlockHeight, dto.TransactionHash);
 
             var pair = await GetAsync(dto.ChainId, dto.PairAddress);
             if (pair == null)
@@ -326,7 +333,7 @@ namespace AwakenServer.Trade
         }
 
 
-        public async Task<bool> RevertRecordAsync(Index.TradeRecord dto)
+        public async Task<bool> RevertFieldAsync(Index.TradeRecord dto)
         {
             var tradeRecordGrain =
                 _clusterClient.GetGrain<ITradeRecordGrain>(
@@ -360,9 +367,7 @@ namespace AwakenServer.Trade
 
             // update kLine and trade pair by publish event : NewTradeRecordEvent, Handler: KLineHandler and kNewTradeRecordHandler
             await _localEventBus.PublishAsync(ObjectMapper.Map<TradeRecord, NewTradeRecordEvent>(tradeRecord));
-
-            // add unconfirmed data to cache for revert
-            // await CreateCacheAsync(pair.Id, dto);
+            
             return true;
         }
 
@@ -422,70 +427,52 @@ namespace AwakenServer.Trade
             ));
         }
 
+        public async Task DoRevertAsync(string chainId, List<string> needDeletedTradeRecords)
+        {
+            if (needDeletedTradeRecords.IsNullOrEmpty())
+            {
+                return;
+            }
 
+            var needDeleteIndexes = await GetRecordAsync(chainId, needDeletedTradeRecords, _tradeRecordRevertWorkerOptions.QueryOnceLimit);
+            foreach (var tradeRecord in needDeleteIndexes)
+            {
+                tradeRecord.IsDeleted = true;
+            }
+                
+            await _tradeRecordIndexRepository.BulkAddOrUpdateAsync(needDeleteIndexes);
+
+            var listDto = new List<TradeRecordRemovedDto>();
+            foreach (var tradeRecord in needDeleteIndexes)
+            {
+                await RevertFieldAsync(tradeRecord);
+                listDto.Add(new TradeRecordRemovedDto()
+                {
+                    ChainId = chainId,
+                    TradePairId = tradeRecord.TradePair.Id,
+                    Address = tradeRecord.Address,
+                    TransactionHash = tradeRecord.TransactionHash
+                });
+            }
+
+            await _bus.Publish(
+                new RemovedIndexEvent<TradeRecordRemovedListResultDto>
+                {
+                    Data = new TradeRecordRemovedListResultDto()
+                    {
+                        Items = listDto
+                    }
+                });
+        }
+        
         public async Task RevertTradeRecordAsync(string chainId)
         {
             try
             {
-                var confirmBlockHeightGrain =
-                    _clusterClient.GetGrain<IConfirmBlockHeightGrain>(GrainIdHelper.GenerateGrainId(chainId));
-                var confirmedHeight = await _graphQlProvider.GetIndexBlockHeightAsync(chainId);
-                var startBlockHeight = confirmBlockHeightGrain.GetAsync().Result.Data;
-                startBlockHeight = startBlockHeight > 0 ? startBlockHeight : confirmedHeight;
+                var needDeletedTradeRecords =
+                    await _revertProvider.GetNeedDeleteTransactionsAsync(EventType.SwapEvent, chainId);
 
-                startBlockHeight -= _tradeRecordRevertWorkerOptions.StartBlockHeightGap;
-
-                var indexRecordList =
-                    await _graphQlProvider.GetSwapRecordsAsync(chainId, startBlockHeight, confirmedHeight);
-                if (indexRecordList.IsNullOrEmpty())
-                {
-                    _logger.LogInformation("get trade record list is empty,block height range{0}-{1}", startBlockHeight,
-                        confirmedHeight);
-                }
-
-                var serverRecordList = await GetRangeRecordAsync(chainId, startBlockHeight, confirmedHeight, 5000);
-
-                var needDeletedTradeRecords = serverRecordList
-                    .Where(s => indexRecordList.All(i => i.TransactionHash != s.TransactionHash)).ToList();
-
-                if (needDeletedTradeRecords.IsNullOrEmpty())
-                {
-                    return;
-                }
-
-                foreach (var tradeRecord in needDeletedTradeRecords)
-                {
-                    tradeRecord.IsDeleted = true;
-                }
-
-                _logger.LogInformation(
-                    "Need revert trade record,block height range:{0}-{1},count:{2},transaction hash list:{3}",
-                    startBlockHeight, confirmedHeight, needDeletedTradeRecords.Count(),
-                    needDeletedTradeRecords.Select(s => s.TransactionHash).ToList());
-
-                await _tradeRecordIndexRepository.BulkAddOrUpdateAsync(needDeletedTradeRecords);
-
-                var listDto = new List<TradeRecordRemovedDto>();
-                foreach (var tradeRecord in needDeletedTradeRecords)
-                {
-                    await RevertRecordAsync(tradeRecord);
-                    listDto.Add(new TradeRecordRemovedDto()
-                    {
-                        ChainId = chainId,
-                        TradePairId = tradeRecord.TradePair.Id,
-                        Address = tradeRecord.Address,
-                        TransactionHash = tradeRecord.TransactionHash
-                    });
-                }
-
-                await _bus.Publish(
-                    new RemovedIndexEvent<TradeRecordRemovedListResultDto>
-                    {
-                        Data = new TradeRecordRemovedListResultDto()
-                        {
-                            Items = listDto
-                        }
-                    });
+                await DoRevertAsync(chainId, needDeletedTradeRecords);
             }
             catch (Exception e)
             {
@@ -545,22 +532,20 @@ namespace AwakenServer.Trade
             mustQuery.Add(q => q.Term(i => i.Field(f => f.ChainId).Value(chainId)));
             mustQuery.Add(q => q.Term(i => i.Field(f => f.IsConfirmed).Value(false)));
             mustQuery.Add(q => q.Range(i => i.Field(f => f.BlockHeight).LessThanOrEquals(blockHeight)));
-
+            mustQuery.Add(q => q.Term(i => i.Field(f => f.IsDeleted).Value(false)));
+            
             QueryContainer Filter(QueryContainerDescriptor<Index.TradeRecord> f) => f.Bool(b => b.Must(mustQuery));
             var list = await _tradeRecordIndexRepository.GetListAsync(Filter, limit: maxResultCount, skip: skipCount,
                 sortExp: m => m.BlockHeight);
             return list.Item2;
         }
 
-        private async Task<List<Index.TradeRecord>> GetRangeRecordAsync(string chainId, long startBlockHeight,
-            long endBlockHeight,
-            int maxResultCount)
+        private async Task<List<Index.TradeRecord>> GetRecordAsync(string chainId, List<string> transactionHashs, int maxResultCount)
         {
             var mustQuery = new List<Func<QueryContainerDescriptor<Index.TradeRecord>, QueryContainer>>();
             mustQuery.Add(q => q.Term(i => i.Field(f => f.ChainId).Value(chainId)));
             mustQuery.Add(q => q.Term(i => i.Field(f => f.IsDeleted).Value(false)));
-            mustQuery.Add(q => q.Range(i => i.Field(f => f.BlockHeight).GreaterThanOrEquals(startBlockHeight)));
-            mustQuery.Add(q => q.Range(i => i.Field(f => f.BlockHeight).LessThanOrEquals(endBlockHeight)));
+            mustQuery.Add(q => q.Terms(i => i.Field(f => f.TransactionHash).Terms(transactionHashs)));
             QueryContainer Filter(QueryContainerDescriptor<Index.TradeRecord> f) => f.Bool(b => b.Must(mustQuery));
 
             var list = await _tradeRecordIndexRepository.GetListAsync(Filter, limit: maxResultCount,

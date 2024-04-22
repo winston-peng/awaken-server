@@ -8,11 +8,9 @@ namespace AwakenServer.Grains.State.Trade;
 public class TradePairState
 {
     public Guid Id { get; set; }
-    
+    public bool IsDeleted { get; set; }
     public HashSet<string> MarketDataSnapshotGrainIds { get; set; } = new();
-    
     public virtual string ChainId { get; set; }
-    
     public Token Token0 { get; set; }
     public Token Token1 { get; set; }
     

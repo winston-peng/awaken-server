@@ -67,7 +67,7 @@ namespace AwakenServer.Trade
             await _tradePairIndexRepository.AddAsync(tradePair);
             await _tradeRecordAppService.CreateAsync(swapRecordDto);
             _graphQlProvider.AddSwapRecord(swapRecordDto);
-            var swapList = _graphQlProvider.GetSwapRecordsAsync(ChainId, 0 , 100);
+            var swapList = _graphQlProvider.GetSwapRecordsAsync(ChainId, 0 , 100, 0, 10000);
             swapList.Result.Count.ShouldBe(1);
             var ret = await _tradeRecordAppService.CreateAsync(swapRecordDto);
             ret.ShouldBe(true);

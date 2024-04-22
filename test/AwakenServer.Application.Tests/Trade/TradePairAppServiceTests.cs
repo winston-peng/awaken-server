@@ -169,9 +169,9 @@ namespace AwakenServer.Trade
                 }
             };
             await _tradePairIndexRepository.AddAsync(tradePair);
-            await _tradePairAppService.UpdateLiquidityAsync(syncRecordDto);
+            await _tradePairAppService.CreateSyncAsync(syncRecordDto);
             _mockGraphQLProvider.AddSyncRecord(syncRecordDto);
-            var syncList = _mockGraphQLProvider.GetSyncRecordsAsync(ChainId, 0, 100);
+            var syncList = _mockGraphQLProvider.GetSyncRecordsAsync(ChainId, 0, 100, 0, 10000);
             syncList.Result.Count.ShouldBe(1);
         }
 
@@ -189,7 +189,7 @@ namespace AwakenServer.Trade
                 Timestamp = DateTimeHelper.ToUnixTimeMilliseconds(DateTime.UtcNow.AddDays(-2))
             };
             
-            await _tradePairAppService.UpdateLiquidityAsync(newLiquidity);
+            await _tradePairAppService.CreateSyncAsync(newLiquidity);
             
             var snapshotTime =
                 _tradePairMarketDataProvider.GetSnapshotTime(DateTimeHelper.FromUnixTimeMilliseconds(newLiquidity.Timestamp));
@@ -224,7 +224,7 @@ namespace AwakenServer.Trade
                 Timestamp = DateTimeHelper.ToUnixTimeMilliseconds(DateTime.UtcNow)
             };
             
-            await _tradePairAppService.UpdateLiquidityAsync(newLiquidity2);
+            await _tradePairAppService.CreateSyncAsync(newLiquidity2);
 
             snapshotTime =
                 _tradePairMarketDataProvider.GetSnapshotTime(
@@ -258,7 +258,7 @@ namespace AwakenServer.Trade
                 Timestamp = DateTimeHelper.ToUnixTimeMilliseconds(DateTime.UtcNow.AddDays(-1))
             };
             
-            await _tradePairAppService.UpdateLiquidityAsync(newLiquidity3);
+            await _tradePairAppService.CreateSyncAsync(newLiquidity3);
 
             snapshotTime =
                 _tradePairMarketDataProvider.GetSnapshotTime(
@@ -291,7 +291,7 @@ namespace AwakenServer.Trade
                 ReserveB = NumberFormatter.WithDecimals(12000, 6),
                 Timestamp = DateTimeHelper.ToUnixTimeMilliseconds(DateTime.UtcNow.AddDays(-1))
             };
-            await _tradePairAppService.UpdateLiquidityAsync(newLiquidity4);
+            await _tradePairAppService.CreateSyncAsync(newLiquidity4);
 
             snapshotTime =
                 _tradePairMarketDataProvider.GetSnapshotTime(

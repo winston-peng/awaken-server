@@ -2,9 +2,12 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using Volo.Abp.ObjectMapping;
 using AwakenServer.Chains;
+using AwakenServer.Common;
 using AwakenServer.Grains;
 using AwakenServer.Grains.Grain.Price.TradePair;
+using AwakenServer.Grains.Grain.Price.TradeRecord;
 using AwakenServer.Grains.Grain.Trade;
 using AwakenServer.Provider;
 using AwakenServer.Trade.Dtos;
@@ -28,7 +31,10 @@ namespace AwakenServer.Trade
         private readonly IAElfClientProvider _aelfClientProvider;
         private readonly ILocalEventBus _localEventBus;
         private readonly ILogger<LiquidityAppService> _logger;
+        private readonly IRevertProvider _revertProvider;
+        private readonly IObjectMapper _objectMapper;
 
+        
         private const string ASC = "asc";
         private const string ASCEND = "ascend";
         private const string ASSETUSD = "assetusd";
@@ -42,7 +48,9 @@ namespace AwakenServer.Trade
             IClusterClient clusterClient,
             IAElfClientProvider aefClientProvider,
             ILocalEventBus localEventBus,
-            ILogger<LiquidityAppService> logger)
+            ILogger<LiquidityAppService> logger,
+            IRevertProvider revertProvider,
+            IObjectMapper objectMapper)
         {
             _tokenPriceProvider = tokenPriceProvider;
             _tradePairAppService = tradePairAppService;
@@ -52,6 +60,8 @@ namespace AwakenServer.Trade
             _aelfClientProvider = aefClientProvider;
             _localEventBus = localEventBus;
             _logger = logger;
+            _revertProvider = revertProvider;
+            _objectMapper = objectMapper;
         }
 
         
@@ -295,18 +305,8 @@ namespace AwakenServer.Trade
             };
         }
 
-        public async Task CreateAsync(LiquidityRecordDto input)
+        public async Task UpdateTradePairFieldAsync(LiquidityRecordDto input)
         {
-            var grain = _clusterClient.GetGrain<ITransactionHashGrain>(
-                GrainIdHelper.GenerateGrainId(input.ChainId, input.TransactionHash));
-            if (await grain.ExistTransactionHashAsync(input.TransactionHash))
-            {
-                _logger.LogInformation("liquidity event transactionHash existed:{transactionHash}",
-                    input.TransactionHash);
-                return;
-            }
-
-            var chain = await _chainAppService.GetByNameCacheAsync(input.ChainId);
             var tradePair = await _tradePairAppService.GetTradePairAsync(input.ChainId, input.Pair);
             if (tradePair == null)
             {
@@ -324,14 +324,72 @@ namespace AwakenServer.Trade
             
             var liquidityEvent = new NewLiquidityRecordEvent
             {
-                ChainId = chain.Id,
+                ChainId = input.ChainId,
                 LpTokenAmount = input.LpTokenAmount.ToDecimalsString(8),
                 TradePairId = tradePair.Id,
                 Timestamp = DateTimeHelper.FromUnixTimeMilliseconds(input.Timestamp),
-                Type = input.Type
+                Type = input.Type,
+                IsRevert = input.IsRevert
             };
             await _localEventBus.PublishAsync(liquidityEvent);
-            await grain.AddTransactionHashAsync(input.TransactionHash);
+        }
+
+        public async Task DoRevertAsync(string chainId, List<string> needDeletedTradeRecords)
+        {
+            if (needDeletedTradeRecords.IsNullOrEmpty())
+            {
+                return;
+            }
+                
+            var needRevertDatas = new List<LiquidityRecordDto>();
+            foreach (var transactionHash in needDeletedTradeRecords)
+            {
+                var grain = _clusterClient.GetGrain<ILiquidityRecordGrain>(GrainIdHelper.GenerateGrainId(chainId, transactionHash));
+                var result = await grain.GetAsync();
+                if (result.Success)
+                {
+                    needRevertDatas.Add(_objectMapper.Map<LiquidityRecordGrainDto, LiquidityRecordDto>(result.Data));
+                }
+            }
+                
+            foreach (var revertLiquidity in needRevertDatas)
+            {
+                revertLiquidity.IsRevert = true;
+                await UpdateTradePairFieldAsync(revertLiquidity);
+            }
+        }
+        
+        public async Task RevertLiquidityAsync(string chainId)
+        {
+            try
+            {
+                var needDeletedTradeRecords =
+                    await _revertProvider.GetNeedDeleteTransactionsAsync(EventType.LiquidityEvent, chainId);
+
+                await DoRevertAsync(chainId, needDeletedTradeRecords);
+            }
+            catch (Exception e)
+            {
+                _logger.LogError("Revert liquidity err:{0}", e);
+            }
+        }
+        
+        public async Task CreateAsync(LiquidityRecordDto input)
+        {
+            var grain = _clusterClient.GetGrain<ILiquidityRecordGrain>(
+                GrainIdHelper.GenerateGrainId(input.ChainId, input.TransactionHash));
+            if (await grain.ExistAsync())
+            {
+                _logger.LogInformation("liquidity event transactionHash existed:{transactionHash}",
+                    input.TransactionHash);
+                return;
+            }
+
+            await _revertProvider.checkOrAddUnconfirmedTransaction(EventType.LiquidityEvent, input.ChainId, input.BlockHeight, input.TransactionHash);
+            
+            await UpdateTradePairFieldAsync(input);
+            
+            await grain.AddAsync(_objectMapper.Map<LiquidityRecordDto, LiquidityRecordGrainDto>(input));
         }
     }
 }

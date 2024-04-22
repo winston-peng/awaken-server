@@ -14,11 +14,9 @@ namespace AwakenServer.Worker;
 
 public abstract class AwakenServerWorkerBase : AsyncPeriodicBackgroundWorkerBase
 {
-    protected abstract WorkerBusinessType BusinessType { get; }
-    protected bool OpenSwitch { get; set; }
-    protected bool ResetBlockHeightFlag { get; set; }
-    protected long ResetBlockHeight { get; set; }
-    protected long QueryStartBlockHeightOffset { get; set; }
+    protected abstract WorkerBusinessType _businessType { get; }
+    
+    protected WorkerSetting _workerOptions { get; set; }
     
     protected readonly ILogger<AwakenServerWorkerBase> _logger;
     
@@ -37,29 +35,32 @@ public abstract class AwakenServerWorkerBase : AsyncPeriodicBackgroundWorkerBase
         _chainAppService = chainAppService;
         _graphQlProvider = graphQlProvider;
         
-        timer.Period = optionsMonitor.CurrentValue.GetWorkerSettings(BusinessType).TimePeriod;
+        timer.Period = optionsMonitor.CurrentValue.GetWorkerSettings(_businessType).TimePeriod;
         
-        OpenSwitch = optionsMonitor.CurrentValue.GetWorkerSettings(BusinessType) != null ?
-            optionsMonitor.CurrentValue.GetWorkerSettings(BusinessType).OpenSwitch : true;
+        _workerOptions.OpenSwitch = optionsMonitor.CurrentValue.GetWorkerSettings(_businessType) != null ?
+            optionsMonitor.CurrentValue.GetWorkerSettings(_businessType).OpenSwitch : true;
         
-        ResetBlockHeightFlag = optionsMonitor.CurrentValue.GetWorkerSettings(BusinessType) != null ?
-            optionsMonitor.CurrentValue.GetWorkerSettings(BusinessType).ResetBlockHeightFlag : false;
+        _workerOptions.ResetBlockHeightFlag = optionsMonitor.CurrentValue.GetWorkerSettings(_businessType) != null ?
+            optionsMonitor.CurrentValue.GetWorkerSettings(_businessType).ResetBlockHeightFlag : false;
         
-        ResetBlockHeight = optionsMonitor.CurrentValue.GetWorkerSettings(BusinessType) != null ?
-            optionsMonitor.CurrentValue.GetWorkerSettings(BusinessType).ResetBlockHeight : 0;
+        _workerOptions.ResetBlockHeight = optionsMonitor.CurrentValue.GetWorkerSettings(_businessType) != null ?
+            optionsMonitor.CurrentValue.GetWorkerSettings(_businessType).ResetBlockHeight : 0;
         
-        QueryStartBlockHeightOffset = optionsMonitor.CurrentValue.GetWorkerSettings(BusinessType) != null ?
-            optionsMonitor.CurrentValue.GetWorkerSettings(BusinessType).QueryStartBlockHeightOffset : -1;
+        _workerOptions.QueryStartBlockHeightOffset = optionsMonitor.CurrentValue.GetWorkerSettings(_businessType) != null ?
+            optionsMonitor.CurrentValue.GetWorkerSettings(_businessType).QueryStartBlockHeightOffset : -1;
         
-        _logger.LogInformation($"AwakenServerWorkerBase: BusinessType: {BusinessType.ToString()}," +
+        _workerOptions.QueryOnceLimit = optionsMonitor.CurrentValue.GetWorkerSettings(_businessType) != null ?
+            optionsMonitor.CurrentValue.GetWorkerSettings(_businessType).QueryOnceLimit : 10000;
+        
+        _logger.LogInformation($"AwakenServerWorkerBase: BusinessType: {_businessType.ToString()}," +
                                $"Start with config: " +
                                $"TimePeriod: {timer.Period}, " +
-                               $"ResetBlockHeightFlag: {ResetBlockHeightFlag}, " +
-                               $"ResetBlockHeight:{ResetBlockHeight}," +
-                               $"OpenSwitch: {OpenSwitch}," +
-                               $"QueryStartBlockHeightOffset: {QueryStartBlockHeightOffset}");
+                               $"ResetBlockHeightFlag: {_workerOptions.ResetBlockHeightFlag}, " +
+                               $"ResetBlockHeight:{_workerOptions.ResetBlockHeight}," +
+                               $"OpenSwitch: {_workerOptions.OpenSwitch}," +
+                               $"QueryStartBlockHeightOffset: {_workerOptions.QueryStartBlockHeightOffset}");
         
-        if (!OpenSwitch)
+        if (!_workerOptions.OpenSwitch)
         {
             timer.Stop();
         }
@@ -67,15 +68,13 @@ public abstract class AwakenServerWorkerBase : AsyncPeriodicBackgroundWorkerBase
         //to change timer Period if the WorkerOptions has changed.
         optionsMonitor.OnChange((newOptions, _) =>
         {
-            var workerSetting = newOptions.GetWorkerSettings(BusinessType);
+            var workerSetting = newOptions.GetWorkerSettings(_businessType);
             
             timer.Period = workerSetting.TimePeriod;
-            ResetBlockHeightFlag = workerSetting.ResetBlockHeightFlag;
-            ResetBlockHeight = workerSetting.ResetBlockHeight;
-            QueryStartBlockHeightOffset = workerSetting.QueryStartBlockHeightOffset;
-            OpenSwitch = workerSetting.OpenSwitch;
             
-            if (OpenSwitch)
+            _workerOptions = workerSetting;
+            
+            if (_workerOptions.OpenSwitch)
             {
                 timer.Start();
             }
@@ -86,7 +85,7 @@ public abstract class AwakenServerWorkerBase : AsyncPeriodicBackgroundWorkerBase
 
             _logger.LogInformation(
                 "The workerSetting of Worker {BusinessType} has changed to Period = {Period} ms, OpenSwitch = {OpenSwitch}.",
-                BusinessType, timer.Period, workerSetting.OpenSwitch);
+                _businessType, timer.Period, workerSetting.OpenSwitch);
         });
     }
     
@@ -99,38 +98,38 @@ public abstract class AwakenServerWorkerBase : AsyncPeriodicBackgroundWorkerBase
         {
             try
             {
-                if (ResetBlockHeightFlag)
+                if (_workerOptions.ResetBlockHeightFlag)
                 {
-                    await _graphQlProvider.SetLastEndHeightAsync(chain.Name, BusinessType, ResetBlockHeight);
+                    await _graphQlProvider.SetLastEndHeightAsync(chain.Name, _businessType, _workerOptions.ResetBlockHeight);
                 }
                 
-                var lastEndHeight = await _graphQlProvider.GetLastEndHeightAsync(chain.Name, BusinessType);
+                var lastEndHeight = await _graphQlProvider.GetLastEndHeightAsync(chain.Name, _businessType);
                 var newIndexHeight = await _graphQlProvider.GetIndexBlockHeightAsync(chain.Name);
                 
                 _logger.LogInformation(
-                    $"Start deal data for businessType: {BusinessType} " +
+                    $"Start deal data for businessType: {_businessType} " +
                     $"chainId: {chain.Name}, " +
                     $"lastEndHeight: {lastEndHeight}, " +
                     $"newIndexHeight: {newIndexHeight}, " +
-                    $"ResetBlockHeightFlag: {ResetBlockHeightFlag}, " +
-                    $"ResetBlockHeight: {ResetBlockHeight}, " +
-                    $"QueryStartBlockHeightOffset: {QueryStartBlockHeightOffset}");
+                    $"ResetBlockHeightFlag: {_workerOptions.ResetBlockHeightFlag}, " +
+                    $"ResetBlockHeight: {_workerOptions.ResetBlockHeight}, " +
+                    $"QueryStartBlockHeightOffset: {_workerOptions.QueryStartBlockHeightOffset}");
                 
-                var blockHeight = await SyncDataAsync(chain, lastEndHeight + QueryStartBlockHeightOffset, newIndexHeight);
+                var blockHeight = await SyncDataAsync(chain, lastEndHeight + _workerOptions.QueryStartBlockHeightOffset, newIndexHeight);
 
                 if (blockHeight > 0)
                 {
-                    await _graphQlProvider.SetLastEndHeightAsync(chain.Name, BusinessType, blockHeight);
+                    await _graphQlProvider.SetLastEndHeightAsync(chain.Name, _businessType, blockHeight);
                 }
                 
                 _logger.LogInformation(
                     "End deal data for businessType: {businessType} chainId: {chainId} lastEndHeight: {BlockHeight}",
-                    BusinessType, chain.Name, blockHeight);
+                    _businessType, chain.Name, blockHeight);
             }
             catch (Exception e)
             {
                 _logger.LogError(e, "DealDataAsync error businessType:{businessType} chainId: {chainId}",
-                    BusinessType.ToString(), chain.Name);
+                    _businessType.ToString(), chain.Name);
             }
         }
     }

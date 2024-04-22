@@ -122,7 +122,7 @@ public class AwakenServerGrainTestModule : AbpModule
             TotalSupply = "100000",
         }));
 
-        AsyncHelper.RunSync(async () => grain.UpdateLiquidityAsync(new SyncRecordGrainDto()
+        AsyncHelper.RunSync(async () => grain.UpdatePriceAsync(new SyncRecordGrainDto()
         {
             ChainId = environmentProvider.EthChainId,
             PairAddress = environmentProvider.TradePairEthUsdtAddress,

@@ -1,19 +1,15 @@
-using System.Collections.Generic;
-using System.Runtime.Serialization;
-using System.Threading.Tasks;
-using AwakenServer.Grains.Grain.Price.TradePair;
 using AwakenServer.Grains.State.Trade;
-using Microsoft.Extensions.Logging;
 using Orleans;
+using Microsoft.Extensions.Logging;
 using Volo.Abp.ObjectMapping;
 
 namespace AwakenServer.Grains.Grain.Trade;
 
-public class LiquidityRecordGrain : Grain<LiquidityRecordState>, ILiquidityRecordGrain
+public class SyncRecordGrain : Grain<SyncRecordsState>, ISyncRecordGrain
 {
     private readonly IObjectMapper _objectMapper;
     private readonly ILogger<LiquidityRecordGrain> _logger;
-    public LiquidityRecordGrain(IObjectMapper objectMapper,
+    public SyncRecordGrain(IObjectMapper objectMapper,
         IClusterClient clusterClient,
         ILogger<LiquidityRecordGrain> logger)
     {
@@ -32,20 +28,19 @@ public class LiquidityRecordGrain : Grain<LiquidityRecordState>, ILiquidityRecor
         await WriteStateAsync();
         await base.OnDeactivateAsync();
     }
-
     
-    public async Task AddAsync(LiquidityRecordGrainDto liquidityRecord)
+    public async Task AddAsync(SyncRecordsGrainDto dto)
     {
-        State = _objectMapper.Map<LiquidityRecordGrainDto, LiquidityRecordState>(liquidityRecord);
+        State = _objectMapper.Map<SyncRecordsGrainDto, SyncRecordsState>(dto);
         await WriteStateAsync();
     }
 
-    public async Task<GrainResultDto<LiquidityRecordGrainDto>> GetAsync()
+    public async Task<GrainResultDto<SyncRecordsGrainDto>> GetAsync()
     {
-        return new GrainResultDto<LiquidityRecordGrainDto>
+        return new GrainResultDto<SyncRecordsGrainDto>
         {
             Success = true,
-            Data = _objectMapper.Map<LiquidityRecordState, LiquidityRecordGrainDto>(State)
+            Data = _objectMapper.Map<SyncRecordsState, SyncRecordsGrainDto>(State)
         };
     }
 
