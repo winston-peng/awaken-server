@@ -88,58 +88,13 @@ public class AssetAppService : ApplicationService, IAssetAppService
     private async Task<UserAssetInfoDto> FilterListAsync(List<UserTokenInfo> list)
     {
         var showList = new List<UserTokenInfo>();
-        var hiddenList = new List<UserTokenInfo>();
-
-        foreach (var userTokenInfo in list)
-        {
-            if (_assetShowOptions.ShowList.Contains(userTokenInfo.Symbol))
-            {
-                showList.Add(userTokenInfo);
-            }
-            else
-            {
-                hiddenList.Add(userTokenInfo);
-            }
-        }
-
-        showList = showList.Where(o => o.PriceInUsd != null).Where(o => o.Balance > 0)
+        showList = list.Where(o => o.PriceInUsd != null).Where(o => o.Balance > 0)
             .OrderByDescending(o => Double.Parse(o.PriceInUsd)).ThenBy(o => o.Symbol).ToList();
-
-        hiddenList = hiddenList.Where(o => o.PriceInUsd != null).Where(o => o.Balance > 0)
-            .OrderByDescending(o => Double.Parse(o.PriceInUsd)).ThenBy(o => o.Symbol).ToList();
-
-        if (showList.Count < _assetShowOptions.ShowListLength)
-        {
-            var fillLen = _assetShowOptions.ShowListLength - showList.Count;
-
-            if (hiddenList.Count >= fillLen)
-            {
-                showList.AddRange(hiddenList.GetRange(0, fillLen));
-                hiddenList = hiddenList.GetRange(fillLen, hiddenList.Count - fillLen);
-            }
-            else
-            {
-                showList.AddRange(hiddenList);
-                hiddenList = new List<UserTokenInfo>();
-            }
-
-            showList = showList.Where(o => o.PriceInUsd != null).Where(o => o.Balance > 0)
-                .OrderByDescending(o => Double.Parse(o.PriceInUsd)).ThenBy(o => o.Symbol).ToList();
-        }
-
-        if (showList.Count > _assetShowOptions.ShowListLength)
-        {
-            hiddenList.InsertRange(0, showList.GetRange(_assetShowOptions.ShowListLength,
-                showList.Count - _assetShowOptions.ShowListLength));
-
-
-            showList.RemoveRange(_assetShowOptions.ShowListLength, showList.Count - _assetShowOptions.ShowListLength);
-        }
 
         return new UserAssetInfoDto()
         {
             ShowList = showList,
-            HiddenList = hiddenList
+            HiddenList = new List<UserTokenInfo>()
         };
     }
 
