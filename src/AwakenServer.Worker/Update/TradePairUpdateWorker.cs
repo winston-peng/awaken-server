@@ -25,8 +25,9 @@ namespace AwakenServer.Worker
             ITradePairAppService tradePairAppService, IChainAppService chainAppService,
             IGraphQLProvider graphQlProvider,
             IOptionsMonitor<WorkerOptions> optionsMonitor,
-            ILogger<AwakenServerWorkerBase> logger)
-            : base(timer, serviceScopeFactory, optionsMonitor, graphQlProvider, chainAppService, logger)
+            ILogger<AwakenServerWorkerBase> logger,
+            IOptions<ChainsInitOptions> chainsOption)
+            : base(timer, serviceScopeFactory, optionsMonitor, graphQlProvider, chainAppService, logger, chainsOption)
         {
             _chainAppService = chainAppService;
             _graphQlProvider = graphQlProvider;

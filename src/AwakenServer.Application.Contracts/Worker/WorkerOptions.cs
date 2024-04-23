@@ -35,15 +35,3 @@ public class TradeRecordRevertWorkerSettings : WorkerSetting
     public int BatchFlushCount { get; set; } = 10;
     public int StartBlockHeightGap { get; set; } = 10;
 }
-
-public class TradePairTokenOrderOptions
-{
-    public Dictionary<string, TradePairToken> TradePairTokens { get; set; } = new();
-}
-
-public class TradePairToken
-{
-    public string Address { get; set; }
-    public string Symbol { get; set; }
-    public int Weight { get; set; }
-}

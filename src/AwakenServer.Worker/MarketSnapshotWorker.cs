@@ -27,7 +27,8 @@ public class MarketSnapshotWorker : AwakenServerWorkerBase
         IChainAppService chainAppService, ITradePairAppService tradePairAppService,
         IFlushCacheService flushCacheService, ILogger<AwakenServerWorkerBase> logger,
         IOptionsMonitor<WorkerOptions> optionsMonitor,
-        IGraphQLProvider graphQlProvider) : base(timer, serviceScopeFactory, optionsMonitor, graphQlProvider, chainAppService, logger)
+        IGraphQLProvider graphQlProvider,
+        IOptions<ChainsInitOptions> chainsOption) : base(timer, serviceScopeFactory, optionsMonitor, graphQlProvider, chainAppService, logger, chainsOption)
     {
         _chainAppService = chainAppService;
         _tradePairAppService = tradePairAppService;

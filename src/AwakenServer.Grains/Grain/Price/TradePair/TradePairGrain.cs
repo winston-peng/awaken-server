@@ -286,7 +286,12 @@ public class TradePairGrain : Grain<TradePairState>, ITradePairGrain
     {
         if (State.Id == Guid.Empty || State.Token0 == null || State.Token1 == null)
         {
-            throw new Exception("tradePair not existed");
+            _logger.LogError($"add snapshot to an error trade pair, id: {snapshotDto.TradePairId}, " +
+                             $"timestamp: {snapshotDto.Timestamp}");
+            return new GrainResultDto<TradePairMarketDataSnapshotUpdateResult>
+            {
+                Success = false
+            };
         }
 
         snapshotDto.Timestamp = GetSnapshotTime(snapshotDto.Timestamp);

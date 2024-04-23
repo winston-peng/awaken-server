@@ -45,7 +45,7 @@ public class GraphQLProvider : IGraphQLProvider, ISingletonDependency
                 @"query($id:String = null ,$chainId:String = null,$address:String = null,$token0Symbol:String = null,
             $token1Symbol:String = null,$tokenSymbol:String = null,$feeRate:Float!,$startBlockHeight:Long!,$endBlockHeight:Long!,$maxResultCount:Int!,$skipCount:Int!){
             tradePairInfoDtoList:getTradePairInfoList(getTradePairInfoDto: {id:$id,chainId:$chainId,address:$address,token0Symbol:$token0Symbol,
-            token1Symbol:$token1Symbol,tokenSymbol:$tokenSymbol,feeRate:$feeRate,skipCount:0,maxResultCount:1000,
+            token1Symbol:$token1Symbol,tokenSymbol:$tokenSymbol,feeRate:$feeRate,
             startBlockHeight:$startBlockHeight,endBlockHeight:$endBlockHeight,maxResultCount:$maxResultCount,skipCount:$skipCount}){
             totalCount,
             data {
@@ -57,7 +57,7 @@ public class GraphQLProvider : IGraphQLProvider, ISingletonDependency
                 feeRate,
                 isTokenReversed,
                 blockHeight,
-                TransactionHash
+                transactionHash
             }}}",
             
             Variables = new
@@ -242,7 +242,7 @@ public class GraphQLProvider : IGraphQLProvider, ISingletonDependency
                 reserveB,
                 timestamp,
                 blockHeight,
-                TransactionHash
+                transactionHash
             }}",
             Variables = new
             {

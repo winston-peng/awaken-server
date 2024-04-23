@@ -29,6 +29,6 @@ namespace AwakenServer.Trade
         Task DeleteManyAsync(List<Guid> ids);
         Task SyncTokenAsync(string chainId, string symbol, ChainDto chain);
         Task SyncPairAsync(TradePairInfoDto pair, ChainDto chain);
-        Task RevertTradePairAsync(string chainId, int queryOnceLimit);
+        Task RevertTradePairAsync(string chainId);
     }
 }

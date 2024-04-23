@@ -28,8 +28,9 @@ public class TradePairEventSyncWorker : AwakenServerWorkerBase
         ITradePairAppService tradePairAppService, ILogger<AwakenServerWorkerBase> logger,
         IOptionsMonitor<WorkerOptions> optionsMonitor,
         IGraphQLProvider graphQlProvider,
-        IChainAppService chainAppService)
-        : base(timer, serviceScopeFactory, optionsMonitor, graphQlProvider, chainAppService, logger)
+        IChainAppService chainAppService,
+        IOptions<ChainsInitOptions> chainsOption)
+        : base(timer, serviceScopeFactory, optionsMonitor, graphQlProvider, chainAppService, logger, chainsOption)
     {
         _chainAppService = chainAppService;
         _graphQlProvider = graphQlProvider;
@@ -53,15 +54,15 @@ public class TradePairEventSyncWorker : AwakenServerWorkerBase
         {
             blockHeight = Math.Max(blockHeight, pair.BlockHeight);
 
-            _logger.LogInformation("Syncing {pairId} on {chainName}, {Token0Symbol}/{Token1Symbol}",
-                pair.Id, chain, pair.Token0Symbol, pair.Token1Symbol);
+            _logger.LogInformation("Syncing {pairId}/{pairAddress} on {chainName}, {Token0Symbol}/{Token1Symbol}",
+                pair.Id, pair.Address, chain, pair.Token0Symbol, pair.Token1Symbol);
 
             await _tradePairAppService.SyncTokenAsync(pair.ChainId, pair.Token0Symbol, chain);
             await _tradePairAppService.SyncTokenAsync(pair.ChainId, pair.Token1Symbol, chain);
             await _tradePairAppService.SyncPairAsync(pair, chain);
                 
-            _logger.LogInformation("Syncing {pairId} on {chainName}, {Token0Symbol}/{Token1Symbol} done",
-                pair.Id, chain, pair.Token0Symbol, pair.Token1Symbol);
+            _logger.LogInformation("Syncing {pairId}/{pairAddress} on {chainName}, {Token0Symbol}/{Token1Symbol} done",
+                pair.Id, pair.Address, chain, pair.Token0Symbol, pair.Token1Symbol);
         }
 
         return blockHeight;

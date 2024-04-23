@@ -42,19 +42,12 @@ public class UnconfirmedTransactionsGrain : Grain<UnconfirmedTransactionsState>,
             State.UnconfirmedTransactions.Add(dto.BlockHeight, new List<ToBeConfirmRecord>());
         }
         State.UnconfirmedTransactions[dto.BlockHeight].Add(_objectMapper.Map<UnconfirmedTransactionsGrainDto, ToBeConfirmRecord>(dto));
+        await WriteStateAsync();
         return new GrainResultDto<UnconfirmedTransactionsGrainDto>
         {
             Success = true,
             Data = dto
         };
-    }
-
-    public async Task UpdateMinUnconfirmedBlockHeightAsync()
-    {
-        foreach (var blockUnconfirmedTransaction in State.UnconfirmedTransactions)
-        {
-            State.MinUnconfirmedBlockHeight = Math.Min(State.MinUnconfirmedBlockHeight, blockUnconfirmedTransaction.Key);
-        }
     }
     
     public async Task<GrainResultDto<List<UnconfirmedTransactionsGrainDto>>> GetAsync(EventType type, long startBlock, long endBlock)
@@ -78,12 +71,17 @@ public class UnconfirmedTransactionsGrain : Grain<UnconfirmedTransactionsState>,
             }
         }
 
-        for (var i = startBlock; i < endBlock; i++)
+        if (!State.UnconfirmedTransactions.IsNullOrEmpty())
         {
-            State.UnconfirmedTransactions.Remove(i);
+            for (var i = startBlock; i <= endBlock; i++)
+            {
+                State.UnconfirmedTransactions.Remove(i);
+            }
         }
-
-        await UpdateMinUnconfirmedBlockHeightAsync();
+        
+        State.MinUnconfirmedBlockHeight = endBlock;
+        
+        await WriteStateAsync();
         
         return new GrainResultDto<List<UnconfirmedTransactionsGrainDto>>
         {

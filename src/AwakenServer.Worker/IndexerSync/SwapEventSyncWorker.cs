@@ -28,8 +28,9 @@ public class TradeRecordEventSwapWorker : AwakenServerWorkerBase
         ITradeRecordAppService tradeRecordAppService, ILogger<AwakenServerWorkerBase> logger,
         IOptionsMonitor<WorkerOptions> optionsMonitor,
         IGraphQLProvider graphQlProvider,
-        IChainAppService chainAppService)
-        : base(timer, serviceScopeFactory, optionsMonitor, graphQlProvider, chainAppService, logger)
+        IChainAppService chainAppService,
+        IOptions<ChainsInitOptions> chainsOption)
+        : base(timer, serviceScopeFactory, optionsMonitor, graphQlProvider, chainAppService, logger, chainsOption)
     {
         _chainAppService = chainAppService;
         _graphQlProvider = graphQlProvider;
@@ -40,7 +41,7 @@ public class TradeRecordEventSwapWorker : AwakenServerWorkerBase
     {
         long blockHeight = -1;
         
-        var queryList = await _graphQlProvider.GetSwapRecordsAsync(chain.Id, startHeight, 0, 0, 10000);
+        var queryList = await _graphQlProvider.GetSwapRecordsAsync(chain.Id, startHeight, 0, 0, _workerOptions.QueryOnceLimit);
         
         _logger.LogInformation("swap queryList count: {count}", queryList.Count);
             

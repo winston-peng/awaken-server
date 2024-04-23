@@ -60,11 +60,6 @@ public class AwakenServerEntityHandlerModule : AbpModule
         
         Configure<TradeRecordRevertWorkerSettings>(configuration.GetSection("WorkerSettings:TradeRecordRevert"));
         
-        Configure<TradePairTokenOrderOptions>(configuration.GetSection("TradePairTokenOrderOptions"));
-
-        var config = configuration.GetSection("TradePairTokenOrderOptions").Get<TradePairTokenOrderOptions>();
-        string json = JsonConvert.SerializeObject(config.TradePairTokens, Formatting.Indented);
-        
         context.Services.AddMassTransit(x =>
         {
             x.UsingRabbitMq((ctx, cfg) =>

@@ -351,33 +351,32 @@ namespace AwakenServer.Trade
             return ObjectMapper.Map<TradePairInfoIndex, TradePairDto>(tradePairInfo);
         }
 
+        public async Task DoRevertAsync(string chainId, List<string> needDeletedTradeRecords)
+        {
+            if (needDeletedTradeRecords.IsNullOrEmpty())
+            {
+                return;
+            }
+
+            var needDeleteIndexes = await GetListAsync(chainId, needDeletedTradeRecords, 10000);
+            foreach (var tradePair in needDeleteIndexes)
+            {
+                tradePair.IsDeleted = true;
+                var grain = _clusterClient.GetGrain<ITradePairGrain>(GrainIdHelper.GenerateGrainId(tradePair.Id));
+                await grain.AddOrUpdateAsync(_objectMapper.Map<Index.TradePair, TradePairGrainDto>(tradePair));
+            }
+                
+            await _tradePairIndexRepository.BulkAddOrUpdateAsync(needDeleteIndexes);
+        }
         
-        public async Task RevertTradePairAsync(string chainId, int queryOnceLimit)
+        public async Task RevertTradePairAsync(string chainId)
         {
             try
             {
                 var needDeletedTradeRecords =
                     await _revertProvider.GetNeedDeleteTransactionsAsync(EventType.TradePairEvent, chainId);
 
-                if (needDeletedTradeRecords.IsNullOrEmpty())
-                {
-                    return;
-                }
-
-                var needDeleteIndexes = await GetListAsync(chainId, needDeletedTradeRecords, queryOnceLimit);
-                foreach (var tradeRecord in needDeleteIndexes)
-                {
-                    tradeRecord.IsDeleted = true;
-                }
-                
-                await _tradePairIndexRepository.BulkAddOrUpdateAsync(needDeleteIndexes);
-
-                foreach (var tradeRecord in needDeleteIndexes)
-                {
-                    var grain = _clusterClient.GetGrain<ITradePairGrain>(GrainIdHelper.GenerateGrainId(tradeRecord.Id));
-                    tradeRecord.IsDeleted = true;
-                    await grain.AddOrUpdateAsync(_objectMapper.Map<Index.TradePair, TradePairGrainDto>(tradeRecord));
-                }
+                await DoRevertAsync(chainId, needDeletedTradeRecords);
             }
             catch (Exception e)
             {
@@ -392,8 +391,6 @@ namespace AwakenServer.Trade
             {
                 return;
             }
-            
-            await _revertProvider.checkOrAddUnconfirmedTransaction(EventType.SyncEvent, dto.ChainId, dto.BlockHeight, dto.TransactionHash);
             
             var pair = await GetAsync(dto.ChainId, dto.PairAddress);
             if (pair == null)
@@ -536,8 +533,7 @@ namespace AwakenServer.Trade
                 return;
             }
 
-            var tradePairGrain = _clusterClient.GetGrain<ITradePairGrain>(
-                GrainIdHelper.GenerateGrainId(pair.Id));
+            var tradePairGrain = _clusterClient.GetGrain<ITradePairGrain>(GrainIdHelper.GenerateGrainId(pair.Id));
             var existPairResultDto = await tradePairGrain.GetAsync();
 
             if (existPairResultDto.Success)
@@ -576,14 +572,13 @@ namespace AwakenServer.Trade
             grainDto.Token0 = token0;
             grainDto.Token1 = token1;
             
-            var grain = _clusterClient.GetGrain<ITradePairGrain>(GrainIdHelper.GenerateGrainId(pair.Id));
-            await grain.AddOrUpdateAsync(grainDto);
+            await tradePairGrain.AddOrUpdateAsync(grainDto);
             
             var chainTradePairsGrain = _clusterClient.GetGrain<IChainTradePairsGrain>(chain.Id);
             await chainTradePairsGrain.AddOrUpdateAsync(new ChainTradePairsGrainDto()
             {
                 TradePairAddress = pair.Address,
-                TradePairGrainId = grain.GetPrimaryKeyString()
+                TradePairGrainId = tradePairGrain.GetPrimaryKeyString()
             });
             
             _logger.LogInformation("create pair success Id:{pairId},chainId:{chainId},token0:{token0}," +

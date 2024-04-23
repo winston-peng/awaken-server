@@ -29,8 +29,9 @@ public class LiquidityEventSyncWorker : AwakenServerWorkerBase
         ILogger<AwakenServerWorkerBase> logger,
         IOptionsMonitor<WorkerOptions> optionsMonitor,
         IGraphQLProvider graphQlProvider,
-        IChainAppService chainAppService)
-        : base(timer, serviceScopeFactory, optionsMonitor, graphQlProvider, chainAppService, logger)
+        IChainAppService chainAppService,
+        IOptions<ChainsInitOptions> chainsOption)
+        : base(timer, serviceScopeFactory, optionsMonitor, graphQlProvider, chainAppService, logger, chainsOption)
     {
         _chainAppService = chainAppService;
         _graphQlProvider = graphQlProvider;

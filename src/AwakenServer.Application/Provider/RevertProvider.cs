@@ -17,6 +17,7 @@ using GraphQL.Client.Serializer.Newtonsoft;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Orleans;
+using Orleans.Runtime;
 using Volo.Abp.DependencyInjection;
 
 namespace AwakenServer.Provider;
@@ -60,27 +61,56 @@ public class RevertProvider : IRevertProvider
         var unconfirmedTransactionsGrain = _clusterClient.GetGrain<IUnconfirmedTransactionsGrain>(GrainIdHelper.GenerateGrainId(chainId, eventType));
         var confirmedHeight = await _graphQlProvider.GetIndexBlockHeightAsync(chainId);
         var startBlockHeight = await unconfirmedTransactionsGrain.GetMinUnconfirmedHeightAsync();
-
-        var confirmedTransactions = await GetConfirmedTransactionsAsync(eventType, chainId, startBlockHeight, confirmedHeight);
-                
-        if (confirmedTransactions.IsNullOrEmpty())
-        {
-            _logger.LogInformation("GetConfirmedTransactionsAsync is empty, block height range {0}-{1}", startBlockHeight,
-                confirmedHeight);
-        }
-
+        
         var unconfirmedTransactions = await GetUnConfirmedTransactionsAsync(eventType, chainId,
             startBlockHeight, confirmedHeight);
                 
-        var needDeletedTradeRecords = unconfirmedTransactions
-            .Where(unconfirmed => confirmedTransactions.All(confirmed => unconfirmed.TransactionHash != confirmed)).ToList();
+        _logger.LogInformation(
+            "got unconfirmed transactions, block height range: {0}-{1}, count: {2}",
+            startBlockHeight, confirmedHeight, unconfirmedTransactions.Count());
+        
+        _logger.Debug(
+            "got unconfirmed transactions, block height range: {0}-{1}, count: {2}, transaction hash list: {3}",
+            startBlockHeight, confirmedHeight, unconfirmedTransactions.Count(),
+            unconfirmedTransactions);
+
+        if (unconfirmedTransactions.Count <= 0)
+        {
+            return new List<string>();
+        }
+        
+        var confirmedTransactionSet = new HashSet<string>();
+        for (int i = 0; i < _revertOptions.RetryLimit; i++)
+        {
+            var confirmedTransactions = await GetConfirmedTransactionsAsync(eventType, chainId, startBlockHeight, confirmedHeight);
+            foreach (var confirmed in confirmedTransactions)
+            {
+                confirmedTransactionSet.Add(confirmed);
+            }
+        }
+        
+        _logger.LogInformation(
+            "got confirmed transactions, block height range: {0}-{1}, count: {2}, transaction hash list: {3}",
+            startBlockHeight, confirmedHeight, confirmedTransactionSet.Count(),
+            confirmedTransactionSet.ToList());
+        
+        if (confirmedTransactionSet.IsNullOrEmpty())
+        {
+            _logger.LogError("confirmed transactions is empty, block height range {0}-{1}", startBlockHeight,
+                confirmedHeight);
+            return new List<string>();
+        }
+
+        
+        var needDeletedTransactions = unconfirmedTransactions
+            .Where(unconfirmed => !confirmedTransactionSet.Contains(unconfirmed.TransactionHash)).ToList();
 
         _logger.LogInformation(
-            "Need revert trade record, block height range:{0}-{1}, count:{2}, transaction hash list:{3}",
-            startBlockHeight, confirmedHeight, needDeletedTradeRecords.Count(),
-            needDeletedTradeRecords.Select(s => s).ToList());
+            "need delete transactions, block height range:{0}-{1}, count:{2}, transaction hash list:{3}",
+            startBlockHeight, confirmedHeight, needDeletedTransactions.Count(),
+            needDeletedTransactions.Select(s => s).ToList());
         
-        return needDeletedTradeRecords.Select(dto => dto.TransactionHash).ToList();
+        return needDeletedTransactions.Select(dto => dto.TransactionHash).ToList();
     }
     
     public async Task<List<UnconfirmedTransactionsGrainDto>> GetUnConfirmedTransactionsAsync(EventType eventType, string chainId,

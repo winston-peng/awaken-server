@@ -13,7 +13,7 @@ using Volo.Abp.Threading;
 
 namespace AwakenServer.Worker
 {
-    public class TransactionRevertWorkerBase : AwakenServerWorkerBase
+    public class TransactionRevertWorker : AwakenServerWorkerBase
     {
         protected override WorkerBusinessType _businessType => WorkerBusinessType.TransactionRevert;
         
@@ -24,14 +24,15 @@ namespace AwakenServer.Worker
         private readonly ITradeRecordAppService _tradeRecordAppService;
 
         
-        public TransactionRevertWorkerBase(AbpAsyncTimer timer, IServiceScopeFactory serviceScopeFactory,
+        public TransactionRevertWorker(AbpAsyncTimer timer, IServiceScopeFactory serviceScopeFactory,
             ITradePairAppService tradePairAppService, IChainAppService chainAppService,
             IGraphQLProvider graphQlProvider,
             IOptionsMonitor<WorkerOptions> optionsMonitor,
             ILogger<AwakenServerWorkerBase> logger,
             ILiquidityAppService liquidityService,
-            ITradeRecordAppService tradeRecordAppService)
-            : base(timer, serviceScopeFactory, optionsMonitor, graphQlProvider, chainAppService, logger)
+            ITradeRecordAppService tradeRecordAppService,
+            IOptions<ChainsInitOptions> chainsOption)
+            : base(timer, serviceScopeFactory, optionsMonitor, graphQlProvider, chainAppService, logger, chainsOption)
         {
             _chainAppService = chainAppService;
             _graphQlProvider = graphQlProvider;
@@ -52,7 +53,7 @@ namespace AwakenServer.Worker
             {
                 await _tradeRecordAppService.RevertTradeRecordAsync(chain.Id);
                 await _liquidityService.RevertLiquidityAsync(chain.Id);
-                await _tradePairAppService.RevertTradePairAsync(chain.Id, _workerOptions.QueryOnceLimit);
+                await _tradePairAppService.RevertTradePairAsync(chain.Id);
             }
         }
     }
