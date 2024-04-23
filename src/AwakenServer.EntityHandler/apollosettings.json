@@ -1,8 +1,8 @@
 {
   "apollo": {
-    "AppId": "awaken-server",   
-    "MetaServer": 
-      "http://192.168.66.212:8080,http://192.168.66.160:8080",
+    "AppId": "awaken-server",
+    "MetaServer":
+    "http://192.168.66.212:8080,http://192.168.66.160:8080",
     "Namespaces": [
       "test.awaken.entityHandler.json"
     ]

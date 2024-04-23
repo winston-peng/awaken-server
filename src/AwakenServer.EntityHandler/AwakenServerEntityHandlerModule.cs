@@ -27,6 +27,7 @@ using Volo.Abp.EventBus.RabbitMq;
 using Volo.Abp.Modularity;
 using Volo.Abp.Threading;
 using JsonConvert = Newtonsoft.Json.JsonConvert;
+using LogLevel = Com.Ctrip.Framework.Apollo.Logging.LogLevel;
 
 namespace AwakenServer.EntityHandler;
 
