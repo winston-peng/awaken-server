@@ -521,7 +521,7 @@ namespace AwakenServer.Trade
                     token.Id,
                     token.ChainId, token.Symbol, token.Decimals);
 
-                return tokenInfo;
+                return token;
             }
 
             return tokenDto;
