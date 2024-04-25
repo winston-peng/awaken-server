@@ -61,10 +61,16 @@ public class TradePairEventSyncWorker : AwakenServerWorkerBase
             var token1 = await _tradePairAppService.SyncTokenAsync(pair.ChainId, pair.Token1Symbol, chain);
             pair.Token0Id = token0.Id;
             pair.Token1Id = token1.Id;
-            await _tradePairAppService.SyncPairAsync(pair, chain);
-                
-            _logger.LogInformation("Syncing {pairId}/{pairAddress} on {chainName}, {Token0Symbol}/{Token1Symbol} done",
-                pair.Id, pair.Address, chain, pair.Token0Symbol, pair.Token1Symbol);
+            if (await _tradePairAppService.SyncPairAsync(pair, chain))
+            {
+                _logger.LogInformation("Syncing {pairId}/{pairAddress} on {chainName}, {Token0Symbol}/{Token1Symbol} done",
+                    pair.Id, pair.Address, chain, pair.Token0Symbol, pair.Token1Symbol);
+            }
+            else
+            {
+                _logger.LogError("Syncing {pairId}/{pairAddress} on {chainName}, {Token0Symbol}/{Token1Symbol} failed",
+                    pair.Id, pair.Address, chain, pair.Token0Symbol, pair.Token1Symbol);
+            }
         }
 
         return blockHeight;

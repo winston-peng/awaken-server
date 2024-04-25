@@ -53,10 +53,8 @@ namespace AwakenServer
                 {
                     build.AddJsonFile("appsettings.json", optional: true);
                 })
-#if !DEBUG
-            .ConfigureAppConfiguration((h, c) => c.AddJsonFile("apollosettings.json"))
-            .UseApollo()
-#endif
+                .ConfigureAppConfiguration((h, c) => c.AddJsonFile("apollosettings.json"))
+                .UseApollo()
                 .UseAutofac()
                 .ConfigureWebHostDefaults(webBuilder =>
                 {

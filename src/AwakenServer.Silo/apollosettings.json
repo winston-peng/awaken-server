@@ -1,10 +1,11 @@
 {
   "apollo": {
-    "AppId": "awaken-server",
+    "UseApollo": false,
+    "AppId": "awaken-server-test",
     "MetaServer":
     "http://192.168.66.212:8080,http://192.168.66.160:8080",
     "Namespaces": [
-      "aelf.awaken.silo.json"
+      "test.awaken.silo.json"
     ]
   }
 }

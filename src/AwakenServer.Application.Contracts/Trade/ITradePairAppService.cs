@@ -29,7 +29,7 @@ namespace AwakenServer.Trade
         Task UpdateTradePairAsync(Guid id);
         Task DeleteManyAsync(List<Guid> ids);
         Task<TokenDto> SyncTokenAsync(string chainId, string symbol, ChainDto chain);
-        Task SyncPairAsync(TradePairInfoDto pair, ChainDto chain);
+        Task<bool> SyncPairAsync(TradePairInfoDto pair, ChainDto chain);
         Task RevertTradePairAsync(string chainId);
     }
 }

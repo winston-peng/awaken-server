@@ -1,12 +1,11 @@
 {
   "apollo": {
-    "AppId": "Awaken_Test4",
-    "ConfigServer": [
-      "http://localhost:8080"
-    ],
+    "UseApollo": false,
+    "AppId": "awaken-server-test",
+    "MetaServer":
+    "http://192.168.66.212:8080,http://192.168.66.160:8080",
     "Namespaces": [
-      "TEST1.HttpApiHost.json"
-    ],
-    "Env": "DEV"
+      "test.awaken.httpApiHost.json"
+    ]
   }
 }

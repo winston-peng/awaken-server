@@ -52,10 +52,8 @@ public class Program
         {
             services.AddApplication<AwakenServerServerOrleansSiloModule>();
         })
-#if !DEBUG
-            .ConfigureAppConfiguration((h, c) => c.AddJsonFile("apollosettings.json"))
-            .UseApollo()
-#endif
+        .ConfigureAppConfiguration((h, c) => c.AddJsonFile("apollosettings.json"))
+        .UseApollo()
         .UseOrleansSnapshot()
         .UseAutofac()
         .UseSerilog();

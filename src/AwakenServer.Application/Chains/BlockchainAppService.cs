@@ -20,7 +20,6 @@ namespace AwakenServer.Chains
 
         public async Task<TokenDto> GetTokenInfoAsync(string chainName, string address, string symbol)
         {
-            
             var provider = _blockchainClientProviderFactory.GetBlockChainClientProvider(chainName);
             return await provider.GetTokenInfoAsync(chainName, address, symbol);
         }
