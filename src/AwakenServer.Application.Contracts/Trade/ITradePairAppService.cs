@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using AwakenServer.Chains;
+using AwakenServer.Tokens;
 using AwakenServer.Trade.Dtos;
 using JetBrains.Annotations;
 using Volo.Abp.Application.Dtos;
@@ -27,7 +28,7 @@ namespace AwakenServer.Trade
         Task CreateSyncAsync(SyncRecordDto dto);
         Task UpdateTradePairAsync(Guid id);
         Task DeleteManyAsync(List<Guid> ids);
-        Task SyncTokenAsync(string chainId, string symbol, ChainDto chain);
+        Task<TokenDto> SyncTokenAsync(string chainId, string symbol, ChainDto chain);
         Task SyncPairAsync(TradePairInfoDto pair, ChainDto chain);
         Task RevertTradePairAsync(string chainId);
     }

@@ -497,7 +497,7 @@ namespace AwakenServer.Trade
             ));
         }
 
-        public async Task SyncTokenAsync(string chainId, string symbol, ChainDto chain)
+        public async Task<TokenDto> SyncTokenAsync(string chainId, string symbol, ChainDto chain)
         {
             var tokenDto = await _tokenAppService.GetAsync(new GetTokenInput
             {
@@ -520,7 +520,11 @@ namespace AwakenServer.Trade
                 _logger.LogInformation("token created: Id:{id},ChainId:{chainId},Symbol:{symbol},Decimal:{decimal}",
                     token.Id,
                     token.ChainId, token.Symbol, token.Decimals);
+
+                return tokenInfo;
             }
+
+            return tokenDto;
         }
 
         public async Task SyncPairAsync(TradePairInfoDto pair, ChainDto chain)
@@ -547,22 +551,24 @@ namespace AwakenServer.Trade
             {
                 ChainId = chain.Id,
                 Symbol = pair.Token0Symbol,
+                Id = pair.Token0Id
             });
             var token1 = await _tokenAppService.GetAsync(new GetTokenInput
             {
                 ChainId = chain.Id,
                 Symbol = pair.Token1Symbol,
+                Id = pair.Token1Id
             });
 
             if (token0 == null)
             {
-                _logger.LogInformation("can not find token {token0Symbol},chainId:{chainId},pairId:{pairId}",
+                _logger.LogError("can not find token {token0Symbol},chainId:{chainId},pairId:{pairId}",
                     pair.Token0Symbol, chain.Id, pair.Id);
             }
 
             if (token1 == null)
             {
-                _logger.LogInformation("can not find token {token1Symbol},chainId:{chainId},pairId:{pairId}",
+                _logger.LogError("can not find token {token1Symbol},chainId:{chainId},pairId:{pairId}",
                     pair.Token1Symbol, chain.Id, pair.Id);
             }
 
