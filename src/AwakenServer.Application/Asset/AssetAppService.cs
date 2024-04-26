@@ -2,14 +2,23 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using AElf.Client.MultiToken;
 using AwakenServer.Chains;
+using AwakenServer.Commons;
+using AwakenServer.Grains.Grain.Asset;
 using AwakenServer.Price;
 using AwakenServer.Provider;
 using AwakenServer.Tokens;
 using AwakenServer.Trade;
+using Google.Protobuf.WellKnownTypes;
+using Microsoft.EntityFrameworkCore.Metadata.Internal;
+using Microsoft.Extensions.Caching.Distributed;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using Orleans;
 using Volo.Abp;
 using Volo.Abp.Application.Services;
+using Volo.Abp.Caching;
 
 namespace AwakenServer.Asset;
 
@@ -21,83 +30,203 @@ public class AssetAppService : ApplicationService, IAssetAppService
     private readonly IPriceAppService _priceAppService;
     private readonly AssetShowOptions _assetShowOptions;
     private readonly IAElfClientProvider _aelfClientProvider;
+    private readonly AssetWhenNoTransactionOptions _assetWhenNoTransactionOptions;
+    private readonly IDistributedCache<UserAssetInfoDto> _userAssetInfoDtoCache;
+    private const string userAssetInfoDtoPrefix = "AwakenServer:Asset:";
+    private readonly IClusterClient _clusterClient;
+    private readonly ILogger<AssetAppService> _logger;
 
     public AssetAppService(IGraphQLProvider graphQlProvider,
         ITokenAppService tokenAppService,
         IPriceAppService priceAppService,
         IOptionsSnapshot<AssetShowOptions> optionsSnapshot,
-        IAElfClientProvider aelfClientProvider)
+        IAElfClientProvider aelfClientProvider,
+        IOptionsSnapshot<AssetWhenNoTransactionOptions> showSymbolsWhenNoTransactionOptions,
+        IDistributedCache<UserAssetInfoDto> userAssetInfoDtoCache, IClusterClient clusterClient,
+        ILogger<AssetAppService> logger)
     {
         _graphQlProvider = graphQlProvider;
         _tokenAppService = tokenAppService;
         _priceAppService = priceAppService;
         _assetShowOptions = optionsSnapshot.Value;
         _aelfClientProvider = aelfClientProvider;
+        _clusterClient = clusterClient;
+        _assetWhenNoTransactionOptions = showSymbolsWhenNoTransactionOptions.Value;
+        _userAssetInfoDtoCache = userAssetInfoDtoCache;
+        _logger = logger;
     }
 
     public async Task<UserAssetInfoDto> GetUserAssetInfoAsync(GetUserAssetInfoDto input)
     {
         var tokenList = await _graphQlProvider.GetUserTokensAsync(input.ChainId, input.Address);
-        var showList = new List<UserTokenInfo>();
-        var hiddenList = new List<UserTokenInfo>();
+        _logger.LogInformation("get user token list from indexer,symbol:{symbol}",
+            tokenList.Select(s => s.Symbol).ToList());
+        if (tokenList == null || tokenList.Count == 0)
+        {
+            return await GetAssetFromCacheOrAElfAsync(input.ChainId, input.Address);
+        }
+
+        var list = new List<UserTokenInfo>();
+
         var symbolList = tokenList.Select(i => i.Symbol).ToList();
-        var symbolPriceMap = (await _priceAppService.GetTokenPriceListAsync(symbolList)).Items.ToDictionary(i => i.Symbol, i => i.PriceInUsd);
+        var symbolPriceMap =
+            (await _priceAppService.GetTokenPriceListAsync(symbolList)).Items.ToDictionary(i => i.Symbol,
+                i => i.PriceInUsd);
         foreach (var userTokenDto in tokenList)
         {
             var userTokenInfo = ObjectMapper.Map<UserTokenDto, UserTokenInfo>(userTokenDto);
-            if (_assetShowOptions.ShowList.Contains(userTokenInfo.Symbol))
-            {
-                showList.Add(userTokenInfo);
-            }
-            else
-            {
-                hiddenList.Add(userTokenInfo);
-            }
+            list.Add(userTokenInfo);
 
-            var tokenDto = await _tokenAppService.GetAsync(new GetTokenInput
-            {
-                Symbol = userTokenInfo.Symbol
-            });
-            if (tokenDto == null)
-            {
-                var tokenInfo = await _aelfClientProvider.GetTokenInfoAsync(input.ChainId, null, userTokenInfo.Symbol);
-                if (tokenInfo == null || tokenInfo.Decimals == 0)
-                {
-                    continue;
-                }
-
-                await _tokenAppService.CreateAsync(new TokenCreateDto
-                {
-                    Symbol = userTokenInfo.Symbol,
-                    Address = tokenInfo.Address,
-                    Decimals = tokenInfo.Decimals,
-                    ChainId = input.ChainId
-                });
-                tokenDto = new TokenDto
-                {
-                    Decimals = tokenInfo.Decimals
-                };
-            }
-            userTokenInfo.Amount = userTokenInfo.Balance.ToDecimalsString(tokenDto.Decimals);
-            userTokenInfo.PriceInUsd =
-                ((long) (userTokenInfo.Balance * symbolPriceMap.GetValueOrDefault(userTokenDto.Symbol)))
-                .ToDecimalsString(tokenDto.Decimals);
+            await SetUserTokenInfoAsync(userTokenInfo, symbolPriceMap.GetValueOrDefault(userTokenDto.Symbol));
         }
 
-        if (showList.Count + hiddenList.Count <= 6)
-        {
-            showList = showList.Concat(hiddenList).ToList();
-            hiddenList.Clear();
-        }
+        await AddNftTokenInfoAsync(list, input.ChainId, input.Address);
 
-        showList = showList.OrderByDescending(o => Double.Parse(o.PriceInUsd)).ToList();
-        hiddenList = hiddenList.OrderByDescending(o => Double.Parse(o.PriceInUsd)).ToList();
+
+        return await FilterListAsync(list);
+    }
+
+    private async Task<UserAssetInfoDto> FilterListAsync(List<UserTokenInfo> list)
+    {
+        var showList = new List<UserTokenInfo>();
+        showList = list.Where(o => o.PriceInUsd != null).Where(o => o.Balance > 0)
+            .OrderByDescending(o => Double.Parse(o.PriceInUsd)).ThenBy(o => o.Symbol).ToList();
 
         return new UserAssetInfoDto()
         {
             ShowList = showList,
-            HiddenList = hiddenList
+            HiddenList = new List<UserTokenInfo>()
         };
+    }
+
+    private async Task AddNftTokenInfoAsync(List<UserTokenInfo> list, string chainId, string address)
+    {
+        var userTokenInfosDic = list.ToDictionary(key => key.Symbol);
+        foreach (var nftSymbol in _assetShowOptions.NftList)
+        {
+            if (!userTokenInfosDic.ContainsKey(nftSymbol))
+            {
+                var balanceOutput = await _aelfClientProvider.GetBalanceAsync(chainId, address,
+                    _assetWhenNoTransactionOptions.ContractAddressOfGetBalance[chainId], nftSymbol);
+
+                if (balanceOutput.Balance == 0)
+                {
+                    continue;
+                }
+
+                _logger.LogInformation("get balance,token:{token},balance:{balance}", nftSymbol, balanceOutput.Balance);
+                if (balanceOutput != null)
+                {
+                    var userTokenInfo = new UserTokenInfo()
+                    {
+                        Balance = balanceOutput.Balance,
+                        Symbol = balanceOutput.Symbol,
+                        ChainId = chainId,
+                        Address = address,
+                    };
+                    await SetUserTokenInfoAsync(userTokenInfo, 0);
+                    list.Add(userTokenInfo);
+                }
+            }
+        }
+    }
+
+    private async Task<UserAssetInfoDto> GetAssetFromCacheOrAElfAsync(string chainId, string address)
+    {
+        var symbolPriceMap =
+            (await _priceAppService.GetTokenPriceListAsync(_assetWhenNoTransactionOptions.Symbols)).Items
+            .ToDictionary(
+                i => i.Symbol,
+                i => i.PriceInUsd);
+
+        var userAsset = await _userAssetInfoDtoCache.GetAsync($"{userAssetInfoDtoPrefix}:{chainId}:{address}");
+        if (userAsset != null)
+        {
+            return userAsset;
+        }
+
+
+        var list = new List<UserTokenInfo>();
+        foreach (var symbol in _assetWhenNoTransactionOptions.Symbols)
+        {
+            var balanceOutput = await _aelfClientProvider.GetBalanceAsync(chainId, address,
+                _assetWhenNoTransactionOptions.ContractAddressOfGetBalance[chainId], symbol);
+            if (balanceOutput != null)
+            {
+                var userTokenInfo = new UserTokenInfo()
+                {
+                    Balance = balanceOutput.Balance,
+                    Symbol = balanceOutput.Symbol,
+                    ChainId = chainId,
+                    Address = address
+                };
+                list.Add(userTokenInfo);
+
+                await SetUserTokenInfoAsync(userTokenInfo, symbolPriceMap.GetValueOrDefault(userTokenInfo.Symbol));
+            }
+        }
+
+
+        await AddNftTokenInfoAsync(list, chainId, address);
+
+        var result = await FilterListAsync(list);
+
+
+        await _userAssetInfoDtoCache.SetAsync($"{userAssetInfoDtoPrefix}:{chainId}:{address}", result,
+            new DistributedCacheEntryOptions
+            {
+                AbsoluteExpiration =
+                    DateTimeOffset.UtcNow.AddMinutes(_assetWhenNoTransactionOptions.ExpireDurationMinutes)
+            });
+        return result;
+    }
+
+
+    public async Task SetUserTokenInfoAsync(UserTokenInfo userTokenInfo, decimal priceInUsd)
+    {
+        var tokenDecimal = await GetTokenDecimalAsync(userTokenInfo.Symbol, userTokenInfo.ChainId);
+
+
+        userTokenInfo.Amount = userTokenInfo.Balance.ToDecimalsString(tokenDecimal);
+
+
+        userTokenInfo.PriceInUsd =
+            ((long)(userTokenInfo.Balance * priceInUsd))
+            .ToDecimalsString(tokenDecimal);
+    }
+
+    public async Task<int> GetTokenDecimalAsync(string symbol, string chainId)
+    {
+        var tokenDto = await _tokenAppService.GetAsync(new GetTokenInput
+        {
+            Symbol = symbol
+        });
+
+        if (tokenDto != null)
+        {
+            return tokenDto.Decimals;
+        }
+
+
+        var tokenInfo =
+            await _aelfClientProvider.GetTokenInfoAsync(chainId, null, symbol);
+        if (tokenInfo == null)
+        {
+            _logger.LogInformation("GetTokenInfo is null:{token}", symbol);
+            return 0;
+        }
+
+
+        await _tokenAppService.CreateAsync(new TokenCreateDto
+        {
+            Symbol = symbol,
+            Address = tokenInfo.Address,
+            Decimals = tokenInfo.Decimals,
+            ChainId = chainId
+        });
+
+
+        return tokenInfo.Decimals;
     }
 
     public async Task<TransactionFeeDto> GetTransactionFeeAsync()
@@ -106,5 +235,38 @@ public class AssetAppService : ApplicationService, IAssetAppService
         {
             TransactionFee = _assetShowOptions.TransactionFee
         };
+    }
+
+    public async Task<CommonResponseDto<Empty>> SetDefaultTokenAsync(SetDefaultTokenDto input)
+    {
+        try
+        {
+            if (!_assetShowOptions.ShowList.Exists(o => o == input.TokenSymbol))
+            {
+                throw new ArgumentException("no support symbol", input.TokenSymbol);
+            }
+
+            var defaultTokenGrain = _clusterClient.GetGrain<IDefaultTokenGrain>(input.Address);
+
+            await defaultTokenGrain.SetTokenAsync(input.TokenSymbol);
+            return new CommonResponseDto<Empty>();
+        }
+        catch (Exception e)
+        {
+            return new CommonResponseDto<Empty>().Error(e);
+        }
+    }
+
+
+    public async Task<DefaultTokenDto> GetDefaultTokenAsync(GetDefaultTokenDto input)
+    {
+        var defaultTokenGrain = _clusterClient.GetGrain<IDefaultTokenGrain>(input.Address);
+
+        var result = defaultTokenGrain.GetAsync();
+
+        var defaultTokenDto = new DefaultTokenDto();
+        defaultTokenDto.TokenSymbol = result.Result.Data.TokenSymbol ?? _assetShowOptions.DefaultSymbol;
+        defaultTokenDto.Address = input.Address;
+        return defaultTokenDto;
     }
 }
