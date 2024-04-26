@@ -41,7 +41,7 @@ public class RevertProvider : IRevertProvider
         _revertOptions = tradeRecordOptions.Value;
     }
     
-    public async Task checkOrAddUnconfirmedTransaction(EventType eventType, string chainId, long blockHeight,
+    public async Task CheckOrAddUnconfirmedTransaction(EventType eventType, string chainId, long blockHeight,
         string transactionHash)
     {
         var unconfirmedTransactionsGrain = _clusterClient.GetGrain<IUnconfirmedTransactionsGrain>(GrainIdHelper.GenerateGrainId(chainId, eventType));
@@ -69,11 +69,6 @@ public class RevertProvider : IRevertProvider
             "got unconfirmed transactions, block height range: {0}-{1}, count: {2}",
             startBlockHeight, confirmedHeight, unconfirmedTransactions.Count());
         
-        _logger.Debug(
-            "got unconfirmed transactions, block height range: {0}-{1}, count: {2}, transaction hash list: {3}",
-            startBlockHeight, confirmedHeight, unconfirmedTransactions.Count(),
-            unconfirmedTransactions);
-
         if (unconfirmedTransactions.Count <= 0)
         {
             return new List<string>();
@@ -100,7 +95,6 @@ public class RevertProvider : IRevertProvider
                 confirmedHeight);
             return new List<string>();
         }
-
         
         var needDeletedTransactions = unconfirmedTransactions
             .Where(unconfirmed => !confirmedTransactionSet.Contains(unconfirmed.TransactionHash)).ToList();
@@ -108,7 +102,7 @@ public class RevertProvider : IRevertProvider
         _logger.LogInformation(
             "need delete transactions, block height range:{0}-{1}, count:{2}, transaction hash list:{3}",
             startBlockHeight, confirmedHeight, needDeletedTransactions.Count(),
-            needDeletedTransactions.Select(s => s).ToList());
+            needDeletedTransactions.Select(s => s.TransactionHash).ToList());
         
         return needDeletedTransactions.Select(dto => dto.TransactionHash).ToList();
     }

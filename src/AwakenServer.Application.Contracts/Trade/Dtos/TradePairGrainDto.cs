@@ -28,8 +28,4 @@ namespace AwakenServer.Trade.Dtos
         public int TradeAddressCount24h { get; set; }
         public double FeePercent7d { get; set; }
     }
-    
-    public class SyncRecordGrainDto : SyncRecordDto
-    {
-    }
 }

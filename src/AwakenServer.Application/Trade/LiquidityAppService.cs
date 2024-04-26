@@ -385,7 +385,7 @@ namespace AwakenServer.Trade
                 return;
             }
 
-            await _revertProvider.checkOrAddUnconfirmedTransaction(EventType.LiquidityEvent, input.ChainId, input.BlockHeight, input.TransactionHash);
+            await _revertProvider.CheckOrAddUnconfirmedTransaction(EventType.LiquidityEvent, input.ChainId, input.BlockHeight, input.TransactionHash);
             
             await UpdateTradePairFieldAsync(input);
             

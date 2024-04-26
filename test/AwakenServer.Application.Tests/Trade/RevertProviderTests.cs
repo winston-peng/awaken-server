@@ -34,52 +34,22 @@ namespace AwakenServer.Trade
         }
 
         [Fact]
-        public async Task TestGetNeedDeleteTransactions1()
+        public async Task TestGetNeedDeleteTransactions_SyncAlreadyConfirmedBlock()
         {
             await _graphQlProvider.SetConfirmBlockHeightAsync(2);
             // block 1 is a confirm block, no need add to may revert cache
-            await _revertProvider.checkOrAddUnconfirmedTransaction(EventType.SwapEvent, ChainId, 1, "A");
+            await _revertProvider.CheckOrAddUnconfirmedTransaction(EventType.SwapEvent, ChainId, 1, "A");
             var needDelete = await _revertProvider.GetNeedDeleteTransactionsAsync(EventType.SwapEvent, ChainId);
             needDelete.Count.ShouldBe(0);
         }
         
         [Fact]
-        public async Task TestGetNeedDeleteTransactions2()
+        public async Task TestGetNeedDeleteTransactions_PartRevert()
         {
             await _graphQlProvider.SetConfirmBlockHeightAsync(0);
-            // block 1 is an unconfirm block, add to may revert cache
-            await _revertProvider.checkOrAddUnconfirmedTransaction(EventType.SwapEvent, ChainId, 1, "A");
-            await _graphQlProvider.SetConfirmBlockHeightAsync(2);
-            // remote can't seach this transaction, need revert
-            var needDelete = await _revertProvider.GetNeedDeleteTransactionsAsync(EventType.SwapEvent, ChainId);
-            needDelete.Count.ShouldBe(1);
-        }
-        
-        [Fact]
-        public async Task TestGetNeedDeleteTransactions3()
-        {
-            await _graphQlProvider.SetConfirmBlockHeightAsync(0);
-            // block 1 is an unconfirm block, add to may revert cache
-            await _revertProvider.checkOrAddUnconfirmedTransaction(EventType.SwapEvent, ChainId, 1, "A");
-            _graphQlProvider.AddSwapRecord(new SwapRecordDto()
-            {
-                ChainId = ChainId,
-                TransactionHash = "A",
-                BlockHeight = 1
-            });
-            await _graphQlProvider.SetConfirmBlockHeightAsync(2);
-            // remote can seach this transaction, need confirm
-            var needDelete = await _revertProvider.GetNeedDeleteTransactionsAsync(EventType.SwapEvent, ChainId);
-            needDelete.Count.ShouldBe(0);
-        }
-
-        [Fact]
-        public async Task TestGetNeedDeleteTransactions4()
-        {
-            await _graphQlProvider.SetConfirmBlockHeightAsync(0);
-            await _revertProvider.checkOrAddUnconfirmedTransaction(EventType.SwapEvent, ChainId, 1, "A");
-            await _revertProvider.checkOrAddUnconfirmedTransaction(EventType.SwapEvent, ChainId, 2, "B");
-            await _revertProvider.checkOrAddUnconfirmedTransaction(EventType.SwapEvent, ChainId, 3, "C");
+            await _revertProvider.CheckOrAddUnconfirmedTransaction(EventType.SwapEvent, ChainId, 1, "A");
+            await _revertProvider.CheckOrAddUnconfirmedTransaction(EventType.SwapEvent, ChainId, 2, "B");
+            await _revertProvider.CheckOrAddUnconfirmedTransaction(EventType.SwapEvent, ChainId, 3, "C");
             _graphQlProvider.AddSwapRecord(new SwapRecordDto()
             {
                 ChainId = ChainId,
@@ -91,6 +61,24 @@ namespace AwakenServer.Trade
             needDelete.Count.ShouldBe(1);
             needDelete[0].ShouldBe("B");
         }
+        
+        [Fact]
+        public async Task TestGetNeedDeleteTransactions_NoNeedRevert()
+        {
+            await _graphQlProvider.SetConfirmBlockHeightAsync(0);
+            // block 1 is an unconfirm block, add to may revert cache
+            await _revertProvider.CheckOrAddUnconfirmedTransaction(EventType.SwapEvent, ChainId, 1, "A");
+            _graphQlProvider.AddSwapRecord(new SwapRecordDto()
+            {
+                ChainId = ChainId,
+                TransactionHash = "A",
+                BlockHeight = 1
+            });
+            await _graphQlProvider.SetConfirmBlockHeightAsync(2);
+            var needDelete = await _revertProvider.GetNeedDeleteTransactionsAsync(EventType.SwapEvent, ChainId);
+            needDelete.Count.ShouldBe(0);
+        }
+
         
         [Fact]
         public async Task TestRevertData()

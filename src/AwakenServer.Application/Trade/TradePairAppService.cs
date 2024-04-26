@@ -520,7 +520,7 @@ namespace AwakenServer.Trade
                     ChainId = chain.Id
                 });
                 
-                _logger.LogInformation("token created: Id:{id}, ChainId:{chainId},Symbol:{symbol},Decimal:{decimal}",
+                _logger.LogInformation("token created: Id:{id}, ChainId:{chainId}, Symbol:{symbol}, Decimal:{decimal}",
                     token.Id,
                     token.ChainId, token.Symbol, token.Decimals);
 
@@ -535,7 +535,7 @@ namespace AwakenServer.Trade
             if (!Guid.TryParse(pair.Id, out var pairId))
             {
                 _logger.LogError(
-                    "pairId is not valid:{pairId},chainName:{chainName},token0:{token0Symbol},token1:{token1Symbol}",
+                    "pairId is not valid: {pairId}, chainName: {chainName}, token0: {token0Symbol}, token1: {token1Symbol}",
                     pair.Id, chain.Name, pair.Token0Symbol, pair.Token1Symbol);
                 return false;
             }
@@ -548,7 +548,7 @@ namespace AwakenServer.Trade
                 return true;
             }
             
-            await _revertProvider.checkOrAddUnconfirmedTransaction(EventType.TradePairEvent, pair.ChainId, pair.BlockHeight, pair.TransactionHash);
+            await _revertProvider.CheckOrAddUnconfirmedTransaction(EventType.TradePairEvent, pair.ChainId, pair.BlockHeight, pair.TransactionHash);
 
             var token0 = await _tokenAppService.GetAsync(new GetTokenInput
             {
@@ -565,13 +565,13 @@ namespace AwakenServer.Trade
 
             if (token0 == null)
             {
-                _logger.LogError("can not find token {token0Symbol},chainId:{chainId},pairId:{pairId}",
+                _logger.LogError("can not find token {token0Symbol}, chainId: {chainId}, pairId: {pairId}",
                     pair.Token0Symbol, chain.Id, pair.Id);
             }
 
             if (token1 == null)
             {
-                _logger.LogError("can not find token {token1Symbol},chainId:{chainId},pairId:{pairId}",
+                _logger.LogError("can not find token {token1Symbol}, chainId:{chainId}, pairId:{pairId}",
                     pair.Token1Symbol, chain.Id, pair.Id);
             }
 
@@ -590,7 +590,7 @@ namespace AwakenServer.Trade
                 TradePairGrainId = tradePairGrain.GetPrimaryKeyString()
             });
             
-            _logger.LogInformation("create pair success Id:{pairId},chainId:{chainId},token0:{token0}," +
+            _logger.LogInformation("create pair success Id: {pairId}, chainId: {chainId}, token0: {token0}," +
                                    "token1:{token1}", pair.Id, chain.Id, pair.Token0Symbol, pair.Token1Symbol);
 
             await CreateTradePairIndexAsync(pair, token0, token1, chain);

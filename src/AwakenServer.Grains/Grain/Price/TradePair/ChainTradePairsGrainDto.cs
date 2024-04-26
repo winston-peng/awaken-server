@@ -1,5 +1,3 @@
-using Nest;
-
 namespace AwakenServer.Grains.Grain.Price;
 
 public class ChainTradePairsGrainDto
