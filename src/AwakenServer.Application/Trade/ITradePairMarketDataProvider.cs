@@ -248,7 +248,6 @@ namespace AwakenServer.Trade
             string chainId,
             Guid tradePairId)
         {
-            
             var grain = _clusterClient.GetGrain<ITradePairGrain>(GrainIdHelper.GenerateGrainId(tradePairId));
             return await grain.GetLatestSnapshotAsync();
         }
