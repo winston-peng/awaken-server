@@ -320,7 +320,7 @@ namespace AwakenServer.Trade
             
             var userLiquidityGrain = _clusterClient.GetGrain<IUserLiquidityGrain>(
                 GrainIdHelper.GenerateGrainId(input.ChainId, input.Address));
-            userLiquidityGrain.AddOrUpdateAsync(dto);
+            await userLiquidityGrain.AddOrUpdateAsync(dto);
             
             var liquidityEvent = new NewLiquidityRecordEvent
             {

@@ -272,7 +272,6 @@ namespace AwakenServer.Trade
                     GrainIdHelper.GenerateGrainId(dto.ChainId, dto.TransactionHash));
             if (await tradeRecordGrain.Exist())
             {
-                _logger.LogInformation("swap event transactionHash existed: {transactionHash}", dto.TransactionHash);
                 return true;
             }
             
