@@ -545,7 +545,11 @@ namespace AwakenServer.Trade
 
             if (existPairResultDto.Success)
             {
-                return true;
+                var tradePairIndex = await _tradePairIndexRepository.GetAsync(Guid.Parse(pair.Id));
+                if (tradePairIndex != null)
+                {
+                    return true;
+                }
             }
             
             await _revertProvider.CheckOrAddUnconfirmedTransaction(EventType.TradePairEvent, pair.ChainId, pair.BlockHeight, pair.TransactionHash);

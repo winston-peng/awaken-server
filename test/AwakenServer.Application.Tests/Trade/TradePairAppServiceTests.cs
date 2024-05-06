@@ -71,7 +71,7 @@ namespace AwakenServer.Trade
             tradePair.FeeRate.ShouldBe(pairDto.FeeRate);
             tradePair.Token0Id.ShouldBe(pairDto.Token0Id);
             tradePair.Token1Id.ShouldBe(pairDto.Token1Id);
-
+            
             var tradePairIndex = await _tradePairIndexRepository.GetAsync(tradePair.Id);
             tradePairIndex.ChainId.ShouldBe(pairDto.ChainId);
             tradePairIndex.Address.ShouldBe(pairDto.Address);
