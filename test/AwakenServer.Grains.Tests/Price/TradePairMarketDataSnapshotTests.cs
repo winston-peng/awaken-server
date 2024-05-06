@@ -1,3 +1,5 @@
+using System;
+using System.Threading.Tasks;
 using AwakenServer.Grains.Grain.Price.TradePair;
 using Shouldly;
 using Xunit;
@@ -26,7 +28,7 @@ public class TradePairMarketDataSnapshotTests : AwakenServerGrainTestBase
         result.Success.ShouldBeFalse();
         
         //add
-        result = await grain.AddOrUpdateAsync(dto);
+        result = await grain.AddOrUpdateAsync(dto, null);
         result.Success.ShouldBeTrue();
         result.Data.ChainId.ShouldBe(dto.ChainId);
         result.Data.TradePairId.ShouldBe(dto.TradePairId);
@@ -43,7 +45,7 @@ public class TradePairMarketDataSnapshotTests : AwakenServerGrainTestBase
         //update
         dto = result.Data;
         dto.TotalSupply = "22.2";
-        await grain.AddOrUpdateAsync(dto);
+        await grain.AddOrUpdateAsync(dto, null);
         result = await grain.GetAsync();
         result.Data.Id.ShouldBe(dto.Id);
         result.Data.TotalSupply.ShouldBe("22.2");

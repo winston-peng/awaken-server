@@ -58,6 +58,8 @@ namespace AwakenServer.EntityHandler
                 {
                     services.AddApplication<AwakenServerEntityHandlerModule>();
                 })
+                .ConfigureAppConfiguration((h, c) => c.AddJsonFile("apollosettings.json"))
+                .UseApollo() 
                 .UseAutofac()
                 .UseSerilog();
     }

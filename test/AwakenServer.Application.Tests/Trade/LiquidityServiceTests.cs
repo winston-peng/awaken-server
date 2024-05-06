@@ -19,6 +19,7 @@ public class LiquidityServiceTests : TradeTestBase
     private readonly MockGraphQLProvider _graphQlProvider;
     private readonly ITradePairMarketDataProvider _tradePairMarketDataProvider;
     private readonly IClusterClient _clusterClient;
+    private readonly ITradePairAppService _tradePairAppService;
 
     public LiquidityServiceTests()
     {
@@ -27,6 +28,7 @@ public class LiquidityServiceTests : TradeTestBase
         _graphQlProvider = GetRequiredService<MockGraphQLProvider>();
         _tradePairMarketDataProvider = GetRequiredService<ITradePairMarketDataProvider>();
         _clusterClient = GetRequiredService<IClusterClient>();
+        _tradePairAppService = GetRequiredService<ITradePairAppService>();
     }
     
     [Fact]
@@ -41,7 +43,7 @@ public class LiquidityServiceTests : TradeTestBase
 
         var inputMint = new LiquidityRecordDto()
         {
-            ChainId = "Ethereum",
+            ChainId = ChainName,
             Pair = "0xPool006a6FaC8c710e53c4B2c2F96477119dA361",
             Address = "0x123456789",
             Timestamp = DateTimeHelper.ToUnixTimeMilliseconds(DateTime.UtcNow),
@@ -85,16 +87,55 @@ public class LiquidityServiceTests : TradeTestBase
     }
 
     [Fact]
+    public async Task CreateLiquidityTypeTest()
+    {
+        var liquidityRecord = new LiquidityRecordDto()
+        {
+            ChainId = ChainName,
+            Pair = "0xPool006a6FaC8c710e53c4B2c2F96477119dA361",
+            Address = "0x123456789",
+            Timestamp = DateTimeHelper.ToUnixTimeMilliseconds(DateTime.UtcNow),
+            Token0Amount = 100,
+            Token1Amount = 1000,
+            LpTokenAmount = 50000,
+            Type = LiquidityType.Mint,
+            TransactionHash = "0xdab24d0f0c28a3be6b59332ab0cb0b4cd54f10f3c1b12cfc81d72e934d74b28f",
+            Channel = "TestChanel",
+            Sender = "0x987654321",
+            BlockHeight = 100
+        };
+        await _liquidityAppService.CreateAsync(liquidityRecord);
+        var tradePairDto = await _tradePairAppService.GetAsync(TradePairEthUsdtId);
+        tradePairDto.TotalSupply.ShouldBe(liquidityRecord.LpTokenAmount.ToDecimalsString(8));
+        
+        liquidityRecord.TransactionHash = "0xdab24d0f0c28a3be6b59332ab0cb0b4cd54f10f3c1b12cfc81d72e934d74b281";
+        liquidityRecord.Type = LiquidityType.Burn;
+        liquidityRecord.LpTokenAmount = 5000;
+        await _liquidityAppService.CreateAsync(liquidityRecord);
+        tradePairDto = await _tradePairAppService.GetAsync(TradePairEthUsdtId);
+        tradePairDto.TotalSupply.ShouldBe("0.00045");
+    }
+
+    [Fact]
     public async Task GetUserLiquidity()
     {
         var liquidityDto = new UserLiquidityDto()
         {
-            ChainId = "Ethereum",
+            ChainId = ChainName,
             Pair = "0xPool006a6FaC8c710e53c4B2c2F96477119dA361",
             Address = "BBB",
             LpTokenAmount = 50000,
         };
         _graphQlProvider.AddUserLiquidity(liquidityDto);
+        
+        await _liquidityAppService.CreateAsync(new LiquidityRecordDto
+        {
+            ChainId = ChainName,
+            Pair = "0xPool006a6FaC8c710e53c4B2c2F96477119dA361",
+            Address = "BBB",
+            LpTokenAmount = 50000,
+        });
+        
         var records = await _liquidityAppService.GetUserLiquidityAsync(new GetUserLiquidityInput()
         {
             ChainId = ChainName,
@@ -119,7 +160,7 @@ public class LiquidityServiceTests : TradeTestBase
     {
         var recordDto1 = new LiquidityRecordDto()
         {
-            ChainId = "Ethereum",
+            ChainId = ChainName,
             Pair = "0xPool006a6FaC8c710e53c4B2c2F96477119dA361",
             Address = "BBB",
             To = "CCC",
@@ -151,7 +192,7 @@ public class LiquidityServiceTests : TradeTestBase
         
         var recordDto2 = new LiquidityRecordDto()
         {
-            ChainId = "Ethereum",
+            ChainId = ChainName,
             Pair = "0xPool006a6FaC8c710e53c4B2c2F96477119dA361",
             Address = "BBB",
             To = "CCC",

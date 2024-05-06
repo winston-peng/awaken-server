@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using AwakenServer.Asset;
+using AwakenServer.Common;
 using AwakenServer.ContractEventHandler.Application;
 using AwakenServer.Grains.Grain.ApplicationHandler;
 using AwakenServer.Tokens;
@@ -41,8 +42,11 @@ public class GraphQLProvider : IGraphQLProvider, ISingletonDependency
         var graphQlResponse = await _graphQLClient.SendQueryAsync<TradePairInfoDtoPageResultDto>(new GraphQLRequest
         {
             Query =
-                @"query($id:String = null ,$chainId:String = null,$address:String = null,$token0Symbol:String = null,$token1Symbol:String = null,$tokenSymbol:String = null,$feeRate:Float!){
-            getTradePairInfoList(getTradePairInfoDto: {id:$id,chainId:$chainId,address:$address,token0Symbol:$token0Symbol,token1Symbol:$token1Symbol,tokenSymbol:$tokenSymbol,feeRate:$feeRate,skipCount:0,maxResultCount:1000}){
+                @"query($id:String = null ,$chainId:String = null,$address:String = null,$token0Symbol:String = null,
+            $token1Symbol:String = null,$tokenSymbol:String = null,$feeRate:Float!,$startBlockHeight:Long!,$endBlockHeight:Long!,$maxResultCount:Int!,$skipCount:Int!){
+            tradePairInfoDtoList:getTradePairInfoList(getTradePairInfoDto: {id:$id,chainId:$chainId,address:$address,token0Symbol:$token0Symbol,
+            token1Symbol:$token1Symbol,tokenSymbol:$tokenSymbol,feeRate:$feeRate,
+            startBlockHeight:$startBlockHeight,endBlockHeight:$endBlockHeight,maxResultCount:$maxResultCount,skipCount:$skipCount}){
             totalCount,
             data {
                 id,
@@ -51,8 +55,11 @@ public class GraphQLProvider : IGraphQLProvider, ISingletonDependency
                 token0Symbol,
                 token1Symbol,
                 feeRate,
-                isTokenReversed   
+                isTokenReversed,
+                blockHeight,
+                transactionHash
             }}}",
+            
             Variables = new
             {
                 id = input.Id,
@@ -62,6 +69,10 @@ public class GraphQLProvider : IGraphQLProvider, ISingletonDependency
                 token1Symbol = input.Token1Symbol,
                 tokenSymbol = input.TokenSymbol,
                 feeRate = input.FeeRate == 0 ? input.FeeRate : 0,
+                startBlockHeight = input.StartBlockHeight,
+                endBlockHeight = input.EndBlockHeight,
+                maxResultCount = input.MaxResultCount,
+                skipCount = input.SkipCount
             }
         });
         
@@ -70,7 +81,7 @@ public class GraphQLProvider : IGraphQLProvider, ISingletonDependency
             ErrorLog(graphQlResponse.Errors);
             return new TradePairInfoDtoPageResultDto
             {
-                GetTradePairInfoList = new TradePairInfoGplResultDto
+                TradePairInfoDtoList = new TradePairInfoGqlResultDto
                 {
                     TotalCount = 0,
                     Data = new List<TradePairInfoDto>()
@@ -78,22 +89,22 @@ public class GraphQLProvider : IGraphQLProvider, ISingletonDependency
             };
         }
         
-         _logger.LogInformation("graphQlResponse:"+graphQlResponse.Data.GetTradePairInfoList.TotalCount);
+        _logger.LogInformation("graphQlResponse: {totalCount}", graphQlResponse.Data.TradePairInfoDtoList.TotalCount);
         
-        if (graphQlResponse.Data.GetTradePairInfoList.TotalCount == 0)
+        if (graphQlResponse.Data.TradePairInfoDtoList.TotalCount == 0)
         {
             return new TradePairInfoDtoPageResultDto
             {
-                GetTradePairInfoList = new TradePairInfoGplResultDto
+                TradePairInfoDtoList = new TradePairInfoGqlResultDto
                 {
                     TotalCount = 0,
                     Data = new List<TradePairInfoDto>()
                 },
             };
         }
-        _logger.LogInformation("total count is {totalCount},data count:{dataCount}", graphQlResponse.Data.GetTradePairInfoList.TotalCount,graphQlResponse.Data.GetTradePairInfoList.Data.Count);
+        _logger.LogInformation("total count is {totalCount},data count:{dataCount}", graphQlResponse.Data.TradePairInfoDtoList.TotalCount,graphQlResponse.Data.TradePairInfoDtoList.Data.Count);
 
-        graphQlResponse.Data.GetTradePairInfoList.Data.ForEach(pair =>
+        graphQlResponse.Data.TradePairInfoDtoList.Data.ForEach(pair =>
         {
             var token0 = _tokenAppService.GetBySymbolCache(pair.Token0Symbol);
             var token1 = _tokenAppService.GetBySymbolCache(pair.Token1Symbol);
@@ -103,16 +114,16 @@ public class GraphQLProvider : IGraphQLProvider, ISingletonDependency
 
         return new TradePairInfoDtoPageResultDto
         {
-            GetTradePairInfoList = new TradePairInfoGplResultDto
+            TradePairInfoDtoList = new TradePairInfoGqlResultDto
             {
-                TotalCount = graphQlResponse.Data.GetTradePairInfoList.TotalCount,
-                Data = graphQlResponse.Data.GetTradePairInfoList.Data
+                TotalCount = graphQlResponse.Data.TradePairInfoDtoList.TotalCount,
+                Data = graphQlResponse.Data.TradePairInfoDtoList.Data
             },
         };
     }
 
     public async Task<List<LiquidityRecordDto>> GetLiquidRecordsAsync(string chainId, long startBlockHeight,
-        long endBlockHeight)
+        long endBlockHeight, int skipCount, int maxResultCount)
     {
         /*if (startBlockHeight > endBlockHeight)
         {
@@ -123,8 +134,8 @@ public class GraphQLProvider : IGraphQLProvider, ISingletonDependency
         var graphQlResponse = await _graphQLClient.SendQueryAsync<LiquidityRecordResultDto>(new GraphQLRequest
         {
             Query =
-                @"query($chainId:String,$startBlockHeight:Long!,$endBlockHeight:Long!){
-            getLiquidityRecords(dto: {chainId:$chainId,startBlockHeight:$startBlockHeight,endBlockHeight:$endBlockHeight})
+                @"query($chainId:String,$startBlockHeight:Long!,$endBlockHeight:Long!,$maxResultCount:Int!,$skipCount:Int!){
+            getLiquidityRecords(dto: {chainId:$chainId,startBlockHeight:$startBlockHeight,endBlockHeight:$endBlockHeight,maxResultCount:$maxResultCount,skipCount:$skipCount})
             {
                 chainId,
                 pair,
@@ -140,15 +151,24 @@ public class GraphQLProvider : IGraphQLProvider, ISingletonDependency
                 sender,
                 type,
                 timestamp,
-                blockHeight,
+                blockHeight
             }}",
             Variables = new
             {
                 chainId,
                 startBlockHeight,
-                endBlockHeight
+                endBlockHeight,
+                maxResultCount,
+                skipCount
             }
         });
+        
+        if (graphQlResponse.Errors != null)
+        {
+            ErrorLog(graphQlResponse.Errors);
+            return new List<LiquidityRecordDto>();
+        }
+        
         if (graphQlResponse.Data.GetLiquidityRecords.IsNullOrEmpty())
         {
             return new List<LiquidityRecordDto>();
@@ -156,7 +176,7 @@ public class GraphQLProvider : IGraphQLProvider, ISingletonDependency
         return graphQlResponse.Data.GetLiquidityRecords;
     }
 
-    public async Task<List<SwapRecordDto>> GetSwapRecordsAsync(string chainId, long startBlockHeight, long endBlockHeight)
+    public async Task<List<SwapRecordDto>> GetSwapRecordsAsync(string chainId, long startBlockHeight, long endBlockHeight, int skipCount, int maxResultCount)
     {
         // if (startBlockHeight > endBlockHeight)
         // {
@@ -167,8 +187,8 @@ public class GraphQLProvider : IGraphQLProvider, ISingletonDependency
         var graphQlResponse = await _graphQLClient.SendQueryAsync<SwapRecordResultDto>(new GraphQLRequest
         {
             Query =
-                @"query($chainId:String,$startBlockHeight:Long!,$endBlockHeight:Long!){
-            getSwapRecords(dto: {chainId:$chainId,startBlockHeight:$startBlockHeight,endBlockHeight:$endBlockHeight})
+                @"query($chainId:String,$startBlockHeight:Long!,$endBlockHeight:Long!,$maxResultCount:Int!,$skipCount:Int!){
+            getSwapRecords(dto: {chainId:$chainId,startBlockHeight:$startBlockHeight,endBlockHeight:$endBlockHeight,maxResultCount:$maxResultCount,skipCount:$skipCount})
             {
                 chainId,
                 pairAddress,
@@ -187,9 +207,16 @@ public class GraphQLProvider : IGraphQLProvider, ISingletonDependency
             {
                 chainId,
                 startBlockHeight,
-                endBlockHeight
+                endBlockHeight,
+                maxResultCount,
+                skipCount
             }
         });
+        if (graphQlResponse.Errors != null)
+        {
+            ErrorLog(graphQlResponse.Errors);
+            return new List<SwapRecordDto>();
+        }
         if (graphQlResponse.Data.GetSwapRecords.IsNullOrEmpty())
         {
             return new List<SwapRecordDto>();
@@ -197,15 +224,15 @@ public class GraphQLProvider : IGraphQLProvider, ISingletonDependency
         return graphQlResponse.Data.GetSwapRecords;
     }
 
-    public async Task<List<SyncRecordDto>> GetSyncRecordsAsync(string chainId, long startBlockHeight, long endBlockHeight)
+    public async Task<List<SyncRecordDto>> GetSyncRecordsAsync(string chainId, long startBlockHeight, long endBlockHeight, int skipCount, int maxResultCount)
     {
 
 
         var graphQlResponse = await _graphQLClient.SendQueryAsync<SyncRecordResultDto>(new GraphQLRequest
         {
             Query =
-                @"query($chainId:String,$startBlockHeight:Long!,$endBlockHeight:Long!){
-            getSyncRecords(dto: {chainId:$chainId,startBlockHeight:$startBlockHeight,endBlockHeight:$endBlockHeight})
+                @"query($chainId:String,$startBlockHeight:Long!,$endBlockHeight:Long!,$maxResultCount:Int!,$skipCount:Int!){
+            getSyncRecords(dto: {chainId:$chainId,startBlockHeight:$startBlockHeight,endBlockHeight:$endBlockHeight,maxResultCount:$maxResultCount,skipCount:$skipCount})
             {
                 chainId,
                 pairAddress,
@@ -214,15 +241,23 @@ public class GraphQLProvider : IGraphQLProvider, ISingletonDependency
                 reserveA,
                 reserveB,
                 timestamp,
-                blockHeight
+                blockHeight,
+                transactionHash
             }}",
             Variables = new
             {
                 chainId,
                 startBlockHeight,
-                endBlockHeight
+                endBlockHeight,
+                maxResultCount,
+                skipCount
             }
         });
+        if (graphQlResponse.Errors != null)
+        {
+            ErrorLog(graphQlResponse.Errors);
+            return new List<SyncRecordDto>();
+        }
         if (graphQlResponse.Data.GetSyncRecords.IsNullOrEmpty())
         {
             return new List<SyncRecordDto>();
@@ -347,11 +382,11 @@ public class GraphQLProvider : IGraphQLProvider, ISingletonDependency
         return graphQLResponse.Data.SyncState.ConfirmedBlockHeight;
     }
 
-    public async Task<long> GetLastEndHeightAsync(string chainId, string type)
+    public async Task<long> GetLastEndHeightAsync(string chainId, WorkerBusinessType type)
     {
         try
         {
-            var grain = _clusterClient.GetGrain<IContractServiceGraphQLGrain>(type + chainId);
+            var grain = _clusterClient.GetGrain<IContractServiceGraphQLGrain>(type.ToString() + chainId);
             return await grain.GetStateAsync();
         }
         catch (Exception e)
@@ -361,11 +396,11 @@ public class GraphQLProvider : IGraphQLProvider, ISingletonDependency
         }
     }
 
-    public async Task SetLastEndHeightAsync(string chainId, string type, long height)
+    public async Task SetLastEndHeightAsync(string chainId, WorkerBusinessType type, long height)
     {
         try
         {
-            var grain = _clusterClient.GetGrain<IContractServiceGraphQLGrain>(type +
+            var grain = _clusterClient.GetGrain<IContractServiceGraphQLGrain>(type.ToString() +
                                                                               chainId);
             await grain.SetStateAsync(height);
         }

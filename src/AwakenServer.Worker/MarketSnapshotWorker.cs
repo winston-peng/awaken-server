@@ -2,18 +2,22 @@ using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using AwakenServer.Chains;
+using AwakenServer.Common;
 using AwakenServer.Provider;
 using AwakenServer.Trade;
 using AwakenServer.Trade.Dtos;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Volo.Abp.BackgroundWorkers;
 using Volo.Abp.Threading;
 
 namespace AwakenServer.Worker;
 
-public class MarketSnapshotWorker : AsyncPeriodicBackgroundWorkerBase
+public class MarketSnapshotWorker : AwakenServerWorkerBase
 {
+    protected override WorkerBusinessType _businessType => WorkerBusinessType.MarketSnapshot;
+    
     private readonly IChainAppService _chainAppService;
     private readonly ITradePairAppService _tradePairAppService;
     private readonly IFlushCacheService _flushCacheService;
@@ -21,13 +25,19 @@ public class MarketSnapshotWorker : AsyncPeriodicBackgroundWorkerBase
 
     public MarketSnapshotWorker(AbpAsyncTimer timer, IServiceScopeFactory serviceScopeFactory,
         IChainAppService chainAppService, ITradePairAppService tradePairAppService,
-        IFlushCacheService flushCacheService, ILogger<MarketSnapshotWorker> logger) : base(timer, serviceScopeFactory)
+        IFlushCacheService flushCacheService, ILogger<AwakenServerWorkerBase> logger,
+        IOptionsMonitor<WorkerOptions> optionsMonitor,
+        IGraphQLProvider graphQlProvider,
+        IOptions<ChainsInitOptions> chainsOption) : base(timer, serviceScopeFactory, optionsMonitor, graphQlProvider, chainAppService, logger, chainsOption)
     {
         _chainAppService = chainAppService;
         _tradePairAppService = tradePairAppService;
         _flushCacheService = flushCacheService;
-        _logger = logger;
-        timer.Period = WorkerOptions.TimePeriod;
+    }
+    
+    public override Task<long> SyncDataAsync(ChainDto chain, long startHeight, long newIndexHeight)
+    {
+        throw new System.NotImplementedException();
     }
 
 

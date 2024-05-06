@@ -6,6 +6,7 @@ using AElf.Indexing.Elasticsearch;
 using AwakenServer.Tokens;
 using AwakenServer.Trade;
 using AwakenServer.Asset;
+using AwakenServer.Common;
 using AwakenServer.Trade.Dtos;
 using Nest;
 using Volo.Abp.DependencyInjection;
@@ -24,7 +25,8 @@ public class MockGraphQLProvider :  IGraphQLProvider, ISingletonDependency
     private readonly IObjectMapper _objectMapper;
     private readonly INESTRepository<TradePairInfoIndex, Guid> _tradePairInfoIndex;
     private readonly ITokenAppService _tokenAppService;
-
+    private long _confirmedBlock;
+    
     public MockGraphQLProvider(IObjectMapper objectMapper, INESTRepository<TradePairInfoIndex, Guid> tradePairInfoIndex,
         ITokenAppService tokenAppService)
     {
@@ -37,13 +39,14 @@ public class MockGraphQLProvider :  IGraphQLProvider, ISingletonDependency
         _objectMapper = objectMapper;
         _tradePairInfoIndex = tradePairInfoIndex;
         _tokenAppService = tokenAppService;
+        _confirmedBlock = 2;
     }
 
     public Task<TradePairInfoDtoPageResultDto> GetTradePairInfoListLocalAsync(GetTradePairsInfoInput input)
     {
         return Task.FromResult(new TradePairInfoDtoPageResultDto
         {
-            GetTradePairInfoList = new TradePairInfoGplResultDto
+            TradePairInfoDtoList = new TradePairInfoGqlResultDto
             {
                 TotalCount = tradePairInfoList.Count,
                 Data = tradePairInfoList,
@@ -81,24 +84,32 @@ public class MockGraphQLProvider :  IGraphQLProvider, ISingletonDependency
         
         return new TradePairInfoDtoPageResultDto
         {
-            GetTradePairInfoList = new TradePairInfoGplResultDto
+            TradePairInfoDtoList = new TradePairInfoGqlResultDto
             {
                 TotalCount = totalCount.Count,
                 Data = _objectMapper.Map<List<TradePairInfoIndex>, List<TradePairInfoDto>>(list.Item2)
             }
         };
     }
-    public async Task<List<LiquidityRecordDto>> GetLiquidRecordsAsync(string chainId, long startBlockHeight, long endBlockHeight)
+    public async Task<List<LiquidityRecordDto>> GetLiquidRecordsAsync(string chainId, long startBlockHeight, long endBlockHeight, int skipCount, int maxResultCount)
     {
         return recordList;
     }
     
-    public async Task<List<SwapRecordDto>> GetSwapRecordsAsync(string chainId, long startBlockHeight, long endBlockHeight)
+    public async Task<List<SwapRecordDto>> GetSwapRecordsAsync(string chainId, long startBlockHeight, long endBlockHeight, int skipCount, int maxResultCount)
     {
-        return swapRecordList;
+        var filteredRecords = swapRecordList
+            .Where(dto => dto.ChainId == chainId &&
+                          dto.BlockHeight >= startBlockHeight &&
+                          dto.BlockHeight <= endBlockHeight)
+            .Skip(skipCount)
+            .Take(maxResultCount)
+            .ToList();
+
+        return filteredRecords;
     }
     
-    public async Task<List<SyncRecordDto>> GetSyncRecordsAsync(string chainId, long startBlockHeight, long endBlockHeight)
+    public async Task<List<SyncRecordDto>> GetSyncRecordsAsync(string chainId, long startBlockHeight, long endBlockHeight, int skipCount, int maxResultCount)
     {
         return syncRecordList;
     }
@@ -108,17 +119,23 @@ public class MockGraphQLProvider :  IGraphQLProvider, ISingletonDependency
        return _userTokenList.Where(q => q.ChainId == chainId && q.Address == address).ToList();
     }
 
+    public async Task<long> SetConfirmBlockHeightAsync(long height)
+    {
+        _confirmedBlock = height;
+        return _confirmedBlock;
+    }
+    
     public async Task<long> GetIndexBlockHeightAsync(string chainId)
     {
-        return 2;
+        return _confirmedBlock;
     }
 
-    public async Task<long> GetLastEndHeightAsync(string chainId, string type)
+    public async Task<long> GetLastEndHeightAsync(string chainId, WorkerBusinessType type)
     {
         return 2;
     }
 
-    public async Task SetLastEndHeightAsync(string chainId, string type, long height)
+    public async Task SetLastEndHeightAsync(string chainId, WorkerBusinessType type, long height)
     {
     }
 

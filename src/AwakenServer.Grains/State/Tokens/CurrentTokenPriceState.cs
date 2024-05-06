@@ -1,3 +1,5 @@
+using System;
+
 namespace AwakenServer.Grains.State.Tokens;
 
 public class CurrentTokenPriceState : TokenPriceBase

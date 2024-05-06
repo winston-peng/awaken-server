@@ -28,6 +28,7 @@ public class LiquidityRecordDto
     public string Sender { get; set; }
     public LiquidityType Type { get; set; }
     public long BlockHeight { get; set; }
+    public bool IsRevert { get; set; }
 }
 
 public class LiquidityRecordResultDto

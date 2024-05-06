@@ -1,3 +1,5 @@
+using System.Threading.Tasks;
+
 namespace AwakenServer.Grains.Grain.Tokens.TokenPrice;
 
 public interface ITokenPriceProvider

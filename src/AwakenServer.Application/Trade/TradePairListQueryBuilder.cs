@@ -20,6 +20,12 @@ public class TradePairListQueryBuilder
         _favoriteAppService = favoriteAppService;
         _mustQueries = new List<Func<QueryContainerDescriptor<Index.TradePair>, QueryContainer>>();
     }
+    
+    public TradePairListQueryBuilder WithNotDeleted()
+    {
+        _mustQueries.Add(q => q.Term(i => i.Field(f => f.IsDeleted).Value(false)));
+        return this;
+    }
 
     public TradePairListQueryBuilder WithChainId(string chainId)
     {
@@ -112,7 +118,7 @@ public class TradePairListQueryBuilder
 
         return this;
     }
-
+    
     public async Task<TradePairListQueryBuilder> WithTradePairFeatureAsync(string chainId, string address,
         TradePairFeature feature)
     {

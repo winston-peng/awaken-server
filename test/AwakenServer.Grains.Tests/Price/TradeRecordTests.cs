@@ -1,3 +1,5 @@
+using System;
+using System.Threading.Tasks;
 using AwakenServer.Grains.Grain.Price.TradePair;
 using AwakenServer.Grains.Grain.Price.TradeRecord;
 using AwakenServer.Trade;
@@ -22,9 +24,10 @@ public class TradeRecordTests : AwakenServerGrainTestBase
             Token0Amount = "10",
             Token1Amount = "20",
             Timestamp = DateTime.Now,
-            Price = 15.5
+            Price = 15.5,
+            TransactionHash = "AAA"
         };
-        var grain = Cluster.Client.GetGrain<ITradeRecordGrain>(dto.Id);
+        var grain = Cluster.Client.GetGrain<ITradeRecordGrain>(dto.TransactionHash);
         //insert
         var result = await grain.InsertAsync(dto);
 

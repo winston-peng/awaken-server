@@ -8,6 +8,9 @@ namespace AwakenServer.Trade.Index
     {
         [Keyword]
         public string TotalSupply { get; set; }
+        [Keyword]
+        public string TransactionHash { get; set; }
+        public bool IsDeleted { get; set; }
         public double Price { get; set; }
         public double PriceUSD { get; set; }
         public double PricePercentChange24h { get; set; }
