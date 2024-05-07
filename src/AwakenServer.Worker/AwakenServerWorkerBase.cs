@@ -88,6 +88,16 @@ public abstract class AwakenServerWorkerBase : AsyncPeriodicBackgroundWorkerBase
             {
                 timer.Stop();
             }
+            
+            foreach (var chain in chainsOption.Value.Chains)
+            {
+                if (_workerOptions.ResetBlockHeightFlag)
+                {
+                    AsyncHelper.RunSync(async () =>
+                        await _graphQlProvider.SetLastEndHeightAsync(chain.Name, _businessType,
+                            _workerOptions.ResetBlockHeight));
+                }
+            }
 
             _logger.LogInformation(
                 "The workerSetting of Worker {BusinessType} has changed to Period = {Period} ms, OpenSwitch = {OpenSwitch}.",
