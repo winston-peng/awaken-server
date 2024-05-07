@@ -2,10 +2,12 @@ using System;
 
 namespace AwakenServer.Trade
 {
-    public class TradeRecord:TradeRecordBase
+    public class TradeRecord : TradeRecordBase
     {
         public Guid TradePairId { get; set; }
-        
+
+        public bool IsRevert { get; set; }
+
         public TradeRecord()
         {
         }

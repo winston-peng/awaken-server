@@ -43,8 +43,8 @@ namespace AwakenServer.Trade.Handlers
             };
             await _eventBus.PublishAsync(eventData);
 
-            var lockName = string.Format("{0}-{1}-{2}", "test",
-                eventData.TradePairId, dateTime.Date.AddHours(dateTime.Hour));
+            var lockName = $"test-{eventData.TradePairId}-{dateTime.Date.AddHours(dateTime.Hour)}";
+            
             Thread.Sleep(3000);
             await _flushCacheService.FlushCacheAsync(new List<string> { lockName });
             Thread.Sleep(1000);

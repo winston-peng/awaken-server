@@ -15,7 +15,7 @@ public class MockDefaultBlockchainClientProviderFactory : IBlockchainClientProvi
 
     public IBlockchainClientProvider GetBlockChainClientProvider(string chainName)
     {
- 
+        
         switch (chainName)
         {
             case "Ethereum":
@@ -23,6 +23,8 @@ public class MockDefaultBlockchainClientProviderFactory : IBlockchainClientProvi
                 return _blockchainClientProviders.LastOrDefault(o => o.ChainType == "Ethereum");
             case "AElfMock":
                 return _blockchainClientProviders.LastOrDefault(o => o.ChainType == "AElfMock");
+            case "tDVV":
+                return _blockchainClientProviders.LastOrDefault(o => o.ChainType == "tDVVMock");
             default:
                 return _blockchainClientProviders.LastOrDefault(o => o.ChainType == "AElf");
         }

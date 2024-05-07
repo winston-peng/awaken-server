@@ -1,3 +1,6 @@
+using System;
+using System.Collections.Generic;
+
 namespace AwakenServer.Grains;
 
 public static class GrainIdHelper

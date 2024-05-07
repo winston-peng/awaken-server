@@ -22,8 +22,8 @@ public class FlushCacheService : ApplicationService, IFlushCacheService
     {
         foreach (var key in cacheKeys)
         {
-            _tradePairMarketDataProvider.FlushTotalSupplyCacheToSnapshotAsync(key);
-            _tradePairMarketDataProvider.FlushTradeRecordCacheToSnapshotAsync(key);
+            // _tradePairMarketDataProvider.FlushTotalSupplyCacheToSnapshotAsync(key);
+            // _tradePairMarketDataProvider.FlushTradeRecordCacheToSnapshotAsync(key);
         }
     }
 }

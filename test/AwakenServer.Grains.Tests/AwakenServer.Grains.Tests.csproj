@@ -31,4 +31,10 @@
         <ProjectReference Include="..\AwakenServer.TestBase\AwakenServer.TestBase.csproj" />
     </ItemGroup>
 
+    <ItemGroup>
+      <Compile Update="AssemblyInfo.cs">
+        <DependentUpon>AwakenServerGrainTestBase.cs</DependentUpon>
+      </Compile>
+    </ItemGroup>
+
 </Project>

@@ -37,6 +37,7 @@ namespace AwakenServer
                 options.NumberOfReplicas = 1;
                 options.NumberOfShards = 1;
                 options.Refresh = Refresh.True;
+                options.IndexPrefix = "awakenservertest";
             });
         }
 
@@ -51,7 +52,7 @@ namespace AwakenServer
                 foreach (var t in types)
                 {
                     AsyncHelper.RunSync(async () =>
-                        await elasticIndexService.DeleteIndexAsync(t.Name.ToLower()));
+                        await elasticIndexService.DeleteIndexAsync("awakenservertest." + t.Name.ToLower()));
                 }
             });
         }

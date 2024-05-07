@@ -13,6 +13,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Moq;
+using Nethereum.Util;
 using Orleans;
 using Orleans.Hosting;
 using Orleans.TestingHost;
@@ -55,9 +56,21 @@ public class ClusterFixture : IDisposable, ISingletonDependency
                 {
                     var mockTokenProvider = new Mock<ITokenPriceProvider>();
                     mockTokenProvider.Setup(o => o.GetPriceAsync(It.IsAny<string>()))
-                        .ReturnsAsync(123);
+                        .Returns<string>(symbol =>
+                        {
+                            switch (symbol)
+                            {
+                                case "ETH":
+                                    return Task.FromResult<decimal>(0);
+                                case "USDT":
+                                    return Task.FromResult<decimal>(1);
+                                default:
+                                    return Task.FromResult<decimal>(123);
+                            }
+                        });
+                    
                     mockTokenProvider.Setup(o => o.GetHistoryPriceAsync(It.IsAny<string>(),It.IsAny<string>()))
-                        .ReturnsAsync(123);
+                        .ReturnsAsync(1);
                     services.AddSingleton<ITokenPriceProvider>(mockTokenProvider.Object);
                     
                     services.AddMemoryCache();

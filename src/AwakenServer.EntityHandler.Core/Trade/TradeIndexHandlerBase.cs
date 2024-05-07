@@ -26,16 +26,18 @@ namespace AwakenServer.EntityHandler.Trade
 
         protected async Task<TradePairWithToken> GetTradePariWithTokenAsync(Guid tradePairId)
         {
-            var pairDto = await TradePairAppService.GetAsync(tradePairId);
             var pairWithToken = new TradePairWithToken();
-            pairWithToken.Id = tradePairId;
-            pairWithToken.Address = pairDto.Address;
-            pairWithToken.FeeRate = pairDto.FeeRate;
-            pairWithToken.IsTokenReversed = pairDto.IsTokenReversed;
-            pairWithToken.ChainId = pairDto.ChainId;
-            pairWithToken.Token0 = ObjectMapper.Map<TokenDto, Token>(pairDto.Token0);
-            pairWithToken.Token1 = ObjectMapper.Map<TokenDto, Token>(pairDto.Token1);
-
+            var pairDto = await TradePairAppService.GetFromGrainAsync(tradePairId);
+            if (pairDto != null)
+            {
+                pairWithToken.Id = tradePairId;
+                pairWithToken.Address = pairDto.Address;
+                pairWithToken.FeeRate = pairDto.FeeRate;
+                pairWithToken.IsTokenReversed = pairDto.IsTokenReversed;
+                pairWithToken.ChainId = pairDto.ChainId;
+                pairWithToken.Token0 = ObjectMapper.Map<TokenDto, Token>(pairDto.Token0);
+                pairWithToken.Token1 = ObjectMapper.Map<TokenDto, Token>(pairDto.Token1);
+            }
             return pairWithToken;
         }
     }

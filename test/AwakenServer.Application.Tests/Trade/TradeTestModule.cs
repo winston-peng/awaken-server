@@ -1,16 +1,17 @@
+using System;
 using System.Collections.Generic;
 using AwakenServer.Applications.GameOfTrust;
 using AwakenServer.Chains;
 using AwakenServer.CMS;
 using AwakenServer.Price;
+using AwakenServer.Provider;
 using AwakenServer.Tokens;
 using AwakenServer.Trade.Dtos;
-using AwakenServer.Web3;
+using AwakenServer.Worker;
 using Microsoft.Extensions.DependencyInjection;
 using Volo.Abp;
 using Volo.Abp.Modularity;
 using Volo.Abp.Threading;
-using MockWeb3Provider = AwakenServer.Price.MockWeb3Provider;
 
 namespace AwakenServer.Trade
 {
@@ -22,14 +23,16 @@ namespace AwakenServer.Trade
         public override void ConfigureServices(ServiceConfigurationContext context)
         {
             context.Services.AddSingleton<IPriceAppService, MockPriceAppService>();
-            context.Services.Configure<TradeRecordOptions>(o =>
+            context.Services.AddSingleton<IRevertProvider, RevertProvider>();
+            context.Services.Configure<TradeRecordRevertWorkerSettings>(o =>
             {
-                o.QueryOnceLimit = 1000;
+                o.QueryOnceLimit = 1;
                 o.BlockHeightLimit = 100;
                 o.RetryLimit = 2;
                 o.TransactionHashExpirationTime = 360;
-                o.RevertTimePeriod = 75000;
+                o.TimePeriod = 75000;
             });
+            
 
             context.Services.Configure<AssetWhenNoTransactionOptions>(o =>
             {
@@ -52,13 +55,25 @@ namespace AwakenServer.Trade
                     "USDT",
                     "BTC"
                 };
+                o.NftList = new List<string>()
+                {
+                    "ELF",
+                    "USDT",
+                    "SGR-1",
+                    "ELEPHANT-1",
+                    "USDC",
+                    "ETH",
+                    "BNB",
+                    "DAI"
+                };
+                o.ShowListLength = 6;
                 o.TransactionFee = 1;
                 o.DefaultSymbol = "BTC";
             });
             context.Services.Configure<StableCoinOptions>(o =>
             {
                 o.Coins = new Dictionary<string, List<Coin>>();
-                o.Coins["Ethereum"] = new List<Coin>
+                o.Coins["tDVV"] = new List<Coin>
                 {
                     new Coin { Address = "0xToken06a6FaC8c710e53c4B2c2F96477119dA361", Symbol = "USDT" },
                     new Coin { Address = "0x06a6FaC8c710e53c4B2c2F96477119dA365", Symbol = "USDC" },
@@ -94,7 +109,7 @@ namespace AwakenServer.Trade
                 o.Coins["BTC"] = new Dictionary<string, Coin>
                 {
                     {
-                        "Ethereum", new Coin
+                        "tDVV", new Coin
                         {
                             Symbol = "BTC",
                             Address = "0xToken06a6FaC8c710e53c4B2c2F96477119dA362"
@@ -117,8 +132,13 @@ namespace AwakenServer.Trade
             });
 
             context.Services.AddSingleton<TestEnvironmentProvider>();
-            context.Services.AddSingleton<IWeb3Provider, MockWeb3Provider>();
-            context.Services.AddSingleton<IBlockchainClientProvider, MockWeb3Provider>();
+            
+            context.Services.AddSingleton<IBlockchainClientProvider, MockEthereumClientProvider>();
+            context.Services.AddSingleton<IBlockchainClientProvider, MockTDVVClientProvider>();
+            context.Services.AddSingleton<IBlockchainClientProvider, MockDefaultClientProvider>(); 
+
+            context.Services.AddSingleton<ITradePairMarketDataProvider, TradePairMarketDataProvider>();
+            context.Services.AddSingleton<ITradeRecordAppService, TradeRecordAppService>();
         }
 
         public override void OnApplicationInitialization(ApplicationInitializationContext context)
@@ -130,7 +150,8 @@ namespace AwakenServer.Trade
 
             var chainEth = AsyncHelper.RunSync(async () => await chainService.CreateAsync(new ChainCreateDto
             {
-                Name = "Ethereum"
+                Id = "tDVV",
+                Name = "tDVV"
             }));
             environmentProvider.EthChainId = chainEth.Id;
             environmentProvider.EthChainName = chainEth.Name;
@@ -170,17 +191,20 @@ namespace AwakenServer.Trade
                 {
                     ChainId = chainEth.Name,
                     Address = "0xPool006a6FaC8c710e53c4B2c2F96477119dA361",
+                    Id = Guid.Parse("3F2504E0-4F89-41D3-9A0C-0305E82C3301"),
                     Token0Id = tokenETH.Id,
                     Token1Id = tokenUSDT.Id,
                     FeeRate = 0.5
                 }));
             environmentProvider.TradePairEthUsdtId = tradePairEthUsdt.Id;
-
+            environmentProvider.TradePairEthUsdtAddress = tradePairEthUsdt.Address;
+            
             var tradePairBtcEth = AsyncHelper.RunSync(async () => await tradePairService.CreateAsync(
                 new TradePairCreateDto
                 {
                     ChainId = chainEth.Name,
                     Address = "0xPool006a6FaC8c710e53c4B2c2F96477119dA362",
+                    Id = Guid.Parse("3D2504E0-4F89-41D3-9A0C-0305E82C3302"),
                     Token0Id = tokenBTC.Id,
                     Token1Id = tokenETH.Id,
                     FeeRate = 0.03,

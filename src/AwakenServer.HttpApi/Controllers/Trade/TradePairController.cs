@@ -40,7 +40,7 @@ namespace AwakenServer.Controllers.Trade
         [Route("by-ids")]
         public virtual Task<ListResultDto<TradePairIndexDto>> GetByIdsAsync(GetTradePairByIdsInput input)
         {
-            return _tradePairAppService.GetByIdsAsync(input);
+            return _tradePairAppService.GetByIdsFromGrainAsync(input);
         }
         
         [HttpGet]

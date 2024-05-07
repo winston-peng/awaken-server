@@ -17,6 +17,7 @@ public class TokenPriceProvider : ITokenPriceProvider, ITransientDependency
     private readonly IRequestLimitProvider _requestLimitProvider;
     private readonly CoinGeckoOptions _coinGeckoOptions;
     private readonly ILogger<TokenPriceProvider> _logger;
+    
 
     public TokenPriceProvider(IRequestLimitProvider requestLimitProvider, IOptionsSnapshot<CoinGeckoOptions> options,
         IHttpClientFactory httpClientFactory, ILogger<TokenPriceProvider> logger)

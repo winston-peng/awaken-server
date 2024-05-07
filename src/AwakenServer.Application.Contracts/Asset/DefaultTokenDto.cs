@@ -1,8 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
-using Nethereum.Util;
-using AElf.Types;
 
 namespace AwakenServer.Asset;
 

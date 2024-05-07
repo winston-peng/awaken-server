@@ -3,6 +3,7 @@ using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using AwakenServer.Chains;
+using AwakenServer.Grains.Grain.Price.TradePair;
 using AwakenServer.Tokens;
 using AwakenServer.Trade.Dtos;
 using Shouldly;
@@ -127,8 +128,21 @@ namespace AwakenServer.Trade
         [Fact]
         public async Task InitPriceTest()
         {
-            await _tradePairMarketDataProvider.UpdateLiquidityAsync(ChainId, TradePairEthUsdtId, DateTime.UtcNow, 10, 10, 2000,
-                100, 1000);
+            await _tradePairMarketDataProvider.AddOrUpdateSnapshotAsync(TradePairEthUsdtId, async grain =>
+            {
+                return await grain.AddOrUpdateSnapshotAsync(new TradePairMarketDataSnapshotGrainDto
+                {
+                    ChainId = ChainId,
+                    TradePairId = TradePairEthUsdtId,
+                    Timestamp = DateTime.UtcNow,
+                    Price = 10,
+                    PriceUSD = 10,
+                    TVL = 2000,
+                    ValueLocked0 = 100,
+                    ValueLocked1 = 1000
+                    
+                });
+            });
 
             var price = await _tokenPriceProvider.GetTokenUSDPriceAsync(ChainId, TokenEthSymbol);
             price.ShouldBe(0);
@@ -148,8 +162,21 @@ namespace AwakenServer.Trade
                 Token1Id = TokenEthId
             });
             
-            await _tradePairMarketDataProvider.UpdateLiquidityAsync(ChainId, pair.Id, DateTime.UtcNow, 0.1, 0.1, 2000,
-                100, 1000);
+            await _tradePairMarketDataProvider.AddOrUpdateSnapshotAsync(pair.Id, async grain =>
+            {
+                return await grain.AddOrUpdateSnapshotAsync(new TradePairMarketDataSnapshotGrainDto
+                {
+                    ChainId = ChainId,
+                    TradePairId =pair.Id,
+                    Timestamp = DateTime.UtcNow,
+                    Price = 0.1,
+                    PriceUSD = 0.1,
+                    TVL = 2000,
+                    ValueLocked0 = 100,
+                    ValueLocked1 = 1000
+                    
+                });
+            });
 
             var price = await _tokenPriceProvider.GetTokenUSDPriceAsync(ChainId, TokenEthSymbol);
             price.ShouldBe(0);

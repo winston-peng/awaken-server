@@ -5,7 +5,6 @@ namespace AwakenServer.Trade
     public class LiquidityRecord : LiquidityRecordBase
     {
         public Guid TradePairId { get; set; }
-        
         public LiquidityRecord()
         {
         }

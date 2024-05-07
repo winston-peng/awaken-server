@@ -2,9 +2,7 @@ using System;
 using AElf.Indexing.Elasticsearch.Options;
 using AwakenServer.Chains;
 using AwakenServer.CoinGeckoApi;
-using AwakenServer.Debits.Options;
 using AwakenServer.EntityFrameworkCore;
-using AwakenServer.Farms.Options;
 using AwakenServer.Grains;
 using AwakenServer.RabbitMq;
 using AwakenServer.Trade;
@@ -14,6 +12,7 @@ using Microsoft.AspNetCore.DataProtection;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Newtonsoft.Json;
 using Orleans;
 using Orleans.Configuration;
 using Orleans.Providers.MongoDB.Configuration;
@@ -27,6 +26,8 @@ using Volo.Abp.Caching.StackExchangeRedis;
 using Volo.Abp.EventBus.RabbitMq;
 using Volo.Abp.Modularity;
 using Volo.Abp.Threading;
+using JsonConvert = Newtonsoft.Json.JsonConvert;
+using LogLevel = Com.Ctrip.Framework.Apollo.Logging.LogLevel;
 
 namespace AwakenServer.EntityHandler;
 
@@ -50,16 +51,16 @@ public class AwakenServerEntityHandlerModule : AbpModule
         ConfigureAuditing();
         ConfigureEsIndexCreation();
         context.Services.AddHostedService<AwakenHostedService>();
-        Configure<FarmOption>(p => { configuration.GetSection("Farm").Bind(p); });
-        Configure<DebitOption>(p => { configuration.GetSection("Debit").Bind(p); });
         ConfigureOrleans(context, configuration);
 
         Configure<ChainsInitOptions>(configuration.GetSection("ChainsInit"));
 
         Configure<ApiOptions>(configuration.GetSection("Api"));
 
-        Configure<TradeRecordOptions>(configuration.GetSection("TradeRecord"));
-
+        Configure<WorkerOptions>(configuration.GetSection("WorkerSettings"));
+        
+        Configure<TradeRecordRevertWorkerSettings>(configuration.GetSection("WorkerSettings:TradeRecordRevert"));
+        
         context.Services.AddMassTransit(x =>
         {
             x.UsingRabbitMq((ctx, cfg) =>
