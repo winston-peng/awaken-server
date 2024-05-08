@@ -8,7 +8,7 @@ env:
   DOTNET_INSTALL_DIR: "./.dotnet"
 
 jobs:
-  build:
+  test:
     runs-on: ubuntu-latest
     permissions:
       pull-requests: write
@@ -24,14 +24,18 @@ jobs:
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '7.0'
-      - name: Verify Elasticsearch connection
-        env:
-          ELASTIC_SEARCH_URL: http://127.0.0.1:${{ job.services.elasticsearch.ports[9200] }}
-        run: |
-          echo $ELASTIC_SEARCH_URL
-          curl -fsSL "$ELASTIC_SEARCH_URL/_cat/health?h=status"
+      #- name: Verify Elasticsearch connection
+      #  env:
+      #    ELASTIC_SEARCH_URL: http://127.0.0.1:${{ job.services.elasticsearch.ports[9200] }}
+      #  run: |
+      #    echo $ELASTIC_SEARCH_URL
+      #    curl -fsSL "$ELASTIC_SEARCH_URL/_cat/health?h=status"
+      - name: Restore
+        run: dotnet restore --verbosity normal
+      - name: Build
+        run: dotnet build --no-restore --verbosity normal
       - name: Test
-        run: dotnet test --verbosity normal --collect:"XPlat Code Coverage" --logger trx --results-directory coverage
+        run: dotnet test --no-restore --no-build --verbosity normal --collect:"XPlat Code Coverage" --logger trx --results-directory coverage
       - name: Code Coverage Summary Report
         uses: irongut/CodeCoverageSummary@v1.3.0
         with:
