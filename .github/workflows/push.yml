@@ -1,4 +1,4 @@
-name: Push pipeline
+name: Test with code coverage
 
 on:
   push:
