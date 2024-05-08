@@ -33,9 +33,9 @@ jobs:
       - name: Restore
         run: dotnet restore --verbosity quiet
       - name: Build
-        run: dotnet build --no-restore /clp:ErrorsOnly /p:GeneratePackageOnBuild=false -p:TestTfmsInParallel=false --verbosity quiet
+        run: dotnet build --no-restore /clp:ErrorsOnly /p:GeneratePackageOnBuild=false --verbosity quiet
       - name: Test
-        run: dotnet test --no-restore --no-build --collect:"XPlat Code Coverage" --logger trx --results-directory coverage
+        run: dotnet test --no-restore --no-build -p:TestTfmsInParallel=false --collect:"XPlat Code Coverage" --logger trx --results-directory coverage
       - name: Code Coverage Summary Report
         uses: irongut/CodeCoverageSummary@v1.3.0
         with:
