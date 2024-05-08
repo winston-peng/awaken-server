@@ -3,7 +3,7 @@
 <RunSettings>
   <DataCollectionRunSettings>
     <DataCollectors>      
-       <DataCollector friendlyName="XPlat code coverage">
+       <DataCollector friendlyName="XPlat Code Coverage">
         <Configuration>
           <Format>cobertura</Format>
           <Exclude>[xunit.*]*,[*Tests]*</Exclude> <!-- [Assembly-Filter]Type-Filter -->
