@@ -37,13 +37,13 @@ jobs:
         run: dotnet build --no-restore /clp:ErrorsOnly /p:GeneratePackageOnBuild=false --verbosity quiet
         
       - name: Test
-        run: dotnet test --no-restore --no-build -p:TestTfmsInParallel=false --collect:"XPlat Code Coverage" --logger trx --results-directory coverage
+        run: dotnet test --no-restore --no-build -p:TestTfmsInParallel=false --collect:"XPlat Code Coverage" --settings CodeCoverage.runsettings --logger trx --results-directory coverage
         
       - name: Upload coverage reports to Codecov
         uses: codecov/codecov-action@v4
         with:
           fail_ci_if_error: true
-          #files: coverage/*/coverage.cobertura.xml
+          files: coverage/*/coverage.cobertura.xml
           #flags: unittests
           #name: codecov-umbrella
           #verbose: true
