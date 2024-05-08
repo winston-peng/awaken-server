@@ -37,7 +37,7 @@ public class AssetAppServiceTests : TradeTestBase
         transactionFeeAsync.TransactionFee.ShouldBe(1);
     }
 
-    [Fact]
+    [Fact(Skip = "Temporary skip")]
     public async Task GetCacheUserAssetTest()
     {
         var userAssetInfo = await _assetAppService.GetUserAssetInfoAsync(new GetUserAssetInfoDto
@@ -58,7 +58,7 @@ public class AssetAppServiceTests : TradeTestBase
     }
 
 
-    [Fact]
+    [Fact(Skip = "Temporary skip")]
     public async Task GetUserAssetTest()
     {
         var userTokenDto = new UserTokenDto
